@@ -1,0 +1,22 @@
+# Dependencies and generated build output
+node_modules/
+dist/
+coverage/
+
+# Generated deployment packages and QA screenshots
+*.zip
+_shots/
+
+# Local secrets and environment-specific files
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Tooling and OS noise
+.DS_Store
+Thumbs.db
+*.log
+npm-debug.log*
+.playwright-cli/

@@ -1,0 +1,30 @@
+import { chromium } from 'playwright';
+const browser = await chromium.launch();
+const page = await browser.newPage({ viewport: { width: 390, height: 844 }, locale: 'tr' });
+const fs = await import('fs'); fs.mkdirSync('/home/user/manager26/_shots', { recursive: true });
+const tap = (l) => l.first().click({ force: true, timeout: 9000 });
+await page.goto(process.env.HM26_BASE_URL ?? 'http://localhost:4173', { waitUntil: 'networkidle' });
+await page.getByRole('button', { name: /Başla|Kayıt Yuvaları/ }).first().click({ force: true });
+await page.getByText(/Yeni Kariyer — Yuva 1/).first().click({ force: true });
+await page.locator('input').first().fill('Görsel Test');
+await page.getByText('Eski Futbolcu').first().click({ force: true }).catch(() => {});
+for (let i = 0; i < 3; i++) await page.getByRole('button', { name: /^Devam$/ }).first().click({ force: true });
+await page.getByText('Denizli Yeşilova').first().click({ force: true });
+await page.getByRole('button', { name: /Kulüp Brifingine Git/ }).first().click({ force: true });
+await page.getByRole('button', { name: /Kariyeri Başlat/ }).first().click({ force: true });
+await page.waitForTimeout(900);
+await page.getByRole('button', { name: 'Anladım' }).first().click({ force: true, timeout: 2500 }).catch(() => {});
+await tap(page.locator('nav[aria-label="Ana gezinme"] button', { hasText: 'Kadro' }));
+await page.waitForTimeout(500);
+// hücum filtresi garanti uyumsuz oyuncu (GK yuvası için)
+await tap(page.locator('button', { hasText: /^Hücum$/ }));
+await page.waitForTimeout(300);
+await tap(page.locator('button', { hasText: /yaş/ }));
+await page.waitForTimeout(400);
+await tap(page.getByRole('button', { name: "İlk 11'e Al" }));
+await page.waitForTimeout(500);
+await tap(page.locator('button[aria-label*="değiştir"][aria-pressed]').nth(0)); // GK yuvası — forvet uyumsuz
+await page.waitForTimeout(800);
+await page.screenshot({ path: '/home/user/manager26/_shots/oop-explain.png' });
+console.log('ss ✓, alert sayısı:', await page.locator('[role="alert"]').count());
+await browser.close();

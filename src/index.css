@@ -1,0 +1,139 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root, html.m26-light {
+  color-scheme: light;
+  -webkit-tap-highlight-color: transparent;
+  /* Yön A "Spor Gazetesi" — ölçülmüş palet (WCAG AA) */
+  --c-base: #FAF5EA;
+  --c-surface: #F4EAD3;
+  --c-elevated: #EDE1C8;
+  --c-line: #E3D9C2;
+  --c-primary: #1D2B23;
+  --c-secondary: #33524A;
+  --c-muted: #5C6B57;
+  --c-accent: #7C4D2E;
+  --c-ok: #2F5D3A;
+  --c-warn: #7C4D2E;
+  --c-danger: #A33A37;
+  --c-info: #3E5F76;
+  --c-special: #5C4D8A;
+  --c-on-accent: #FAF5EA;
+}
+html.m26-dark {
+  color-scheme: dark;
+  --c-base: #091521;
+  --c-surface: #122238;
+  --c-elevated: #182C43;
+  --c-line: #24384F;
+  --c-primary: #F3F1EA;
+  --c-secondary: #AAB6C4;
+  --c-muted: #788899;
+  --c-accent: #D6A34B;
+  --c-ok: #58B987;
+  --c-warn: #E7B75C;
+  --c-danger: #DB6267;
+  --c-info: #5F8FC9;
+  --c-special: #9B7BC9;
+  --c-on-accent: #091521;
+}
+html, body, #root { height: 100%; min-height: 100%; }
+@supports (height: 100dvh) {
+  html, body, #root { height: 100dvh; min-height: 100dvh; }
+}
+body {
+  @apply bg-base text-primary font-body antialiased;
+  overscroll-behavior-y: none;
+  touch-action: manipulation;
+}
+/* Yön A: kâğıt zeminli sıcak gazete hissi (açık tema) */
+.m26-bg {
+  background:
+    radial-gradient(120% 55% at 50% -8%, rgba(124,77,46,0.05), transparent 55%),
+    radial-gradient(90% 50% at 100% 108%, rgba(47,93,58,0.045), transparent 60%),
+    var(--c-base);
+}
+/* Karanlık tema (maç ekranı ya da kullanıcı tercihi) */
+html.m26-dark .m26-bg {
+  background:
+    radial-gradient(120% 60% at 50% -10%, rgba(124,77,46,0.05), transparent 55%),
+    radial-gradient(90% 50% at 100% 110%, rgba(95,143,201,0.06), transparent 60%),
+    var(--c-base);
+}
+.font-display { font-family: Georgia, 'Times New Roman', serif; letter-spacing: 0.01em; }
+.num { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-variant-numeric: tabular-nums; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+.safe-b { padding-bottom: env(safe-area-inset-bottom, 0px); }
+.safe-t { padding-top: env(safe-area-inset-top, 0px); }
+/* 320px desteği: taşma önleme */
+* { min-width: 0; }
+@keyframes m26fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.m26-in { animation: m26fade 220ms ease-out both; }
+@keyframes m26pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.45; } }
+.m26-pulse { animation: m26pulse 1.6s ease-in-out infinite; }
+
+/* §6.3 Konfor: metin boyutu / yüksek kontrast / azaltılmış hareket */
+html[data-text-size="kucuk"] { font-size: 14px; }
+html[data-text-size="normal"] { font-size: 16px; }
+html[data-text-size="buyuk"] { font-size: 18px; }
+/* §6.3 Yüksek kontrast: açık temada max okunabilirlik */
+html.m26-hc {
+  --c-primary: #141C17; --c-secondary: #1D2B23;
+  --c-line: #8A7F66;
+}
+html.m26-hc .text-muted { color: #3D4A3C; }
+html.m26-dark.m26-hc {
+  --c-primary: #FFFFFF; --c-secondary: #F3F1EA; --c-line: #8A8F9E;
+}
+html.m26-dark.m26-hc .text-muted { color: #B6BAC4; }
+html.m26-rm *, html.m26-rm *::before, html.m26-rm *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}
+
+/* v0.9.8 GameIcon çift renk PNG: tema sınıfına göre gösterim (açık tema=koyu yeşil ikon, koyu tema=krem ikon; SVG fallback currentColor ile otomatik uyumlu) */
+html:not(.m26-dark) .gi-ivory { display: none; }
+html.m26-dark .gi-dark { display: none; }
+
+/* Wave 9 · Yerel Lig Romantizmi — keyboard-visible controls and shared type rhythm */
+:where(button, a, input, select, textarea, [role="button"], [role="switch"], [tabindex]:not([tabindex="-1"])):focus-visible {
+  outline: 3px solid var(--c-accent);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 2px var(--c-base);
+}
+button { -webkit-tap-highlight-color: transparent; }
+.m26-overline {
+  color: var(--c-muted);
+  font-size: 12px;
+  font-weight: 750;
+  letter-spacing: .08em;
+  line-height: 1.25;
+  text-transform: uppercase;
+}
+.m26-page-title {
+  color: var(--c-primary);
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: clamp(1.35rem, 4vw, 1.75rem);
+  font-weight: 700;
+  letter-spacing: .01em;
+  line-height: 1.12;
+}
+.m26-panel-shadow { box-shadow: 0 8px 22px rgb(29 43 35 / 7%); }
+html.m26-dark .m26-panel-shadow { box-shadow: 0 12px 28px rgb(0 0 0 / 24%); }
+html.m26-dark { scrollbar-color: #40566b #122238; }
+html.m26-light { scrollbar-color: #b9ab8c #f4ead3; }
+@media (prefers-reduced-motion: reduce) {
+  html:not(.m26-rm) *, html:not(.m26-rm) *::before, html:not(.m26-rm) *::after {
+    scroll-behavior: auto !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+}
+@media (max-height: 700px) {
+  .m26-compact-short { gap: .5rem !important; }
+  .m26-compact-short > * { flex-shrink: 0; }
+}

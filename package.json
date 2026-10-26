@@ -1,0 +1,51 @@
+{
+  "name": "manager26",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build && node tools/inject-sw-manifest.mjs",
+    "preview": "vite preview",
+    "qa:features": "tsx tools/qa-features-v099.ts",
+    "qa:e2e:live": "node tools/e2e-live-v0911.mjs",
+    "qa:match-core": "tsx tools/qa-match-core-foundation.ts",
+    "qa:match-core:wave2": "tsx tools/qa-match-core-wave2.ts",
+    "qa:match-core:wave3": "tsx tools/qa-match-core-wave3.ts",
+    "qa:match-core:wave4": "tsx tools/qa-match-core-wave4.ts",
+    "qa:match-core:wave5": "tsx tools/qa-match-core-wave5.ts",
+    "qa:match-core:wave6": "tsx tools/qa-match-core-wave6.ts",
+    "qa:match-core:wave7": "tsx tools/qa-match-core-wave7.ts",
+    "qa:match-core:wave8": "tsx tools/qa-match-core-wave8.ts",
+    "qa:match-core:wave8:balance": "tsx tools/qa-match-core-wave8-balance.ts",
+    "qa:match-core:challenge-score": "tsx tools/qa-match-core-challenge-score.ts",
+    "qa:match-core:challenge-balance": "tsx tools/qa-match-core-challenge-balance.ts",
+    "qa:match-core:evidence-insights": "tsx tools/qa-match-core-evidence-insights.ts",
+    "qa:ui:wave9": "tsx tools/qa-ui-wave9.tsx",
+    "qa:live:wave10": "tsx tools/qa-live-projection-wave10.ts",
+    "qa:transfer:wave11": "tsx tools/qa-transfer-wave11.ts",
+    "qa:academy:wave12": "tsx tools/qa-academy-wave12.ts",
+    "qa:newsroom:wave13": "tsx tools/qa-newsroom-wave13.ts",
+    "qa:culture:wave14": "tsx tools/qa-culture-wave14.ts",
+    "qa:international:wave15": "tsx tools/qa-international-wave15.ts",
+    "qa:market-improvements": "tsx tools/qa-market-improvements.ts",
+    "qa:all": "node tools/qa-all.mjs"
+  },
+  "dependencies": {
+    "phaser": "^3.90.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
+    "playwright": "^1.64.1",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17",
+    "tsx": "^4.23.15",
+    "typescript": "^5.7.3",
+    "vite": "^5.4.11"
+  }
+}

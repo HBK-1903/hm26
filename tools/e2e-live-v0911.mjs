@@ -1,0 +1,106 @@
+// HM26 v0.9.13 — canlı maç konsolu, şut haritası ve taktiksel röntgen E2E
+import { chromium } from 'playwright';
+const browser = await chromium.launch();
+const page = await browser.newPage({ viewport: { width: 390, height: 844 }, locale: 'tr' });
+let fail = 0, total = 0;
+const ok = (n, c, x = '') => { total++; console.log((c ? '✅ ' : '❌ ') + n + (x ? ` | ${x}` : '')); if (!c) fail++; };
+const tap = (l) => l.first().click({ force: true, timeout: 9000 });
+
+await page.goto('http://localhost:4173', { waitUntil: 'networkidle' });
+await page.getByRole('button', { name: /Başla|Kayıt Yuvaları/ }).first().click({ force: true });
+await page.getByText(/Yeni Kariyer — Yuva 1/).first().click({ force: true });
+await page.locator('input').first().fill('Motor Testi');
+await page.getByText('Eski Futbolcu').first().click({ force: true }).catch(() => {});
+for (let i = 0; i < 6; i++) {
+  if (await page.getByText('Denizli Yeşilova').count()) break;
+  await page.getByRole('button', { name: /^Devam$/ }).first().click({ force: true });
+  await page.waitForTimeout(400);
+}
+await page.getByText('Denizli Yeşilova').first().click({ force: true });
+await page.getByRole('button', { name: /Kulüp Brifingine Git/ }).first().click({ force: true });
+await page.getByRole('button', { name: /Kariyeri Başlat/ }).first().click({ force: true });
+await page.waitForTimeout(1100);
+await page.getByRole('button', { name: 'Anladım' }).first().click({ force: true, timeout: 2500 }).catch(() => {});
+for (let d = 0; d < 10; d++) {
+  await page.getByRole('button', { name: /Sonraki Gün/ }).first().click({ force: true }).catch(() => {});
+  await page.waitForTimeout(550);
+  const sb = page.getByRole('button', { name: /^Tamam$|^Devam$/ }).last();
+  if (await sb.count()) { await sb.click({ force: true }).catch(() => {}); await page.waitForTimeout(300); }
+  if (/0 gün kaldı|Maç günü|MAÇ GÜNÜ/i.test(await page.locator('body').textContent())) break;
+}
+await page.getByRole('button', { name: /Maç Merkezine Git/ }).first().click({ force: true, timeout: 8000 });
+await page.waitForTimeout(800);
+await page.getByRole('button', { name: /Maça Başla/ }).first().click({ force: true });
+await page.waitForTimeout(1300);
+const liveText = await page.locator('body').innerText();
+ok('B1 sabit skorbug xG/şut/isabet/korner metrikleri', ['xG', 'ŞUT', 'İSABET', 'KORNER'].every((x) => liveText.includes(x)) && await page.getByRole('button', { name: 'Maçı duraklat' }).count() === 1);
+ok('B2 süre ve hız kontrolleri sabit skorbugda', await page.getByRole('group', { name: 'Maç oynatma hızı' }).getByRole('button').count() === 4 && /\d+:\d+/.test(liveText));
+const tablist = page.getByRole('tablist', { name: 'Maç konsolu sekmeleri' });
+ok('B3 altı erişilebilir konsol sekmesi', await tablist.getByRole('tab').count() === 6);
+await page.getByRole('button', { name: 'Kenar Talimatı' }).click({ force: true });
+let panelText = await page.locator('body').innerText();
+ok('B4 dağınık komutlar Kenar Talimatı sheet’inde', /Yüklenin/.test(panelText) && /Tempoyu düşür/.test(panelText) && /Karar bekleniyor/.test(panelText) && ['Skoru koru', 'Dengeli', 'Hücum', 'Tam hücum'].every((x) => panelText.includes(x)));
+const hapticsSwitch = page.getByRole('switch', { name: 'Maç haptikleri' });
+const hapticsInitial = await hapticsSwitch.getAttribute('aria-checked');
+await hapticsSwitch.click({ force: true });
+const hapticsOff = await hapticsSwitch.getAttribute('aria-checked') === 'false';
+await hapticsSwitch.click({ force: true });
+const hapticsRestored = await hapticsSwitch.getAttribute('aria-checked') === hapticsInitial;
+ok('W3 haptik tercihi değiştirilebilir ve aynı oturumda geri yüklenebilir', hapticsInitial === 'true' && hapticsOff && hapticsRestored);
+await page.emulateMedia({ reducedMotion: 'reduce' });
+await hapticsSwitch.click({ force: true });
+const reducedMotionNote = /Azaltılmış hareket ayarı titreşimi engelliyor/.test(await page.locator('body').innerText());
+await hapticsSwitch.click({ force: true });
+await page.emulateMedia({ reducedMotion: 'no-preference' });
+await hapticsSwitch.click({ force: true }); await hapticsSwitch.click({ force: true });
+ok('W3 sistem azaltılmış-hareket tercihi titreşimi engeller', reducedMotionNote);
+await page.getByText('Kapat', { exact: true }).last().click({ force: true });
+await page.getByRole('tab', { name: 'Reytingler ve Karne' }).click({ force: true });
+ok('B5 canlı reyting sekmesi 22 ilk-11 oyuncusunu içeriyor', /Canlı Reytingler & Karne/.test(await page.locator('body').innerText()) && await page.getByText(/Kond\./).count() >= 10);
+await page.getByRole('tab', { name: 'Analiz ve Şut Haritası' }).click({ force: true });
+ok('B6 analiz sekmesinde gerçek şut haritası ve kanal özeti var', await page.getByRole('img', { name: /Canlı şut haritası/ }).count() === 1 && /Sol \d+%/.test(await page.locator('body').innerText()));
+await page.getByRole('tab', { name: 'Canlı Puan Durumu' }).click({ force: true });
+ok('B7 canlı tablo geçici/projeksiyon etiketi taşıyor', /KAYDEDİLMEDİ/.test(await page.locator('body').innerText()) && /geçici|lig puanlarını değiştirmez/.test(await page.locator('body').innerText()));
+await page.getByRole('tab', { name: 'Canlı Saha' }).click({ force: true });
+const heatButton = page.getByRole('button', { name: /Isı Haritası/ });
+await heatButton.click({ force: true });
+ok('B8 gerçek possession verisi ısı haritası kontrolü', await heatButton.getAttribute('aria-pressed') === 'true');
+const canvas = page.locator('canvas').first();
+const canvasCount = await page.locator('canvas').count();
+ok('B9 Phaser saha canvas oluşturuldu', canvasCount >= 1, `canvas=${canvasCount}`);
+const canvasLabel = await canvas.getAttribute('aria-label');
+ok('B10 Canlı saha canvas erişilebilir ad taşıyor', canvasCount >= 1 && /Canlı futbol sahası/.test(canvasLabel ?? ''), `label=${canvasLabel ?? 'yok'}`);
+await page.screenshot({ path: '_shots/v0913-live-active.png' });
+await page.getByRole('button', { name: '4 kat hız' }).click({ force: true });
+await page.getByRole('tab', { name: 'Spiker ve Maç Günlüğü' }).click({ force: true });
+await page.waitForTimeout(2500);
+const early = await page.locator('[role="log"][aria-label="Maç olay akışı"] > div > div.flex').allTextContents();
+await page.waitForTimeout(12500); // 4x: ~90msn → ~devre
+
+const lines = await page.locator('[role="log"][aria-label="Maç olay akışı"] > div > div.flex').allTextContents();
+ok('C1 Akış: ilk devre sonunda ≥12 olay', lines.length >= 12, `satir=${lines.length}`);
+ok('C2 Akış: "Maç başladı" açılış satırı mevcut (ilk 3sn)', early.some((t) => /Maç başladı/.test(t)));
+const namePat = /[A-ZÇĞİÖŞÜ][a-zçğıöşü]{2,}/;
+const infoLines = lines.filter((t) => !/Maç başladı|devam ediyor|Yayın/.test(t));
+const named = infoLines.filter((t) => namePat.test(t.replace(/^\s*\|'?\d+'?\s*/, '')));
+ok('C3 Akış: info/danger olaylarının ≥%55\'i oyuncu adı içeriyor', named.length / Math.max(1, infoLines.length) >= 0.55, `${named.length}/${infoLines.length}`);
+ok('C4 Akış: pas zinciri veya pozisyon-anlatımı mevcut (→ / bindirdi / oyunu çevirdi / baskı altında)', lines.some((t) => /→|bindirdi|oyunu çevirdi|baskı altında|ortaya hareketlendi|ekarte/.test(t)));
+ok('C5 Akış: "undefined" veya bozuk metin yok', !lines.some((t) => /undefined|NaN|\[object/.test(t)));
+const selfSwitch = lines.filter((t) => { const m = t.match(/(\w+) oyunu çevirdi — (\w+) ters kanatta/); return m && m[1] === m[2]; });
+ok('C6 Akış: kendi-kendine "oyunu çevirdi" artığı yok', selfSwitch.length === 0, selfSwitch[0] ?? '');
+const uniq = new Set(lines.map((t) => t.replace(/^\d+'\s*/, '')));
+ok('C7 Akış: şablon çeşitliliği — 12 satırda ≥6 farklı metin', uniq.size >= Math.min(6, lines.length), `tekil=${uniq.size}/${lines.length}`);
+await page.getByText('Devre Arası · Soyunma Odası', { exact: true }).waitFor({ timeout: 12000 });
+const talkChoices = await Promise.all(['Hırs ver', 'Sakinleştir', 'Sessiz kal'].map(async (name) => await page.getByRole('button', { name: new RegExp(name) }).count() > 0)).then((values) => values.every(Boolean));
+ok('W3 devre arası tek-seferlik takım konuşması üç karar sunuyor', talkChoices);
+await page.getByRole('button', { name: /Sakinleştir/ }).click({ force: true });
+await page.waitForTimeout(350);
+const talkFeed = await page.locator('[role="log"][aria-label="Maç olay akışı"]').innerText();
+ok('W3 seçilen konuşma maç günlüğüne tek kez yazılır ve oyun devam eder', /sakin konuşma seçildi/.test(talkFeed) && await page.getByText('Devre Arası · Soyunma Odası', { exact: true }).count() === 0);
+console.log('='.repeat(60));
+lines.slice(0, 20).forEach((t) => console.log('  ' + t.replace(/\s+/g, ' ').slice(0, 110)));
+console.log('='.repeat(60));
+await page.screenshot({ path: '_shots/c-live-narration.png' });
+console.log(`\nE2E-LIVE-V0913: ${total - fail}/${total} geçti${fail ? ` — ${fail} BAŞARISIZ` : ''}`);
+await browser.close();
+process.exit(fail ? 1 : 0);

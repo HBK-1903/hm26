@@ -1,0 +1,198 @@
+// HM26 — Aşama 0 kapsam notu olan yardımcı ekranlar (§5.17 Ayarlar / Yedekleme / Kariyer Profili brifingi)
+import React, { useState } from 'react';
+import { useGame } from '../store/game';
+import { Card, Badge, Btn, Seg } from '../components/ui/kit';
+import { Crest } from '../components/assets/Crest';
+import { ManagerPortrait } from '../components/assets/Portrait';
+import { GameIcon } from '../components/icons';
+import { MANAGER_BACKGROUNDS, ERAS, DIFFICULTIES } from '../data/meta';
+import { CareerSettings } from '../types';
+import { applyTheme, loadTheme, ThemePref } from '../utils/comfort';
+import { applyComfortSettings, saveLocalComfort } from '../utils/comfort';
+import { readSave, exportSaveFile, exportFileName, parseImportFile, writeSave } from '../store/persist';
+import { dayToDate } from '../data/calendar';
+import { audio, AudioPrefs } from '../audio/engine';
+
+export const PlaceholderScreen: React.FC<{ id: 'careerProfile' | 'settings' | 'backup' }> = ({ id }) => {
+  const [theme, setTheme] = React.useState<ThemePref>(loadTheme());
+  const [backupMsg, setBackupMsg] = useState<string | null>(null);
+  const backupInputRef = React.useRef<HTMLInputElement>(null);
+  const g = useGame();
+  const st = g.career.settings;
+  const [prefs, setPrefsState] = useState<AudioPrefs>(() => {
+    try { return JSON.parse(localStorage.getItem('m26_audio') ?? '') ?? { master: 0.8, crowd: 0.7, fx: 0.9, music: 0.45 }; } catch { return { master: 0.8, crowd: 0.7, fx: 0.9, music: 0.45 }; }
+  });
+  const setPrefs = (up: (p: AudioPrefs) => AudioPrefs) => {
+    setPrefsState((p) => { const n = up(p); try { localStorage.setItem('m26_audio', JSON.stringify(n)); } catch { /* noop */ } return n; });
+  };
+  React.useEffect(() => { audio.init(prefs); audio.setPrefs(prefs); }, []);
+  const patch = <K extends keyof CareerSettings>(k: K, v: CareerSettings[K]) => {
+    g.setCareer((c) => { const n = { ...c, settings: { ...c.settings, [k]: v } }; applyComfortSettings(n.settings); saveLocalComfort(n.settings); return n; });
+  };
+
+  if (id === 'careerProfile') {
+    const bg = MANAGER_BACKGROUNDS.find((b) => b.id === g.career.manager.background)!;
+    const era = ERAS.find((e) => e.id === g.career.manager.era)!;
+    const diff = DIFFICULTIES.find((d) => d.id === g.career.manager.difficulty)!;
+    return (
+      <div className="h-full overflow-y-auto no-scrollbar px-4 pt-3 pb-6 space-y-2.5">
+        <Card>
+          <div className="flex items-center gap-4">
+            <ManagerPortrait index={g.career.manager.portrait} size={64} selected face={(g.career.manager as any).face ?? null} />
+            <div>
+              <div className="text-primary font-display text-lg">{g.career.manager.name}</div>
+              <div className="text-secondary text-[12px] mt-0.5">{bg.name} · {g.myClub.name}</div>
+            </div>
+          </div>
+        </Card>
+        <Card>
+          <div className="m26-overline mb-2">Kariyer Kurulumu</div>
+          {[['Dünya Dönemi', era.name], ['Zorluk', `${diff.name} (KZP ${g.career.manager.challengePoints})`], ['İlk Sezon Kaynağı', bg.bonus], ['Kulüp', `${g.myClub.name} — ${g.myClub.stadium}`]].map(([k, v]) => (
+            <div key={k} className="flex justify-between items-start py-1.5 text-[12.5px]">
+              <span className="text-secondary">{k}</span>
+              <span className="text-primary font-semibold text-right max-w-[60%]">{v}</span>
+            </div>
+          ))}
+        </Card>
+        <Card>
+          <div className="m26-overline mb-2">Teknik Direktör CV'si</div>
+          {g.seasonHistory.length === 0 ? (
+            <p className="text-secondary text-[12px] leading-snug">İlk sezon devam ediyor. Sezon kapandıkça bu satıra sezonlar ve başarılar eklenecek.</p>
+          ) : (
+            <div className="space-y-2">
+              <div className="grid grid-cols-3 gap-1.5 mb-1">
+                {[
+                  ['Sezon', g.seasonHistory.length],
+                  ['Yükselme', g.seasonHistory.filter((h) => h.rank <= 2 && h.leagueId !== 'zirve').length],
+                  ['Şampiyonluk', g.seasonHistory.filter((h) => h.rank === 1).length],
+                ].map(([k, v]) => (
+                  <div key={k as string} className="bg-base rounded-xl p-2 text-center">
+                    <div className="num text-amber font-bold text-[16px]">{v}</div>
+                    <div className="text-muted text-[9.5px] uppercase">{k}</div>
+                  </div>
+                ))}
+              </div>
+              {[...g.seasonHistory].reverse().map((h) => (
+                <div key={h.season} className="flex items-center justify-between text-[12px] bg-base/60 rounded-lg px-2.5 py-2">
+                  <span className="text-secondary num">{h.season}</span>
+                  <span className="text-primary font-semibold">{h.rank}. sıra · {h.pts}p</span>
+                  <span className="text-muted text-[10.5px]">{h.cup}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+      </div>
+    );
+  }
+
+  if (id === 'settings') {
+    return (
+      <div className="h-full overflow-y-auto no-scrollbar px-4 pt-3 pb-6 space-y-2.5">
+        <Card>
+          <div className="m26-overline mb-2.5">Tema</div>
+          <div className="text-[13px] text-primary font-semibold mb-1.5">Görünüm</div>
+          <Seg ariaLabel="Tema seçimi" options={[{ v: 'light', label: 'Açık' }, { v: 'dark', label: 'Koyu' }, { v: 'auto', label: 'Sistem' }]}
+               value={theme} onChange={(v) => { const t = v as ThemePref; setTheme(t); applyTheme(t); }} />
+          <p className="text-muted text-[12px] leading-relaxed mt-2">Açık tema: <b className="text-primary">Spor Gazetesi</b>. Sistem seçimi cihazının görünüm tercihine uyar; maç sahası gece yeşilinde kalır.</p>
+        </Card>
+        <Card>
+          <div className="m26-overline mb-2.5">Konfor (sonradan değişebilir —)</div>
+          <div className="space-y-3">
+            <div>
+              <div className="text-[12.5px] text-primary font-semibold mb-1.5">Metin boyutu</div>
+              <Seg options={[{ v: 'kucuk', label: 'Küçük' }, { v: 'normal', label: 'Normal' }, { v: 'buyuk', label: 'Büyük' }]} value={st.textSize} onChange={(v) => patch('textSize', v as CareerSettings['textSize'])} />
+            </div>
+            <div>
+              <div className="text-[12.5px] text-primary font-semibold mb-1.5">Varsayılan maç hızı</div>
+              <Seg options={[{ v: 'yavas', label: 'Yavaş' }, { v: 'normal', label: 'Normal' }, { v: 'hizli', label: 'Hızlı' }]} value={st.matchSpeed} onChange={(v) => patch('matchSpeed', v as CareerSettings['matchSpeed'])} />
+            </div>
+          </div>
+        </Card>
+        <Card>
+          <div className="m26-overline mb-2.5">Erişilebilirlik</div>
+          <Toggle label="Yüksek kontrast" note="Metin ve ikon kontrastı korunur" v={st.highContrast} set={(b) => patch('highContrast', b)} />
+          <Toggle label="Azaltılmış hareket" note="Dekoratif hareketler kapatılır" v={st.reduceMotion} set={(b) => patch('reduceMotion', b)} />
+          <Toggle label="Taktik önerileri" note="Maç içi kritik anlarda kısa öneri" v={st.suggestions} set={(b) => patch('suggestions', b)} />
+          <p className="text-muted text-[10.5px] mt-1">Kariyerin maç/dünya ayarları (gol ritmi, rastgelelik, piyasa) buradan değiştirilemez; bu ayarlar kariyer başında belirlenir.</p>
+        </Card>
+        <Card>
+          <div className="m26-overline mb-2.5">Ses ( kanallar ayrı)</div>
+          <Toggle label="Ana ses" note="Tüm sesleri aç/kapat" v={prefs.master > 0} set={(b) => { audio.setPrefs({ master: b ? 0.8 : 0 }); setPrefs((p) => ({ ...p, master: b ? 0.8 : 0 })); }} />
+          <Toggle label="Tribün atmosferi" note="Maçta dinamik yenen tribün" v={prefs.crowd > 0} set={(b) => { audio.setPrefs({ crowd: b ? 0.7 : 0 }); setPrefs((p) => ({ ...p, crowd: b ? 0.7 : 0 })); if (b) audio.unlock(); }} />
+          <Toggle label="Efektler" note="Düdük, gol, kart, VAR sesleri" v={prefs.fx > 0} set={(b) => { audio.setPrefs({ fx: b ? 0.9 : 0 }); setPrefs((p) => ({ ...p, fx: b ? 0.9 : 0 })); if (b) audio.unlock(); }} />
+          <Toggle label="Müzik (menü ambient)" note="Sakin arka plan (menüde)" v={prefs.music > 0} set={(b) => { audio.setPrefs({ music: b ? 0.45 : 0 }); setPrefs((p) => ({ ...p, music: b ? 0.45 : 0 })); }} />
+          <div className="flex justify-between items-center">
+            <span className="text-secondary text-[11.5px]">Ses testi</span>
+            <Btn variant="secondary" className="min-h-touch !px-3 !text-[12px]" onClick={() => { audio.unlock(); audio.play('goal'); }}>Ses Dene</Btn>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
+  // ── Yedekleme ekranı (§5.17) ──
+  const backupExport = async () => {
+    await g.saveNow(true);
+    const r = await readSave(g.career.slot);
+    if (!r) return;
+    const blob = exportSaveFile(r.blob, r.meta);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = exportFileName(g.myClub.name, g.career.day); a.click();
+    URL.revokeObjectURL(url);
+    setBackupMsg('Dosya indirildi — başka cihaza taşınabilir.');
+  };
+  const backupImport = async (file: File) => {
+    try {
+      const { blob } = parseImportFile(await file.text());
+      blob.career = { ...blob.career, slot: g.career.slot };
+      await writeSave(blob);
+      setBackupMsg('İçe aktarıldı ve mevcut yuvaya yazıldı. Değişikliklerin görünmesi için menüden kariyeri yeniden aç.');
+    } catch (e) {
+      setBackupMsg(e instanceof Error ? e.message : 'Dosya okunamadı.');
+    }
+  };
+  return (
+    <div className="h-full overflow-y-auto no-scrollbar px-4 pt-3 pb-6 space-y-2.5">
+      <Card>
+        <div className="m26-overline">Kayıt Durumu</div>
+        <div className="flex items-center gap-3 mt-2.5">
+          <Crest club={g.myClub} size={38} />
+          <div className="flex-1">
+            <div className="text-primary font-bold text-[14px]">{g.myClub.name} kariyeri — Yuva {g.career.slot}</div>
+            <div className="text-secondary text-[11.5px]">Gün {g.career.day} ({dayToDate(g.career.day)}) · Hafta {g.career.week} · Sezon {g.seasonNo} · Seed #{g.career.seed}</div>
+          </div>
+          <Badge kind="ok">Otomatik</Badge>
+        </div>
+        <p className="text-muted text-[11px] mt-2.5 leading-relaxed">Otomatik kayıt: gün sonu, maç sonu, transfer, sezon geçişi ve uygulama kapanışı. Kayıtlar bu cihazın yerel hafızasında kalır; internet gerekmez.</p>
+        <Btn variant="secondary" className="w-full mt-3 !text-[12.5px]" onClick={() => void g.saveNow(false).then(() => setBackupMsg('Şimdi kaydedildi ✓'))}>Şimdi Kaydet</Btn>
+      </Card>
+      <Card>
+        <div className="text-primary text-[13px] font-bold">Dışa / İçe Aktarma</div>
+        <p className="text-secondary text-[12px] mt-1.5 leading-snug">Tek dosya — kulüp adı ve gün etiketli JSON. İçe aktarımda dosya doğrulanır, sürüm uyumsuzsa reddedilir.</p>
+        <div className="grid grid-cols-2 gap-2 mt-3">
+          <Btn variant="amber" className="!text-[12.5px]" onClick={() => void backupExport()}>Dışa Aktar</Btn>
+          <Btn variant="secondary" className="!text-[12.5px]" onClick={() => backupInputRef.current?.click()}>İçe Aktar</Btn>
+        </div>
+        <input ref={backupInputRef} type="file" accept=".json,application/json" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void backupImport(f); e.target.value = ''; }} />
+        {backupMsg && <p className="text-[12px] text-ok mt-2.5 leading-snug">{backupMsg}</p>}
+      </Card>
+      <Card className="border-dashed">
+        <div className="text-secondary text-[12px] leading-snug">Yuva yönetimi (devam et / sil / içe aktar) açılıştaki Kariyerler ekranında. Silme iki aşamalı onay ister.</div>
+      </Card>
+    </div>
+  );
+};
+
+const Toggle: React.FC<{ label: string; note: string; v: boolean; set: (b: boolean) => void }> = ({ label, note, v, set }) => (
+  <div className="mb-3">
+    <button type="button" role="switch" aria-checked={v} aria-label={label} onClick={() => set(!v)} className="w-full min-h-touch flex items-center justify-between">
+      <span className="text-[13px] text-primary font-semibold">{label}</span>
+      <span className={`w-11 h-6 rounded-full transition-colors relative ${v ? 'bg-amber' : 'bg-line'}`}>
+        <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-primary transition-all ${v ? 'left-5' : 'left-0.5'}`} />
+      </span>
+    </button>
+    <p className="text-muted text-[10.5px] -mt-0.5">{note}</p>
+  </div>
+);
