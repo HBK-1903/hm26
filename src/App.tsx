@@ -1,5 +1,5 @@
 // HM26 — kök uygulama: açılış / kariyer yuvaları / sihirbaz / oyun kabuğu
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Career, Screen } from './types';
 import { GameProvider } from './store/game';
 import { AppShell } from './screens/Shell';
@@ -8,9 +8,10 @@ import { Wizard } from './screens/newcareer/Wizard';
 import { SaveBlob, lastActiveSlot, readSave, quickContinueLabel } from './store/persist';
 import { warmDb } from './store/persist';
 import { applyTheme, loadTheme } from './utils/comfort';
-import { useEffect } from 'react';
+import { useServiceWorker } from './hooks/useServiceWorker';
 
 export default function App() {
+  const { updateReady, applyUpdate, dismissUpdate } = useServiceWorker();
   const [phase, setPhase] = useState<'splash' | 'slots' | 'wizard' | 'game'>('splash');
   const [quickContinue, setQuickContinue] = useState<{ slot: number; label: string } | null>(null);
   const [fatalError, setFatalError] = useState<string | null>(null);
@@ -61,6 +62,37 @@ export default function App() {
             <span>{fatalError}</span>
             <button onClick={() => setFatalError(null)} className="ml-2 underline">Kapat</button>
           </div>
+        )}
+        {updateReady && (
+          <section
+            role="region"
+            aria-label="Uygulama güncellemesi"
+            aria-live="polite"
+            className="absolute inset-x-3 z-[95] flex items-center gap-2 rounded-xl border p-3 shadow-xl"
+            style={{
+              bottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.75rem)',
+              background: 'var(--c-surface)',
+              borderColor: 'var(--c-line)',
+              color: 'var(--c-primary)',
+            }}
+          >
+            <span className="flex-1 text-xs font-semibold">Yeni sürüm hazır, güncellemek için tıklayın.</span>
+            <button
+              type="button"
+              onClick={applyUpdate}
+              className="min-h-touch rounded-lg bg-primary px-3 py-2 text-xs font-black text-base focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+            >
+              Güncelle
+            </button>
+            <button
+              type="button"
+              onClick={dismissUpdate}
+              aria-label="Güncellemeyi daha sonra yap"
+              className="min-h-touch min-w-touch rounded-lg px-2 text-sm font-bold underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+            >
+              Sonra
+            </button>
+          </section>
         )}
         {phase === 'splash' && (
           <Splash

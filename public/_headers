@@ -1,0 +1,11 @@
+# Cloudflare Pages: always revalidate the worker script so clients discover deployments.
+/sw.js
+  Cache-Control: no-cache, no-store, must-revalidate
+  Pragma: no-cache
+  Expires: 0
+
+# The install metadata can change alongside a release; revalidate it as well.
+/manifest.json
+  Cache-Control: no-cache, no-store, must-revalidate
+  Pragma: no-cache
+  Expires: 0

@@ -1,15 +1,18 @@
 // HM26 Aşama 0 — app-shell service worker (offline PWA çekirdeği)
 // v0.9.13 match-console-wave3: hash'li build varlıkları + tüm statik paket INSTALL anında önbelleğe alınır.
 // PRECACHE dizisi "npm run build" sonunda tools/inject-sw-manifest.mjs tarafından dist envanteriyle doldurulur.
-const CACHE = 'hm26-v013-match-screen';
+const CACHE = 'hm26-v014-pwa-update';
 const PRECACHE = __PRECACHE__;
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(
-    caches.open(CACHE)
-      .then((c) => c.addAll(PRECACHE))
-      .then(() => self.skipWaiting())
-  );
+  // A first install activates normally. Updates remain waiting until the user accepts them in-app.
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(PRECACHE)));
+});
+
+self.addEventListener('message', (e) => {
+  if (e.data && e.data.type === 'SKIP_WAITING') {
+    e.waitUntil(self.skipWaiting());
+  }
 });
 
 self.addEventListener('activate', (e) => {

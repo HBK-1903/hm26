@@ -21,6 +21,7 @@
     "qa:match-core:challenge-score": "tsx tools/qa-match-core-challenge-score.ts",
     "qa:match-core:challenge-balance": "tsx tools/qa-match-core-challenge-balance.ts",
     "qa:match-core:evidence-insights": "tsx tools/qa-match-core-evidence-insights.ts",
+    "qa:pwa": "tsx tools/qa-pwa.ts",
     "qa:ui:wave9": "tsx tools/qa-ui-wave9.tsx",
     "qa:live:wave10": "tsx tools/qa-live-projection-wave10.ts",
     "qa:transfer:wave11": "tsx tools/qa-transfer-wave11.ts",
