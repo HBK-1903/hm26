@@ -16,10 +16,16 @@ import { Crest } from '../components/assets/Crest';
 import { GameIcon } from '../components/icons';
 import { clubById } from '../data/clubs';
 import { MatchReport } from './MatchReport';
-import { lazy, Suspense } from 'react';
+import { Suspense } from 'react';
+import { lazyWithRecovery } from '../utils/lazyWithRecovery';
+import { PitchFallback } from '../components/assets/PitchFallback';
 import { audio } from '../audio/engine';
 // Phaser 1MB+ — yalnızca maçta yüklenir (§1.3 Hafif prensibi: ana pakette tutmaz)
-const PhaserPitch = lazy(() => import('../components/assets/PhaserPitch').then((m) => ({ default: m.PhaserPitch })));
+const PhaserPitch = lazyWithRecovery(
+  () => import('../components/assets/PhaserPitch').then((m) => ({ default: m.PhaserPitch })),
+  'phaser-pitch',
+  PitchFallback,
+);
 
 // SPEC (24 Eki): Dikey Saha Model A — motor bölge koordinatlarıyla birebir aynı kaynak
 const ZONES: Record<string, { x: number; y: number }> = {
@@ -52,6 +58,8 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onE
   const feedRef = useRef<HTMLDivElement>(null);
   const managerSuspendedRef = useRef<boolean | null>(null);
   const resultCommitted = useRef(false);
+  // Maç döngüsü beklenmedik bir hatayla donarsa kullanıcıyı ekranda kilitlememek için kurtarma durumu
+  const [loopError, setLoopError] = useState<unknown>(null);
   const lastDecisionShown = useRef('');
   const teamTalkPromptShown = useRef(false);
   const reducedMotion = !!g.career.settings.reduceMotion || (typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
@@ -128,56 +136,86 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onE
     return () => { audio.stopCrowd(); };
   }, []);
 
+  // Maç sonucu rapor formatına çevirir — normal bitiş ve kurtarma yolu aynı eşlemi kullanır
+  const buildFinResult = (rr: ReturnType<typeof session.toResult>): DemoMatchResult => ({
+    homeId: fixture.homeId, awayId: fixture.awayId, hg: rr.stats.hg, ag: rr.stats.ag,
+    events: [], // arşiv; rapor sürümü ayrı
+    xgHome: rr.stats.xgH, xgAway: rr.stats.xgA, posHome: rr.stats.posH,
+    shotsH: rr.stats.shotsH, shotsA: rr.stats.shotsA, shotsOnH: rr.stats.onH, shotsOnA: rr.stats.onA,
+    insights: rr.insights,
+    // Dalga 2 (§5-D): gerçek istatistikler + vuruş haritası + karne
+    cornersH: rr.stats.cornersH, cornersA: rr.stats.cornersA, foulsH: rr.stats.foulsH, foulsA: rr.stats.foulsA,
+    yellowH: rr.stats.yellowH, yellowA: rr.stats.yellowA, redH: rr.stats.redH, redA: rr.stats.redA,
+    savesH: rr.stats.savesH, savesA: rr.stats.savesA,
+    wideH: rr.stats.wideAttH, wideA: rr.stats.wideAttA, centralH: rr.stats.centralAttH, centralA: rr.stats.centralAttA,
+    pressWinsH: rr.stats.pressWinsH, pressWinsA: rr.stats.pressWinsA,
+    shotsLog: rr.shotsLog.map((s) => { const z = ZONES[s.zone] ?? ZONES['C-M']; return s.side === 'home' ? { minute: s.minute, side: s.side, x: z.x, y: z.y, xg: s.xg, outcome: s.outcome } : { minute: s.minute, side: s.side, x: 100 - z.x, y: 96 - z.y, xg: s.xg, outcome: s.outcome }; }),
+    playerRows: JSON.parse(JSON.stringify(rr.stats.playerRows)),
+    ...(rr.referee ? { referee: { label: rr.referee.label, strictness: rr.referee.strictness } } : {}),
+  });
+  const finalizeFromSession = () => setFinResult(buildFinResult(session.toResult()));
+
   useEffect(() => {
     if (paused || done) return;
     const t = setTimeout(() => {
-      const fresh = session.step();
-      const ballSample = session.getBallState();
-      const heatPoint = toStadiumPoint(ballSample.owner, { x: ballSample.x, y: ballSample.y });
-      setHeatSamples((previous) => [...previous, { ...heatPoint, side: ballSample.owner }].slice(-1200));
-      if (fresh.length) {
-        const kindMap: Record<string, DemoMatchEvent['kind']> = { danger: 'chance', corner: 'chance' };
-        setEventsShown((ev) => [
-          ...ev,
-          ...fresh.map((e): DemoMatchEvent => ({
-            minute: e.minute,
-            text: e.text,
-            kind: kindMap[e.kind] ?? (e.kind as DemoMatchEvent['kind']),
-            side: e.side,
-            path: e.path as string[],
-            anim: e.anim,
-            playerId: e.playerId,
-            scorerId: e.scorerId,
-            assisterId: e.assisterId,
-            visualEvent: e.visualEvent,
-            visualActors: e.visualActors,
-          })),  
-        ]);
-      }
-      // React state is only a render trigger; score, clock and stats are read from the engine projection.
-      setTick((prev) => prev + 1);
-      if (session.done) {
-        const rr = session.toResult();
-        setFinResult({
-          homeId: fixture.homeId, awayId: fixture.awayId, hg: rr.stats.hg, ag: rr.stats.ag,
-          events: [], // arşiv; rapor sürümü ayrı
-          xgHome: rr.stats.xgH, xgAway: rr.stats.xgA, posHome: rr.stats.posH,
-          shotsH: rr.stats.shotsH, shotsA: rr.stats.shotsA, shotsOnH: rr.stats.onH, shotsOnA: rr.stats.onA,
-          insights: rr.insights,
-          // Dalga 2 (§5-D): gerçek istatistikler + vuruş haritası + karne
-          cornersH: rr.stats.cornersH, cornersA: rr.stats.cornersA, foulsH: rr.stats.foulsH, foulsA: rr.stats.foulsA,
-          yellowH: rr.stats.yellowH, yellowA: rr.stats.yellowA, redH: rr.stats.redH, redA: rr.stats.redA,
-          savesH: rr.stats.savesH, savesA: rr.stats.savesA,
-          wideH: rr.stats.wideAttH, wideA: rr.stats.wideAttA, centralH: rr.stats.centralAttH, centralA: rr.stats.centralAttA,
-          pressWinsH: rr.stats.pressWinsH, pressWinsA: rr.stats.pressWinsA,
-          shotsLog: rr.shotsLog.map((s) => { const z = ZONES[s.zone] ?? ZONES['C-M']; return s.side === 'home' ? { minute: s.minute, side: s.side, x: z.x, y: z.y, xg: s.xg, outcome: s.outcome } : { minute: s.minute, side: s.side, x: 100 - z.x, y: 96 - z.y, xg: s.xg, outcome: s.outcome }; }),
-          playerRows: JSON.parse(JSON.stringify(rr.stats.playerRows)),
-          ...(rr.referee ? { referee: { label: rr.referee.label, strictness: rr.referee.strictness } } : {}),
-        });
+      try {
+        const fresh = session.step();
+        const ballSample = session.getBallState();
+        const heatPoint = toStadiumPoint(ballSample.owner, { x: ballSample.x, y: ballSample.y });
+        setHeatSamples((previous) => [...previous, { ...heatPoint, side: ballSample.owner }].slice(-1200));
+        if (fresh.length) {
+          const kindMap: Record<string, DemoMatchEvent['kind']> = { danger: 'chance', corner: 'chance' };
+          setEventsShown((ev) => [
+            ...ev,
+            ...fresh.map((e): DemoMatchEvent => ({
+              minute: e.minute,
+              text: e.text,
+              kind: kindMap[e.kind] ?? (e.kind as DemoMatchEvent['kind']),
+              side: e.side,
+              path: e.path as string[],
+              anim: e.anim,
+              playerId: e.playerId,
+              scorerId: e.scorerId,
+              assisterId: e.assisterId,
+              visualEvent: e.visualEvent,
+              visualActors: e.visualActors,
+            })),
+          ]);
+        }
+        // React state is only a render trigger; score, clock and stats are read from the engine projection.
+        setTick((prev) => prev + 1);
+        if (session.done) finalizeFromSession();
+      } catch (err) {
+        // Tek bir adımın patlaması tüm maç döngüsünü sessizce dondurmasın: dur ve kullanıcıya kurtarma ver
+        console.error('[hm26] canlı maç adımı hatası:', err);
+        setPaused(true);
+        setLoopError(err);
       }
     }, presentationDelayMs(speed));
     return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tick, paused, done, speed]);
+
+  // Kurtarma: motoru kalan dakikaları simüle ederek güvenle bitir ve rapora geç
+  const recoverMatch = () => {
+    try {
+      session.finishNow();
+      finalizeFromSession();
+      setLoopError(null);
+    } catch (err) {
+      // Motor da bitiremezse kullanıcıyı ekran başında kilitleme: maçtan güvenli çıkış
+      console.error('[hm26] maç kurtarma başarısız:', err);
+      onExit();
+    }
+  };
+
+  // Garanti: motor tamam dediği halde sonuç nesnesi herhangi bir nedenle üretilmediyse burada üret
+  useEffect(() => {
+    if (done && !finResult) {
+      try { finalizeFromSession(); } catch (err) { console.error('[hm26] sonuç üretme hatası:', err); setLoopError(err); }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [done]);
 
   // v0.9.9: akış açılış satırı — 'Maç başladı' kurucuya itilir ama step() onu hiç döndürmezdi (akış bomboş başlıyordu)
   useEffect(() => {
@@ -408,6 +446,15 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onE
           {([['xG', liveStats.xgH.toFixed(2), liveStats.xgA.toFixed(2)], ['ŞUT', liveStats.shotsH, liveStats.shotsA], ['İSABET', liveStats.onH, liveStats.onA], ['KORNER', liveStats.cornersH, liveStats.cornersA]] as const).map(([label, hVal, aVal]) => <div key={label} className="rounded-md bg-[#1d2b23] px-1 py-1 text-[8px]"><div className="text-[#adb9ae] font-bold tracking-wider">{label}</div><div className="num text-[#faf5ea] font-bold">{hVal}<span className="text-[#738078] mx-0.5">–</span>{aVal}</div></div>)}
         </div>
       </header>
+      {loopError !== null && (
+        <div role="alert" className="px-3 py-2.5 bg-[#3a1d1d] border-b border-[#ef6b6b]/60 shrink-0">
+          <p className="text-[#ffd9d9] text-[11px] font-bold mb-2">Maç akışı beklenmedik bir sorun nedeniyle durdu. Maç kaybolmadan buradan bitirebilirsin.</p>
+          <div className="grid grid-cols-2 gap-2">
+            <button type="button" onClick={() => { setLoopError(null); setPaused(false); setTick((p) => p + 1); }} className="min-h-touch rounded-lg bg-[#2c3d33] text-[#e8f0e9] text-[11px] font-bold">Tekrar Dene</button>
+            <button type="button" onClick={recoverMatch} className="min-h-touch rounded-lg bg-[#b78b3d] text-[#14100a] text-[11px] font-black">Maçı Güvenli Bitir</button>
+          </div>
+        </div>
+      )}
       {lastGoal && <div role="status" aria-live="polite" className={`px-3 py-1.5 bg-[#44351b] border-b border-[#b78b3d]/50 flex items-center gap-2 shrink-0 ${reducedMotion ? '' : 'm26-in'}`}>
         <span className="text-[#ffe09b] text-[9px] font-black uppercase shrink-0">⚽ GOL · {lastGoal.minute}′</span>
         <span className="text-[#fff5d9] text-[10px] font-semibold truncate">{scorerName ?? lastGoal.text}{assisterName ? <span className="text-[#dccb9d] font-normal"> · Asist: {assisterName}</span> : null}</span>
@@ -521,7 +568,7 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onE
 
       {!done && <button onClick={() => setShowTouchline(true)} className="absolute right-3 bottom-[118px] z-30 min-h-[44px] rounded-full border border-[#c19245] bg-[#463519] text-[#ffe09b] text-[10px] font-black shadow-lg px-3" aria-label="Kenar Talimatı">⚡ Kenar Talimatı</button>}
       <footer className="shrink-0 px-3 py-2 bg-[#111b16] border-t border-line/50">
-        {!done ? <Btn variant="secondary" className="w-full !min-h-[42px] !text-[11px]" onClick={onExit}>Maçtan çık</Btn> : <Btn variant="amber" className="w-full !min-h-[46px] !text-[11px]" onClick={() => setShowReport(true)}>Maç Sonu Analizine Git →</Btn>}
+        {!done ? <Btn variant="secondary" className="w-full !min-h-[42px] !text-[11px]" onClick={onExit}>Maçtan çık</Btn> : <Btn variant="amber" className="w-full !min-h-[46px] !text-[11px]" onClick={() => { if (!finResult) finalizeFromSession(); setShowReport(true); }}>Maç Sonu Analizine Git →</Btn>}
       </footer>
 
       <Sheet open={showTouchline} onClose={() => setShowTouchline(false)} title="Kenar Talimatı">
