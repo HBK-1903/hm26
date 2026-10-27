@@ -29,7 +29,10 @@ export type ShotAttemptEvent = MatchEvent<'SHOT', {
   shotId: string;
   shooterId: string;
   assisterId?: string;
+  /** Sahanın aktif kalecisi — oyuncu çekirdek log aktörü (sağlık/kart dışındaysa yazılmaz). */
   goalkeeperId?: string;
+  /** İstatistiksel kaleci slotu — GK saha dışında olsa bile kurtarış/gol yeme kendi karnesine işlenir. */
+  keeperOfRecordId?: string;
   shotType: ShotType;
   zone?: string;
   xg: number;
@@ -45,6 +48,7 @@ export type ShotResolvedEvent = MatchEvent<'SHOT_RESOLVED', {
   shotId: string;
   outcome: ShotOutcome;
   goalkeeperId?: string;
+  keeperOfRecordId?: string;
 }>;
 export type GoalConfirmedEvent = MatchEvent<'GOAL_CONFIRMED', {
   side: MatchSide;

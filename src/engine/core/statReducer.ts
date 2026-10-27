@@ -9,6 +9,7 @@ interface ShotLedgerEntry {
   shooterId: string;
   outcome?: 'goal' | 'save' | 'blocked' | 'off_target' | 'woodwork';
   goalkeeperId?: string;
+  keeperOfRecordId?: string;
   goalConfirmed: boolean;
   goalDisallowed: boolean;
 }
@@ -68,11 +69,14 @@ export function reduceMatchEvents(events: readonly CoreMatchEvent[], final = fal
         if (!shot || shot.outcome || shot.goalDisallowed) throw new Error(`Shot outcome has no unique preceding attempt: ${event.shotId}.`);
         shot.outcome = event.outcome;
         if (event.goalkeeperId) shot.goalkeeperId = event.goalkeeperId;
+        if (event.keeperOfRecordId) shot.keeperOfRecordId = event.keeperOfRecordId;
         if (event.outcome === 'save') {
           const attack = stats[shot.side], defence = stats[opponent(shot.side)];
           attack.shotsOnTarget++; attack.shotsSaved++; attack.unresolvedShots--;
           defence.saves++;
-          if (event.goalkeeperId) ensurePlayer(stats.players, event.goalkeeperId).saves++;
+          // Aktif GK yoksa kurtarış yine takımın birincil kaleci karnesine işlenir
+          const keeperId = event.keeperOfRecordId ?? event.goalkeeperId ?? shot.keeperOfRecordId;
+          if (keeperId) ensurePlayer(stats.players, keeperId).saves++;
         } else if (event.outcome === 'blocked') {
           const side = stats[shot.side]; side.blockedShots++; side.unresolvedShots--;
         } else if (event.outcome === 'off_target') {

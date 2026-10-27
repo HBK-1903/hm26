@@ -8,6 +8,7 @@
     "build": "tsc --noEmit && vite build && node tools/inject-sw-manifest.mjs",
     "preview": "vite preview",
     "qa:features": "tsx tools/qa-features-v099.ts",
+    "qa:wave0": "tsx tools/qa-wave0-fixes.ts",
     "qa:e2e:live": "node tools/e2e-live-v0911.mjs",
     "qa:match-core": "tsx tools/qa-match-core-foundation.ts",
     "qa:match-core:wave2": "tsx tools/qa-match-core-wave2.ts",

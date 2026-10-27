@@ -1,8 +1,11 @@
 // HM26 — v0.9.3 ikon ailesi görsel doğrulaması: hub + daha paneli + kadro + taktik
 import { chromium } from 'playwright';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+const shotsDir = path.join(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'), '_shots');
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 390, height: 844 }, locale: 'tr' });
-const fs = await import('fs'); fs.mkdirSync('/home/user/manager26/_shots', { recursive: true });
+const fs = await import('fs'); fs.mkdirSync(shotsDir, { recursive: true });
 const tap = (l) => l.first().click({ force: true, timeout: 9000 });
 await page.goto(process.env.HM26_BASE_URL ?? 'http://localhost:4173', { waitUntil: 'networkidle' });
 await page.getByRole('button', { name: /Başla|Kayıt Yuvaları/ }).first().click({ force: true });
@@ -16,15 +19,15 @@ await page.getByRole('button', { name: /Kariyeri Başlat/ }).first().click({ for
 await page.waitForTimeout(1100);
 await page.getByRole('button', { name: 'Anladım' }).first().click({ force: true, timeout: 2500 }).catch(() => {});
 await page.waitForTimeout(500);
-await page.screenshot({ path: '/home/user/manager26/_shots/i1-hub.png' });
+await page.screenshot({ path: path.join(shotsDir, 'i1-hub.png') });
 await tap(page.locator('nav[aria-label="Ana gezinme"] button', { hasText: 'Daha' }));
 await page.waitForTimeout(500);
-await page.screenshot({ path: '/home/user/manager26/_shots/i2-more.png' });
+await page.screenshot({ path: path.join(shotsDir, 'i2-more.png') });
 await tap(page.locator('nav[aria-label="Ana gezinme"] button', { hasText: 'Kadro' }));
 await page.waitForTimeout(500);
-await page.screenshot({ path: '/home/user/manager26/_shots/i3-squad.png' });
+await page.screenshot({ path: path.join(shotsDir, 'i3-squad.png') });
 await tap(page.locator('nav[aria-label="Ana gezinme"] button', { hasText: 'Taktik' }));
 await page.waitForTimeout(600);
-await page.screenshot({ path: '/home/user/manager26/_shots/i4-tactics.png' });
+await page.screenshot({ path: path.join(shotsDir, 'i4-tactics.png') });
 console.log('screenshots ✓');
 await browser.close();

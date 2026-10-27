@@ -1,7 +1,10 @@
 import { chromium } from 'playwright';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+const shotsDir = path.join(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'), '_shots');
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 390, height: 844 }, locale: 'tr' });
-const fs = await import('fs'); fs.mkdirSync('/home/user/manager26/_shots', { recursive: true });
+const fs = await import('fs'); fs.mkdirSync(shotsDir, { recursive: true });
 const tap = (l) => l.first().click({ force: true, timeout: 9000 });
 await page.goto(process.env.HM26_BASE_URL ?? 'http://localhost:4173', { waitUntil: 'networkidle' });
 await page.getByRole('button', { name: /Başla|Kayıt Yuvaları/ }).first().click({ force: true });
@@ -25,6 +28,6 @@ await tap(page.getByRole('button', { name: "İlk 11'e Al" }));
 await page.waitForTimeout(500);
 await tap(page.locator('button[aria-label*="değiştir"][aria-pressed]').nth(0)); // GK yuvası — forvet uyumsuz
 await page.waitForTimeout(800);
-await page.screenshot({ path: '/home/user/manager26/_shots/oop-explain.png' });
+await page.screenshot({ path: path.join(shotsDir, 'oop-explain.png') });
 console.log('ss ✓, alert sayısı:', await page.locator('[role="alert"]').count());
 await browser.close();

@@ -1,9 +1,11 @@
 // HM26 E2E — Gereksinim 1: Tam profil "İlk 11'e Al" akışı; Gereksinim 2: mevki dışı turuncu uyarı
 // Çalıştır: node tools/e2e-xi-warn.mjs  (server :3001 gerekli)
 import { chromium } from 'playwright';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const BASE = process.env.HM26_BASE_URL ?? 'http://localhost:4173';
-const shots = '/home/user/manager26/_shots';
+const shots = path.join(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'), '_shots');
 const fs = await import('fs'); fs.mkdirSync(shots, { recursive: true });
 let failures = 0;
 const ok = (name, cond, extra = '') => { console.log((cond ? '✅ ' : '❌ ') + name + (extra ? ` | ${extra}` : '')); if (!cond) failures++; };

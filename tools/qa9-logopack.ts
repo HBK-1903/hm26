@@ -2,7 +2,12 @@
 // Çalıştır: npx --yes tsx tools/qa9-logopack.ts
 // Doğrular: 36 kulüp ID birebir eşleşme, renk tablosu (önceki→yeni) uygulanmış, accent/color3 dolu, ikili tutarlılık
 import { readFileSync, existsSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { CLUBS, clubById } from '../src/data/clubs';
+
+// Depo kökü: ortamdan bağımsız göreli yol çözümü
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 import { SYMBOL_IVORY, SYMBOL_DARK } from '../src/data/assetManifest';
 import { ICONS } from '../src/components/icons/index';
 import { identityConsistent } from '../src/data/clubIdentities';
@@ -11,7 +16,7 @@ let failures = 0;
 const ok = (n: string, c: boolean, x = '') => { console.log((c ? '✅ ' : '❌ ') + n + (x ? ` | ${x}` : '')); if (!c) failures++; };
 
 // CSV + JSON paketi oku
-const csvTxt = readFileSync('/home/user/manager26/assets-inbox/spec/renk-eslestirmesi.csv', 'utf8').replace(/^﻿/, '');
+const csvTxt = readFileSync(path.join(ROOT, 'assets-inbox/spec/renk-eslestirmesi.csv'), 'utf8').replace(/^﻿/, '');
 const csvLines = csvTxt.trim().split(/\r?\n/);
 const csvHead = csvLines[0].split(',');
 const csv = csvLines.slice(1).map((ln) => {
@@ -20,7 +25,7 @@ const csv = csvLines.slice(1).map((ln) => {
   csvHead.forEach((h, i) => (o[h.trim()] = (v[i] ?? '').trim()));
   return o;
 });
-const pack = JSON.parse(readFileSync('/home/user/manager26/assets-inbox/spec/kulup-logolari.json', 'utf8')) as { clubs: { id: string; name: string; short: string; primary: string; secondary: string; accent: string }[] };
+const pack = JSON.parse(readFileSync(path.join(ROOT, 'assets-inbox/spec/kulup-logolari.json'), 'utf8')) as { clubs: { id: string; name: string; short: string; primary: string; secondary: string; accent: string }[] };
 
 // L1: 36/36 kulüp, ad/short/id birebir
 {
@@ -69,7 +74,7 @@ const pack = JSON.parse(readFileSync('/home/user/manager26/assets-inbox/spec/kul
   let bad = 0, small = 0; const badIds: string[] = [];
   for (const id of ids) {
     for (const v of ['full', 'compact'] as const) {
-      const p = `/home/user/manager26/public/assets/crests/${v}/${id}.webp`;
+      const p = path.join(ROOT, `public/assets/crests/${v}/${id}.webp`);
       try {
         if (!isWebp(p)) { bad++; badIds.push(id + ':' + v); continue; }
         const [w, h] = webpDims(p);
@@ -88,10 +93,10 @@ const pack = JSON.parse(readFileSync('/home/user/manager26/assets-inbox/spec/kul
   const missingCore = keys.filter((k) => !SYMBOL_IVORY[k] && !SYMBOL_DARK[k]); // iki tonda da yoksa gerçek SVG fallback
   const orphan = ivoryKeys.filter((k) => !ICONS[k]);
   const isSvg = (p: string) => { try { return readFileSync(p, 'utf8').includes('<svg') && readFileSync(p, 'utf8').includes('<path'); } catch { return false; } };
-  const fileBad = ivoryKeys.filter((k) => !isSvg(`/home/user/manager26/public/assets/symbols/sembol_${k}.svg`));
-  const darkFileBad = Object.keys(SYMBOL_DARK).filter((k) => !isSvg(`/home/user/manager26/public/assets/symbols-dark/sembol_${k}.svg`));
+  const fileBad = ivoryKeys.filter((k) => !isSvg(path.join(ROOT, `public/assets/symbols/sembol_${k}.svg`)));
+  const darkFileBad = Object.keys(SYMBOL_DARK).filter((k) => !isSvg(path.join(ROOT, `public/assets/symbols-dark/sembol_${k}.svg`)));
   const brand = ['HM26_Lacivert.webp', 'HM26_Seffaf.webp', 'icon.webp', 'icon-monochrome.webp', 'icon-transparent.webp'];
-  const brandBad = brand.filter((f) => !existsSync(`/home/user/manager26/public/assets/brand/${f}`));
+  const brandBad = brand.filter((f) => !existsSync(path.join(ROOT, `public/assets/brand/${f}`)));
   // Eksik çekirdek 6 (more chevron search star starF info) bilinçli SVG fallback — 0.9.8 kabul kriteri
   const KNOWN_GAP = ['more', 'chevron', 'search', 'star', 'starF', 'info'];
   const unexpected = missingCore.filter((k) => !KNOWN_GAP.includes(k));
