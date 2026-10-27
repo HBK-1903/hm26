@@ -12,6 +12,8 @@
     "qa:wave1": "tsx tools/qa-wave1-analytics.ts",
     "qa:wave2": "tsx tools/qa-wave2-tactics.ts",
     "qa:wave2:ui": "node --import tsx --loader ./tools/qa-live-loader.mjs tools/qa-wave2-tactics-ui.tsx",
+    "qa:wave3": "tsx tools/qa-wave3-squad.ts",
+    "qa:wave3:ui": "node --import tsx --loader ./tools/qa-live-loader.mjs tools/qa-wave3-squad-ui.tsx",
     "qa:e2e:live": "node tools/e2e-live-v0911.mjs",
     "qa:match-core": "tsx tools/qa-match-core-foundation.ts",
     "qa:match-core:wave2": "tsx tools/qa-match-core-wave2.ts",

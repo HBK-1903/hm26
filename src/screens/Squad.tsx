@@ -8,6 +8,8 @@ import { PlayerPortrait } from '../components/assets/Portrait';
 import { autoXI } from '../data/gen';
 import { Crest } from '../components/assets/Crest';
 import { clubById } from '../data/clubs';
+import { FORMATION_SLOTS } from '../engine/profiles';
+import { fitnessBreakdown, formTrend, recentRatings, rotationAdvice, type FormTrend } from '../engine/squadInsights';
 
 const G_LABEL: Record<string, string> = { GK: 'Kaleci', CB: 'Stoper', FB: 'Bek', WB: 'Kanat Bek', DM: 'D.O. Saha', CM: 'M. Orta Saha', AM: 'H. Orta Saha', WG: 'Kanat', ST: 'Santrfor' };
 const G_GROUP: Record<string, string> = { GK: 'GK', CB: 'DF', FB: 'DF', WB: 'DF', DM: 'MF', CM: 'MF', AM: 'MF', WG: 'FW', ST: 'FW' };
@@ -44,6 +46,20 @@ export const SquadScreen: React.FC<{ goXI: (p: Player) => void }> = ({ goXI }) =
   }, [g.mySquad, plan0.formation]);
   const xiIds = useMemo(() => new Set(((plan0.customLineup && plan0.customLineup.length === 11 ? plan0.customLineup : xiAutoIds).filter(Boolean) as string[])), [plan0.customLineup, xiAutoIds]);
   const benchIds = useMemo(() => new Set(plan0.customBench?.length ? plan0.customBench : g.mySquad.filter((p) => !xiIds.has(p.id)).sort((a, b) => b.ratings.gen - a.ratings.gen).slice(0, 6).map((p) => p.id)), [plan0.customBench, g.mySquad, xiIds]);
+  // Dalga 3: kadro içgörüleri — tamamen mevcut veri/maç arşivinden türetilir (yeni şema yok)
+  const breakdown = useMemo(() => fitnessBreakdown(g.mySquad), [g.mySquad]);
+  const xiSlots = useMemo(() => {
+    const lineupIds = plan0.customLineup && plan0.customLineup.length === 11 ? plan0.customLineup : xiAutoIds;
+    const groups = FORMATION_SLOTS[plan0.formation];
+    return lineupIds.filter(Boolean).map((id, i) => ({ playerId: id as string, slotGroup: groups[i] ?? 'CM' }));
+  }, [plan0.customLineup, plan0.formation, xiAutoIds]);
+  const advice = useMemo(() => rotationAdvice({ squad: g.mySquad, xi: xiSlots, reports: g.matchReports ?? [] }), [g.mySquad, xiSlots, g.matchReports]);
+  const trendById = useMemo(() => {
+    const m = new Map<string, FormTrend>();
+    for (const p of g.mySquad) m.set(p.id, formTrend(recentRatings(p.id, g.matchReports ?? [])));
+    return m;
+  }, [g.mySquad, g.matchReports]);
+  const squadById = useMemo(() => new Map(g.mySquad.map((p) => [p.id, p])), [g.mySquad]);
   // Dalga 6: rol sıralaması (genel güç azalan) — dakika memnuniyeti için
   const rankById = useMemo(() => {
     const m = new Map<string, number>();
@@ -58,10 +74,43 @@ export const SquadScreen: React.FC<{ goXI: (p: Player) => void }> = ({ goXI }) =
           <h1 className="text-primary font-bold text-[22px] tracking-tight">Kadro</h1>
           <p className="text-muted text-[11px] mt-0.5">{g.myClub.name} · Oyuncularını tanı</p>
         </div>
-        <div className="grid grid-cols-3 bg-surface border border-line rounded-xl py-2.5 mb-3">
+        <div className="grid grid-cols-3 bg-surface border border-line rounded-xl py-2.5 mb-2">
           <div className="text-center border-r border-line/60"><div className="num text-primary font-extrabold text-[18px]">{g.mySquad.length}</div><div className="text-muted text-[9px] mt-0.5">OYUNCU</div></div>
           <div className="text-center border-r border-line/60"><div className="num text-amber font-extrabold text-[18px]">{avgGen}</div><div className="text-muted text-[9px] mt-0.5">ORT. GENEL</div></div>
           <div className="text-center"><div className={`num font-extrabold text-[18px] ${riskCount ? 'text-warn' : 'text-ok'}`}>{riskCount}</div><div className="text-muted text-[9px] mt-0.5">RİSK</div></div>
+        </div>
+        {/* Dalga 3: kondisyon dağılımı bandı */}
+        <div className="mb-3" data-testid="fitness-breakdown">
+          <div className="flex h-2 rounded-full overflow-hidden bg-base border border-line/60">
+            {breakdown.total > 0 && (
+              <>
+                <div style={{ width: `${(breakdown.green / breakdown.total) * 100}%`, background: '#4ade80' }} data-fit-seg="green" />
+                <div style={{ width: `${(breakdown.amber / breakdown.total) * 100}%`, background: '#f3c64e' }} data-fit-seg="amber" />
+                <div style={{ width: `${(breakdown.red / breakdown.total) * 100}%`, background: '#ef4444' }} data-fit-seg="red" />
+              </>
+            )}
+          </div>
+          <div className="flex justify-between mt-1 text-[9.5px] font-bold">
+            <span className="text-ok">● Formda {breakdown.green}</span>
+            <span className="text-amber">● Yorgun {breakdown.amber}</span>
+            <span className="text-danger">● Riskli {breakdown.red}</span>
+          </div>
+        </div>
+        {/* Dalga 3: rotasyon masası — yalnız gerçek sinyaller; veri yoksa sakin durum metni */}
+        <div className="mb-3 rounded-xl border border-line bg-surface overflow-hidden" data-testid="rotation-desk">
+          <div className="px-3 pt-2 pb-1 text-[9.5px] font-extrabold tracking-[0.08em] text-muted">ROTASYON MASASI</div>
+          {advice.length === 0 ? (
+            <p className="px-3 pb-2.5 text-[11px] text-muted leading-snug">Tüm kadro hazır — sakatlık, ceza veya kondisyon uyarısı yok.</p>
+          ) : (
+            advice.slice(0, 5).map((a) => (
+              <button key={`${a.kind}-${a.playerId}`} onClick={() => { const pl = squadById.get(a.playerId); if (pl) setQuick(pl); }}
+                data-advice-kind={a.kind}
+                className="w-full text-left flex items-start gap-2 px-3 py-2 border-t border-line/50 min-h-[44px] active:bg-elevated">
+                <span className="text-[13px] leading-5 shrink-0">{a.kind === 'injury' ? '🚑' : a.kind === 'rest' ? '🔄' : '🔥'}</span>
+                <span className="text-[11px] leading-snug text-secondary flex-1">{a.reason}</span>
+              </button>
+            ))
+          )}
         </div>
         <div className="flex gap-1.5 overflow-x-auto no-scrollbar mb-2" aria-label="Mevki filtresi">
           {([['all', 'Tümü'], ['GK', 'Kaleci'], ['DF', 'Savunma'], ['MF', 'Orta'], ['FW', 'Hücum']] as const).map(([v, l]) => (
@@ -90,6 +139,7 @@ export const SquadScreen: React.FC<{ goXI: (p: Player) => void }> = ({ goXI }) =
           const warnTxt = p.injuredDays > 0 ? (p.injury ? `${p.injury.name.split(' ').slice(0, 2).join(' ')} · ${p.injury.daysRemaining}g` : 'Sakat') : p.suspendedMatches > 0 ? 'Cezalı' : p.fitness < 60 ? 'Kondisyon düşük' : null;
           const ms = g.minuteState(p.id, rankById.get(p.id) ?? 20, p.age);
           const formCls = { ok: 'text-ok', info: 'text-info', warn: 'text-warn', danger: 'text-danger' }[formKind];
+          const trend = trendById.get(p.id); // Dalga 3: yalnız ≥4 gerçek maç varsa ok çıkar
           return (
             <button key={p.id} onClick={() => setQuick(p)} className="w-full text-left flex items-center gap-2.5 bg-surface border border-line rounded-xl p-2.5 min-h-[68px]">
               <span className="w-[36px] h-[39px] rounded-lg overflow-hidden border border-line/60 bg-elevated shrink-0"><PlayerPortrait player={p} size={36} /></span>
@@ -98,6 +148,9 @@ export const SquadScreen: React.FC<{ goXI: (p: Player) => void }> = ({ goXI }) =
                 <span className="text-muted text-[10px] leading-tight truncate block mt-0.5">{G_LABEL[p.group]} · {p.age} yaş{p.foreign ? ' · Yabancı' : ''}</span>
                 <span className="block mt-0.5 text-[9.5px] leading-tight">
                   <span className={formCls}>Form: {formTxt}</span>
+                  {trend === 'up' && <span className="text-ok font-bold" title="Son maçlarda yükselişte"> ▲</span>}
+                  {trend === 'down' && <span className="text-danger font-bold" title="Son maçlarda düşüşte"> ▼</span>}
+                  {trend === 'flat' && <span className="text-muted font-bold" title="Son maçlarda yatay seyir"> →</span>}
                   {warnTxt && <span className={warnTxt === 'Kondisyon düşük' ? 'text-warn' : 'text-danger'}> · {warnTxt}</span>}
                 </span>
                 <span className="flex gap-1 mt-1 flex-wrap">
@@ -149,6 +202,33 @@ export const SquadScreen: React.FC<{ goXI: (p: Player) => void }> = ({ goXI }) =
                 </div>
               ))}
             </div>
+            {/* Dalga 3: son maç reytingleri — yalnız gerçek maç arşivinden */}
+            {(() => {
+              const rr = recentRatings(quick.id, g.matchReports ?? []);
+              const t = formTrend(rr);
+              return (
+                <div className="mt-3 bg-base/70 rounded-xl p-3" data-testid="recent-ratings">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-muted text-[10px] uppercase font-extrabold tracking-wider">Son Maç Reytingleri</span>
+                    {t && <span className={`text-[10.5px] font-extrabold ${t === 'up' ? 'text-ok' : t === 'down' ? 'text-danger' : 'text-muted'}`}>
+                      {t === 'up' ? '▲ Yükselişte' : t === 'down' ? '▼ Düşüşte' : '→ Yatay'}
+                    </span>}
+                  </div>
+                  {rr.length === 0 ? (
+                    <p className="text-muted text-[11px] leading-snug">Henüz maç verisi yok — bu grafik sezon içinde oynadıkça gerçek reytinglerle dolar.</p>
+                  ) : (
+                    <div className="flex items-end gap-1.5 h-14">
+                      {rr.map((r, i) => (
+                        <div key={i} className="flex-1 flex flex-col items-center justify-end h-full gap-1" title={`${i + 1}. maç: ${r.toFixed(1)}`}>
+                          <span className="num text-[9px] text-secondary">{r.toFixed(1)}</span>
+                          <div className="w-full rounded-t" style={{ height: `${Math.max(8, r * 10)}%`, background: r >= 7.5 ? 'var(--c-ok)' : r >= 6.5 ? 'var(--c-info)' : 'var(--c-warn)' }} />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
             {quick.bio && <p className="text-secondary text-[12.5px] leading-snug mt-3 bg-base/70 rounded-xl p-3 italic">“{quick.bio}”</p>}
             <div className="grid grid-cols-2 gap-2 mt-4">
               <Btn variant="secondary" className="!text-[12.5px]" onClick={() => { goXI(quick); setQuick(null); }}>İlk 11'e Al</Btn>
