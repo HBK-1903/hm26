@@ -21,6 +21,8 @@ import { GameProvider, useGame, type DemoMatchResult } from '../src/store/game';
 import { MatchSession } from '../src/engine/session';
 import { buildEngineInput } from '../src/engine/adapter';
 import { tacticalFamiliarity } from '../src/engine/tacticsStudio';
+import { recentRatings, rotationAdvice } from '../src/engine/squadInsights';
+import { FORMATION_SLOTS } from '../src/engine/profiles';
 import { clubById } from '../src/data/clubs';
 
 const ZONES: Record<string, { x: number; y: number }> = {
@@ -138,6 +140,18 @@ function Harness({ done }: { done: (report: string[]) => void }) {
           log.push(plan0.familiarityMatches === 2 && plan0.familiarityFormation === plan0.formation && fam.percent === 66
             ? `✅ Taktiksel uyum iki maçla işlendi (${fam.matches} maç · %${fam.percent})`
             : `❌ Uyum sayacı hatalı: maç=${plan0.familiarityMatches}, formasyon=${plan0.familiarityFormation}, %${fam.percent}`);
+
+          // Dalga 3: gerçek maç arşivinden son reytingler ve rotasyon masası uçtan uca
+          const reports = g().matchReports ?? [];
+          const playedId = reports[0] ? Object.keys(reports[0].playerRows).find((id) => reports[0].playerRows[id].min > 0) : undefined;
+          const rr = playedId ? recentRatings(playedId, reports) : [];
+          const liveAdvice = rotationAdvice({ squad: g().mySquad, xi: g().tactics[0].customLineup ? g().tactics[0].customLineup!.filter(Boolean).map((id, i) => ({ playerId: id as string, slotGroup: FORMATION_SLOTS[g().tactics[0].formation][i] })) : [], reports });
+          log.push(reports.length === 2 && playedId && rr.length >= 1 && rr.every((v) => v >= 0 && v <= 10)
+            ? `✅ Son maç reytingleri gerçek arşivden türedi (${playedId}: ${rr.map((v) => v.toFixed(1)).join(', ')})`
+            : `❌ Reyting türetimi hatalı: rapor=${reports.length}, oyuncu=${playedId ?? 'yok'}`);
+          log.push(Array.isArray(liveAdvice) && liveAdvice.every((a) => a.reason && a.playerId)
+            ? `✅ Rotasyon masası gerçek kadroyla çalıştı (${liveAdvice.length} öneri)`
+            : '❌ Rotasyon masası geçersiz çıktı');
         }
         if (errors.length) log.push('YAKALANAN HATALAR:\n' + errors.slice(0, 5).join('\n---\n'));
         done(log);
