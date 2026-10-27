@@ -271,7 +271,7 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onE
     if (resultCommitted.current) return;
     resultCommitted.current = true;
     // P0: canlı izlenen skor table'a ACTİVE olarak bırakılır (re-simülasyon yok)
-    g.playLeagueMatch(fixture, finResult ?? undefined);
+    g.playLeagueMatch(fixture, finResult ?? undefined, tacticIdx);
     g.consumeManagerSuspension(managerSuspendedAtStart);
     // v0.9.9: iğneyle oynatma kumarı maç sonunda çözülür (%25 nüks — oynayan onaylılar)
     const rows = (finResult as unknown as { engine?: { playerRows: Record<string, { min: number }> } })?.engine?.playerRows ?? {};

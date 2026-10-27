@@ -19,6 +19,7 @@ import { consumeManagerBan, registerManagerYellow as registerManagerYellowRule }
 import { normalizeSellOnClauses, withSellOnClause, calculateSellOnSettlement } from '../data/transferNegotiation';
 import { academyIntakeExpired, evaluateAcademySigning, normalizeAcademyIntake } from '../data/academy';
 import { addSeasonCultureHonors, assessFfp, normalizeClubCulture, resolveCultureChoice, type CultureChoice } from '../data/culture';
+import { bumpFamiliarity } from '../engine/tacticsStudio';
 import { advanceInternationalSeason, archiveInternationalSeason, buildInternationalSeason, internationalFixtures, normalizeInternationalSeason, recordInternationalAiScorers, recordInternationalResult, recordInternationalScorers, type InternationalArchiveEntry, type InternationalCup, type InternationalSeason } from '../data/international';
 
 export const SEED_BASE = 20260803;
@@ -110,7 +111,7 @@ interface GameActions {
   clearSeasonFinale: () => void;
   advanceDay: () => AdvanceResult;
   buildDemoMatch: (homeId: string, awayId: string, tacticName: string) => DemoMatchResult;
-  playLeagueMatch: (fx: DemoFixture, overrideResult?: DemoMatchResult) => DemoMatchResult;
+  playLeagueMatch: (fx: DemoFixture, overrideResult?: DemoMatchResult, tacticIdx?: number) => DemoMatchResult;
   updateTactic: (idx: number, t: TacticPlan) => void;
   setInbox: (fn: (m: InboxMsg[]) => InboxMsg[]) => void;
   setCareer: (fn: (c: Career) => Career) => void;
@@ -1176,7 +1177,7 @@ export function GameProvider({ career: initialCareer, snapshot, children }: {
     return buildQuickMatchResult(input, homeId, awayId);
   }, [worldSeed, squads, stateRef]);
 
-  const playLeagueMatch = useCallback((fx: DemoFixture, overrideResult?: DemoMatchResult): DemoMatchResult => {
+  const playLeagueMatch = useCallback((fx: DemoFixture, overrideResult?: DemoMatchResult, tacticIdx = 0): DemoMatchResult => {
     // P0 (SPEC Böl.I/1): canlı maçtan gelen sonuç varsa DIRECT kullan — aksi halde bağımsız re-simülasyon skoru çöpe atardı
     const res = overrideResult ?? buildDemoMatch(fx.homeId, fx.awayId, stateRef.current.tactics[0]?.name ?? 'Ana Plan');
     setSt((s) => {
@@ -1204,6 +1205,9 @@ export function GameProvider({ career: initialCareer, snapshot, children }: {
         ...(res.referee ? { referee: res.referee } : {}), playerRows, playerClubIds,
       };
       next = { ...next, matchReports: [matchReport, ...(next.matchReports ?? []).filter((report) => report.id !== matchReport.id)].slice(0, 256) };
+      // Dalga 2: maçta kullanılan planın taktiksel uyum sayacı (formasyon değiştiyse sayaç 1'e döner)
+      const usedPlanIdx = Math.max(0, Math.min(tacticIdx ?? 0, next.tactics.length - 1));
+      next = { ...next, tactics: next.tactics.map((t, i) => (i === usedPlanIdx ? { ...t, ...bumpFamiliarity(t) } : t)) };
       // Aşama 2: maç günü yorgunluk/sakatlık evrimi; gerçek dakikalar iğneyle oynayanları da kapsar.
       const actualPlayedIds = engineRows ? Object.entries(engineRows).filter(([, r]) => r.min > 0).map(([id]) => id) : undefined;
       next = { ...next, playerPatch: evolvePlayers(next, s.career.day, s.career.clubId, actualPlayedIds) };
