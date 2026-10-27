@@ -7,6 +7,7 @@ import { FORMATIONS, GAME_PLANS, PLAN_SLOTS } from '../data/meta';
 import { FORMATION_SLOTS } from '../engine/profiles';
 import { positionMod } from '../engine/ratings';
 import { autoXI } from '../data/gen';
+import { canSlotGroup, fitnessRing, tacticalFamiliarity } from '../engine/tacticsStudio';
 import { Formation, Player } from '../types';
 
 const POS_LABEL: Record<string, string> = { GK: 'KL', CB: 'STP', FB: 'BK', WB: 'KB', DM: 'DOS', CM: 'MO', AM: 'OOS', WG: 'KNT', ST: 'SN' };
@@ -95,13 +96,10 @@ export const TacticsScreen: React.FC<{ pendingXI?: Player | null; onClearXI?: ()
     swapXI(slotPick, i);
   };
 
-  // Jr-09/QA: uyumlu yuva parlatması — asıl mevki veya yakın pozisyonlar yuva grubuyla örtüşür
-  const canSlot = (slotGroup: string, p: Player): boolean => {
-    const tokens = slotGroup.split('/');
-    if (p.group === 'GK') return slotGroup === 'GK';
-    if (slotGroup === 'GK') return false;
-    return tokens.includes(p.group) || (p.secondary ?? []).some((s) => tokens.includes(s));
-  };
+  // Jr-09/QA: uyumlu yuva parlatması — saf kural engine/tacticsStudio'da (QA ile ortak)
+  const canSlot = (slotGroup: string, p: Player): boolean => canSlotGroup(slotGroup, p);
+  const reduceMotion = !!g.career.settings.reduceMotion;
+  const familiarity = tacticalFamiliarity(plan);
 
   // v0.9.4: yuvanın MOTOR mevki grubu (FORMATION_SLOTS) üzerinden gerçek güç cezası yüzdesi
   const penaltyOf = (slotIdx: number, p: Player): number => {
@@ -133,17 +131,29 @@ export const TacticsScreen: React.FC<{ pendingXI?: Player | null; onClearXI?: ()
             </button>
           ))}
         </div>
-        <div className="flex items-center justify-between mt-2">
+        <div className="flex items-center justify-between mt-2 gap-2">
           {editName ? (
             <input autoFocus value={plan.name} onChange={(e) => setPlan({ name: e.target.value || plan.name })} onBlur={() => setEditName(false)} className="bg-base border border-line rounded-lg px-2 py-1 text-[12px] text-primary w-36" />
           ) : (
-            <button onClick={() => setEditName(true)} className="text-muted text-[10px] min-h-[44px]">{slotPick === null ? <>{plan.name} ✎ · dokunarak düzenle</> : 'Bir oyuncu daha seç: yer değiştir'}</button>
+            <button onClick={() => setEditName(true)} className="text-muted text-[10px] min-h-[44px] text-left">{slotPick === null ? <>{plan.name} ✎ · dokunarak düzenle</> : 'Bir oyuncu daha seç: yer değiştir'}</button>
           )}
-          <span className="flex items-center gap-2">
+          <span className="flex items-center gap-2 shrink-0">
+            <span
+              className="flex items-center gap-1 rounded-full border px-2 py-1"
+              style={{ borderColor: familiarity.percent >= 85 ? 'rgba(74,222,128,.55)' : familiarity.percent >= 70 ? 'rgba(243,198,78,.55)' : 'rgba(239,68,68,.55)' }}
+              title={familiarity.fresh ? `Yeni ${plan.formation} dizilisi — ilk ${3 - familiarity.matches} maç alışma dönemi` : `${plan.formation} formasyonunda ${familiarity.matches} maç`}
+            >
+              <span className="text-[11px]">🌟</span>
+              <span className="num text-[11px] font-extrabold text-primary">%{familiarity.percent}</span>
+              <span className="text-[9px] text-muted font-semibold">uyum</span>
+            </span>
             {plan.customLineup && <span className="text-[9px] text-muted border border-line rounded px-1.5 py-0.5">Manuel dizilim</span>}
             <button onClick={() => setPlan({ customLineup: undefined, customBench: undefined })} className="text-amber text-[10.5px] font-bold min-h-[44px] underline underline-offset-2">Otomatik 11</button>
           </span>
         </div>
+        {familiarity.fresh && (
+          <p className="text-warn text-[10px] mt-1.5 leading-snug">Yeni {plan.formation} dizilisi: takımın alışması için {3 - familiarity.matches} maç daha var; uyum maç oynadıkça %99’a tırmanır.</p>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto no-scrollbar px-4 pt-1 pb-6 space-y-3">
@@ -210,6 +220,8 @@ export const TacticsScreen: React.FC<{ pendingXI?: Player | null; onClearXI?: ()
             const player: Player | null = lineup[i] ?? null;
             const name = player ? player.name.split(' ').slice(-1)[0] : '';
             const warn = player && player.fitness < 60;
+            const fit = player ? fitnessRing(player.fitness) : null;
+            const fitBorder = fit?.tone === 'red' ? '#ef4444' : fit?.tone === 'amber' ? '#f3c64e' : '#4ade80';
             // v0.9.2 G2: oyuncu yuvanın mevki grubu dışında kullanılıyorsa yuva kenarında küçük turuncu uyarı
             const oop = !!player && !canSlot(slot.group, player);
             const picked = slotPick === i;
@@ -222,14 +234,14 @@ export const TacticsScreen: React.FC<{ pendingXI?: Player | null; onClearXI?: ()
               <button key={i} data-compat={compatible ? '1' : undefined} onClick={() => onSlotTap(i)}
                 className="absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center justify-center gap-[3px] min-w-[64px] min-h-[48px]"
                 style={{ left: `${slot.x}%`, top: `${slot.y}%` }}
-                aria-label={player ? `${player.name} değiştir${oop ? ' — mevki dışı konumda' : ''}` : `Yuva ${i + 1} boş`}
+                aria-label={player ? `${player.name} (${POS_LABEL[player.group]} ${player.ratings.gen}★, kondisyon %${player.fitness}) değiştir${oop ? ' — mevki dışı konumda' : ''}` : `Yuva ${i + 1} boş`}
                 aria-pressed={picked}>
-                <span className="relative w-[29px] h-[29px] rounded-full flex items-center justify-center text-[11px] font-extrabold num"
+                <span data-fit={fit?.tone ?? 'green'} className={`relative w-[29px] h-[29px] rounded-full flex items-center justify-center text-[11px] font-extrabold num ${fit?.pulse && !reduceMotion ? 'animate-pulse' : ''}`}
                   style={picked
                     ? { background: 'var(--c-accent)', color: '#071822', border: '1.5px solid #f3cf83', boxShadow: '0 0 0 4px #cc9c4733' }
                     : compatible
                       ? { background: 'rgba(74,222,128,.30)', color: '#fff', border: '1.5px solid #4ade80', boxShadow: '0 0 0 4px #4ade8040, 0 3px 5px #07182255' }
-                      : { background: '#194f3a', color: '#fff', border: '1.5px solid #78bf98', boxShadow: '0 3px 5px #07182255' }}>
+                      : { background: '#194f3a', color: '#fff', border: `1.5px solid ${fitBorder}`, boxShadow: '0 3px 5px #07182255' }}>
                   {i + 1}
                   {warn && <span className="absolute -top-1 -right-1.5 w-3 h-3 rounded-full bg-warn text-[7px] text-base font-bold flex items-center justify-center">!</span>}
                   {oop && (
@@ -248,7 +260,7 @@ export const TacticsScreen: React.FC<{ pendingXI?: Player | null; onClearXI?: ()
                 </span>
                 <span className={`flex flex-col items-center leading-[1.15] px-[5px] py-[3px] rounded border max-w-[72px] ${picked ? 'border-amber text-amber' : 'border-[#37634e] text-white'}`} style={{ background: '#08241bee' }}>
                   <span className="text-[9px] font-semibold max-w-[66px] truncate">{name || '—'}</span>
-                  {player && <span data-slot-gen={player.ratings.gen} className="num text-[8.5px] font-extrabold text-amber/95 mt-px leading-none">{player.ratings.gen}</span>}
+                  {player && <span data-slot-gen={player.ratings.gen} className="num text-[8.5px] font-extrabold text-amber/95 mt-px leading-none">{POS_LABEL[player.group]} {player.ratings.gen}★</span>}
                 </span>
               </button>
             );
@@ -260,12 +272,20 @@ export const TacticsScreen: React.FC<{ pendingXI?: Player | null; onClearXI?: ()
         </p>
         <div className="text-muted text-[9px] tracking-[0.08em] font-extrabold px-1 pt-1">YEDEKLER</div>
         <div className="flex gap-1.5 overflow-x-auto no-scrollbar">
-          {(slotPick !== null ? benchAll : bench).slice(0, 8).map((p) => (
+          {(() => {
+            const pickedGroup = slotPick !== null ? SHAPE[plan.formation].slots[slotPick]?.group ?? null : null;
+            return (slotPick !== null ? benchAll : bench).slice(0, 8).map((p) => {
             // v0.9.5: 6 yedek kartının tamamı her zaman tıklanabilir — boşta iken dokun, yuvayı seçtir (yeşil parlatma); yuva seçiliyken dokun, sahaya al
+            const benchFit = fitnessRing(p.fitness);
+            const benchCompat = pickedGroup ? canSlot(pickedGroup, p) : false;
+            const dimmed = pickedGroup !== null && !benchCompat;
+            return (
             <button key={p.id}
               data-benchpick={benchPick === p.id ? 'true' : undefined}
+              data-bench-compat={pickedGroup !== null && benchCompat ? '1' : undefined}
+              data-bench-fit={benchFit.tone}
               aria-pressed={benchPick === p.id}
-              aria-label={slotPick === null && !pendingXI ? `${p.name} — sahaya almak için seç, sonra yuvaya dokun` : `${p.name} — seçili yuvaya sahaya al`}
+              aria-label={slotPick === null && !pendingXI ? `${p.name} — sahaya almak için seç, sonra yuvaya dokun` : `${p.name} — seçili yuvaya sahaya al${dimmed ? ' (mevki dışı, ceza uygulanır)' : ''}`}
               onClick={() => {
                 if (slotPick === null) {
                   if (pendingXI) return; // pendingXI akışında yedek kartları rol oynamaz
@@ -282,17 +302,21 @@ export const TacticsScreen: React.FC<{ pendingXI?: Player | null; onClearXI?: ()
                 setArm(null);
                 swapSlot(slotPick, p.id);
               }}
-              className={`shrink-0 min-w-[64px] min-h-[48px] bg-surface border rounded-lg px-2 py-2 text-center transition-transform active:scale-95 ${benchPick === p.id ? 'border-amber ring-2 ring-amber/50' : slotPick !== null ? 'border-amber/70' : 'border-line'}`}>
+              className={`relative shrink-0 min-w-[64px] min-h-[48px] bg-surface border rounded-lg px-2 py-2 text-center transition-transform active:scale-95 ${benchPick === p.id ? 'border-amber ring-2 ring-amber/50' : pickedGroup !== null ? (benchCompat ? 'border-[#4ade80] ring-2 ring-[#4ade80]/40' : 'border-line opacity-45') : 'border-line'}`}>
+              <span className="absolute top-1 right-1 w-2 h-2 rounded-full" data-bench-dot={benchFit.tone} style={{ background: benchFit.tone === 'red' ? '#ef4444' : benchFit.tone === 'amber' ? '#f3c64e' : '#4ade80' }} title={`Kondisyon %${p.fitness} · ${benchFit.label}`} />
               {arm === `bench:${p.id}` && <span className="block text-[9px] text-warn font-bold">⚠ tekrar dokun = onay</span>}
               <span className="block text-[10px] text-primary font-semibold truncate max-w-[64px]">{p.name.split(' ').slice(-1)[0]}</span>
-              <span className="block text-muted text-[9px] mt-1">{POS_LABEL[p.group]} · <span className="num">{p.ratings.gen}</span></span>
+              <span className="block text-muted text-[9px] mt-1">{POS_LABEL[p.group]} · <span className="num">{p.ratings.gen}</span>★</span>
               {slotPick !== null
-                ? <span className="block text-[8px] text-amber font-bold mt-0.5">Sahaya al →</span>
+                ? (benchCompat
+                    ? <span className="block text-[8px] text-[#4ade80] font-bold mt-0.5">Sahaya al →</span>
+                    : <span className="block text-[8px] text-muted font-bold mt-0.5">Mevki dışı</span>)
                 : !pendingXI && (benchPick === p.id
                   ? <span className="block text-[8px] text-amber font-bold mt-0.5">Yuvaya dokun ↑</span>
                   : <span className="block text-[8px] text-muted mt-0.5">Seçmek için dokun</span>)}
-            </button>
-          ))}
+            </button>);
+            });
+          })()}
         </div>
 
         {/* Sekmeler */}

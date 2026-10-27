@@ -20,6 +20,7 @@ import { createRoot } from 'react-dom/client';
 import { GameProvider, useGame, type DemoMatchResult } from '../src/store/game';
 import { MatchSession } from '../src/engine/session';
 import { buildEngineInput } from '../src/engine/adapter';
+import { tacticalFamiliarity } from '../src/engine/tacticsStudio';
 import { clubById } from '../src/data/clubs';
 
 const ZONES: Record<string, { x: number; y: number }> = {
@@ -130,6 +131,13 @@ function Harness({ done }: { done: (report: string[]) => void }) {
           await tick();
           const f2 = g().nextFixture;
           log.push(`2. maç (hızlı sim) işlendi ${r2.hg}-${r2.ag}; sonraki: ${f2 ? `gün ${f2.day} ${f2.homeId} vs ${f2.awayId}` : 'yok'}`);
+
+          // Dalga 2: iki maç da plan A uyum sayacını işledi (canlı + hızlı sim, varsayılan plan 0)
+          const plan0 = g().tactics[0];
+          const fam = tacticalFamiliarity(plan0);
+          log.push(plan0.familiarityMatches === 2 && plan0.familiarityFormation === plan0.formation && fam.percent === 66
+            ? `✅ Taktiksel uyum iki maçla işlendi (${fam.matches} maç · %${fam.percent})`
+            : `❌ Uyum sayacı hatalı: maç=${plan0.familiarityMatches}, formasyon=${plan0.familiarityFormation}, %${fam.percent}`);
         }
         if (errors.length) log.push('YAKALANAN HATALAR:\n' + errors.slice(0, 5).join('\n---\n'));
         done(log);

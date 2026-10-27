@@ -121,6 +121,9 @@ export interface TacticPlan {
   fbAdvanced: boolean; // bekler ileri
   midLine: TriState;   // orta saha çizgisi
   strikerSupport: TriState; // forvet destek mesafesi
+  // Dalga 2: taktiksel uyum — bu formasyonla kaç maç oynandı; eski kayıtlarda yok (taban 60)
+  familiarityMatches?: number;
+  familiarityFormation?: Formation;
   setPieces: { captain: string | null; penalty: string | null; cornerL: string | null; cornerR: string | null; fkShort: string | null; fkLong: string | null };
 }
 
