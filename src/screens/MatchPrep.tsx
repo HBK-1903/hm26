@@ -36,7 +36,7 @@ export const MatchPrep: React.FC<{ go: (s: Screen) => void }> = ({ go }) => {
   const isMatchday = next.day === g.career.day;
   const daysLeft = next.day - g.career.day;
   if (started && !isMatchday) setStarted(false); // güvenlik: eski state
-  if (started) return <LiveMatch fixture={next} tacticIdx={activeTacticIdx} onExit={() => setStarted(false)} />;
+  if (started) return <LiveMatch fixture={next} tacticIdx={activeTacticIdx} onExit={() => setStarted(false)} onSaved={() => { setStarted(false); go('hub'); }} />;
 
   // Dalga 1 (v0.5): işsiz menajer maç merkezine giremez
   if (g.career.jobSearch) {

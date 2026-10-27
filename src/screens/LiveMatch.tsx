@@ -37,7 +37,7 @@ const ZONES: Record<string, { x: number; y: number }> = {
   'L-A': { x: 22, y: 18 }, 'C-A': { x: 50, y: 15 }, 'R-A': { x: 78, y: 18 },
 };
 
-export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onExit: () => void }> = ({ fixture, tacticIdx = 0, onExit }) => {
+export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onExit: () => void; onSaved?: () => void }> = ({ fixture, tacticIdx = 0, onExit, onSaved }) => {
   const g = useGame();
   // Aşama 3 MOTOR §6.2: Maç artık önceden simüle edilmiyor — MatchSession gerçek zamanlı ilerliyor
   const sessionRef = useRef<MatchSession | null>(null);
@@ -292,7 +292,7 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onE
   }, [currentEvent, paused, done, decision, mySide]);
 
   if (showReport && finResult) {
-    return <MatchReport result={finResult} fixture={fixture} onDone={() => { commitResult(); onExit(); }} />;
+    return <MatchReport result={finResult} fixture={fixture} onDone={() => { commitResult(); (onSaved ?? onExit)(); }} />;
   }
   function commitResult() {
     if (resultCommitted.current) return;
