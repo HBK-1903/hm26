@@ -15,7 +15,21 @@ export const SURNAME = [
 ];
 // Yabancı kurgusal (§11.7 kuralı gereği azınlık; lisanslı gerçek ad YOK)
 export const FOREIGN_FIRST = ['Mateo', 'Kwame', 'Igor', 'Dmitri', 'Samir', 'Bruno', 'Luka', 'Andrei', 'Kofi', 'Yannick', 'Ousmane', 'Jeandré', 'Marko', 'Ismael', 'Calvin', 'Dario'];
-export const FOREIGN_SURNAME = ['Fontana', 'Osei', 'Petrenko', 'Volkov', 'Haddad', 'Costa', 'Modric', 'Kovach', 'Sarpong', 'Ferrand', 'Diallo', 'Nascimento', 'Kralj', 'Hameed', 'Vidal', 'Moreno'];
+export const FOREIGN_SURNAME = ['Fontana', 'Osei', 'Petrenko', 'Volkov', 'Haddad', 'Costa', 'Mornar', 'Kovach', 'Sarpong', 'Ferrand', 'Diallo', 'Nascimento', 'Kralj', 'Hameed', 'Vidal', 'Moreno'];
+
+// Lisanslı gerçek futbolcu adlarıyla çakışma engellenir (isim havuzu genişledikçe koruma katmanı).
+// Üretilen adlar "Ad Soyad" tam eşleşmesiyle bu kümeye karşı kontrol edilir.
+export const REAL_PLAYER_BLACKLIST = new Set<string>([
+  'Luka Modric', 'Lionel Messi', 'Cristiano Ronaldo', 'Kylian Mbappe',
+  'Erling Haaland', 'Karim Benzema', 'Robert Lewandowski', 'Kevin De Bruyne',
+  'Arda Guler', 'Hakan Calhanoglu', 'Mauro Icardi', 'Edin Dzeko', 'Dusan Tadic',
+  'Fernando Muslera', 'Alexandre Lacazette', 'Cengiz Under', 'Kenan Yildiz',
+  'Luka Jovic', 'Marko Arnautovic', 'Dmitri Payet',
+]);
+
+export function isBlacklistedName(fullName: string): boolean {
+  return REAL_PLAYER_BLACKLIST.has(fullName.trim());
+}
 
 // GDD §5 kulüp önemli oyuncuları — elle yazılmış (her kulüpten 2-3)
 export interface KeyPlayerSeed { name: string; group: string; ovrBoost: number; bio: string; }

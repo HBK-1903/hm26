@@ -46,6 +46,17 @@ export function isActiveOnPitch(slot: Pick<LineupSlot, 'sentOff' | 'injured'>): 
   return !slot.sentOff && !slot.injured;
 }
 
+/**
+ * Kaleci slotu çözümü: aktif GK yoksa (sakatlık veya kırmızı kart) takımın birincil
+ * kaleci slotuna döner. Böylece hiçbir koşulda bir savunmacı "kaleci" olarak seçilip
+ * gol yeme/kurtarış istatistiği almaz; kurtarış mekaniği de GK reytingini kullanmaya devam eder.
+ */
+export function resolveKeeper(slots: LineupSlot[]): LineupSlot | undefined {
+  const primary = slots.find((s) => s.slotGroup === 'GK');
+  const active = slots.find((s) => s.slotGroup === 'GK' && isActiveOnPitch(s));
+  return active ?? primary;
+}
+
 /** Kullanılabilir oyuncular (ilk 11 veya yedek havuzu → slot eşlemesi) */
 export function autoLineup(squad: Player[], formation: Formation, customIds?: (string | null)[], riskIds?: Set<string>): { slots: LineupSlot[]; bench: Player[] } {
   // v0.9.9: iğneyle oynatma onaylı sakatlar (riskIds) da saute indirgenebilir

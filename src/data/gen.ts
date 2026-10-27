@@ -1,6 +1,16 @@
 // HM26 — GDD §8/§16.3 uyumlu seedli üretim katmanı
 import { LeagueId, Player, PositionGroup, PlayerRatings, Club } from '../types';
-import { MALE_FIRST, SURNAME, FOREIGN_FIRST, FOREIGN_SURNAME, KEY_PLAYERS } from './names';
+import { MALE_FIRST, SURNAME, FOREIGN_FIRST, FOREIGN_SURNAME, KEY_PLAYERS, isBlacklistedName } from './names';
+
+// Kara listedeki gerçek futbolcu adlarını üretmeyen güvenli isim üretici (tüm üretim noktaları bunu kullanır)
+function randomFullName(rng: () => number, foreign: boolean): string {
+  for (let i = 0; i < 50; i++) {
+    const n = foreign ? `${pick(rng, FOREIGN_FIRST)} ${pick(rng, FOREIGN_SURNAME)}` : `${pick(rng, MALE_FIRST)} ${pick(rng, SURNAME)}`;
+    if (!isBlacklistedName(n)) return n;
+  }
+  // Pratikte imkânsız ama döngü garantisi: benzersizlik son eki
+  return `${pick(rng, MALE_FIRST)} ${pick(rng, SURNAME)} ${Math.floor(rng() * 90)}`;
+}
 
 // Deterministik RNG (mulberry32) — aynı kariyer seed'i aynı dünyayı üretir (§16.3)
 export function mulberry32(seed: number) {
@@ -79,11 +89,11 @@ export function genSquad(club: Club, careerSeed: number): Player[] {
 
   const name = (foreign: boolean): string => {
     for (let i = 0; i < 40; i++) {
-      const n = foreign ? `${pick(rng, FOREIGN_FIRST)} ${pick(rng, FOREIGN_SURNAME)}` : `${pick(rng, MALE_FIRST)} ${pick(rng, SURNAME)}`;
+      const n = randomFullName(rng, foreign);
       if (!used.has(n)) { used.add(n); return n; }
     }
     // FIX QA-G1: fallback da benzersiz olmalı (numara çakışırsa artır)
-    const base = `${pick(rng, MALE_FIRST)} ${pick(rng, SURNAME)}`;
+    const base = randomFullName(rng, false);
     let n = Math.floor(rng() * 90);
     while (used.has(`${base} ${n}`)) n++;
     const cand = `${base} ${n}`;
@@ -198,7 +208,7 @@ export function genFreeAgent(seed: number, league: LeagueId, idx: number, clubId
   return {
     id: `fa_${seed % 10000}_${idx}`,
     clubId: clubIdFor, age, group,
-    name: foreign ? `${pick(rng, FOREIGN_FIRST)} ${pick(rng, FOREIGN_SURNAME)}` : `${pick(rng, MALE_FIRST)} ${pick(rng, SURNAME)}`,
+    name: randomFullName(rng, foreign),
     side: pick(rng, group === 'WG' || group === 'FB' ? (['L', 'R'] as const) : (['C', 'ANY'] as const)),
     secondary: SECONDARY[group].slice(0, 1),
     ratings, potential: clamp(g + (age <= 21 ? 8 : 0), g, 96),
@@ -223,7 +233,7 @@ export function genYouthRegen(club: Club, careerSeed: number, seasonNo: number, 
   return {
     id: `y_${club.id}_s${seasonNo}_${idx}`,
     clubId: club.id, age, group,
-    name: `${pick(rng, MALE_FIRST)} ${pick(rng, SURNAME)}`,
+    name: randomFullName(rng, false),
     side: 'ANY', secondary: SECONDARY[group],
     ratings: { ...rr, gen: g, ...(group === 'GK' ? { kal: rr.kal } : {}) },
     potential: clamp(g + 9 + Math.floor(rng() * 9), g, 95),

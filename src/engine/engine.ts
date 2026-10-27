@@ -3,7 +3,7 @@
 
 import { Club, Player, TacticPlan } from '../types';
 import { ZoneId } from './zones';
-import { autoLineup, teamProfile, tickFatigue, isActiveOnPitch, LineupSlot } from './profiles';
+import { autoLineup, teamProfile, tickFatigue, isActiveOnPitch, resolveKeeper, LineupSlot } from './profiles';
 import { runPossession, resolvePossessionOwner, resolveStartZone, PossessionContext, pickSlot } from './possession';
 import { narrate, NarrationEvent, shotVisualCue } from './narrate';
 import { buildInsights } from './insights';
@@ -268,7 +268,7 @@ function simulateMatchLegacy(input: MatchInput): MatchResult {
 
     if (pos.outcome === 'shot') {
       const shooter = pos.ballHolder ?? pickSlot(att.slots, pos.end, true); // v0.9.10: top kimdeyse vuran o
-      const keeperSlot = att.defs.find((s) => isActiveOnPitch(s) && s.slotGroup === 'GK') ?? att.defs.find(isActiveOnPitch);
+      const keeperSlot = resolveKeeper(att.defs);
       const attackerEff = shooter ? (shooter.player.ratings.att + shooter.player.ratings.fiz) / 2 : 50;
       const keeperEff = keeperSlot ? (keeperSlot.player.ratings.kal ?? keeperSlot.player.ratings.gen) : 50;
       const attachShotPresentation = (outcome: 'goal' | 'save' | 'miss') => {

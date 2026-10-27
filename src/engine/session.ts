@@ -2,7 +2,7 @@
 // Aynı motor çekirdeğiyle çalışır; her adımda UI'a olay paketleri döner.
 // Kullanıcı bu oturuma Sub/Taktik komutları bırakabilir (§11).
 
-import { LineupSlot, tickFatigue, isActiveOnPitch } from './profiles';
+import { LineupSlot, tickFatigue, isActiveOnPitch, resolveKeeper } from './profiles';
 import { PossessionContext, pickSlot, resolvePossessionOwner, resolveStartZone, runPossession } from './possession';
 import { narrate, shotVisualCue } from './narrate';
 import { aiDefaultTactic, chooseAiTacticDecision } from './tactics';
@@ -330,7 +330,11 @@ export class MatchSession {
     else { this.stats.shotsA++; this.stats.xgA += probabilities.pGoal; }
     this.stats.playerRows[args.taker.player.id].shots++;
     const shotId = this.recordShotFact({
-      side: args.side, shooterId: args.taker.player.id, goalkeeperId: args.keeper?.player.id,
+      // Core log yalnız sahadaki aktörleri yazar: GK tedavi/kırmızı kart nedeniyle dışarıdaysa aktör kimliği yok;
+      // istatistiksel sorumluluk ise birincil GK slotunda kalır (keeperOfRecordId).
+      side: args.side, shooterId: args.taker.player.id,
+      goalkeeperId: args.keeper && isActiveOnPitch(args.keeper) ? args.keeper.player.id : undefined,
+      keeperOfRecordId: args.keeper?.player.id,
       shotType: args.shotType, zone: args.zone, probabilities, outcome,
     });
     const signal = this.momentumHistory[this.momentumHistory.length - 1];
@@ -372,7 +376,7 @@ export class MatchSession {
     const attackingProfile = side === 'home' ? this.homeProf : this.awayProf;
     const defendingProfile = side === 'home' ? this.awayProf : this.homeProf;
     const defendingSlots = side === 'home' ? this.awayLine.slots : this.homeLine.slots;
-    const keeper = defendingSlots.find((slot) => isActiveOnPitch(slot) && slot.slotGroup === 'GK') ?? defendingSlots.find(isActiveOnPitch);
+    const keeper = resolveKeeper(defendingSlots);
     const setXG = Math.max(0.015, Math.min(0.09, 0.035 + (attackingProfile.setAtt - defendingProfile.setDef) * 0.001));
     const rawGoalProbability = Math.max(0.01, Math.min(0.5, setXG * 0.7 * this.goalPaceMul));
     this.resolveRestartShot({ side, zone, taker: taker.slot, keeper, shotType: 'corner', rawGoalProbability, saveShare: keeper ? 0.35 : 0, fresh });
@@ -380,7 +384,7 @@ export class MatchSession {
   }
 
   private recordShotFact(args: {
-    side: MatchSide; shooterId: string; assisterId?: string; goalkeeperId?: string;
+    side: MatchSide; shooterId: string; assisterId?: string; goalkeeperId?: string; keeperOfRecordId?: string;
     shotType: ShotType; zone?: string; probabilities: ShotProbabilitySet; outcome: ShotOutcome;
     varReviewed?: boolean; varDecision?: 'confirmed' | 'overturned';
   }): string {
@@ -391,13 +395,19 @@ export class MatchSession {
       type: 'SHOT', side: args.side, shotId, shooterId: args.shooterId,
       ...(args.assisterId ? { assisterId: args.assisterId } : {}),
       ...(args.goalkeeperId ? { goalkeeperId: args.goalkeeperId } : {}),
+      ...(args.keeperOfRecordId ? { keeperOfRecordId: args.keeperOfRecordId } : {}),
       shotType: args.shotType, ...(args.zone ? { zone: args.zone } : {}),
       xg: args.probabilities.pGoal, pGoal: args.probabilities.pGoal,
       pSave: args.probabilities.pSave, pBlocked: args.probabilities.pBlocked,
       pOffTarget: args.probabilities.pOffTarget, pWoodwork: args.probabilities.pWoodwork,
       second, minute,
     });
-    this.coreEventLog.append({ type: 'SHOT_RESOLVED', shotId, outcome: args.outcome, ...(args.goalkeeperId && args.outcome === 'save' ? { goalkeeperId: args.goalkeeperId } : {}), second, minute });
+    this.coreEventLog.append({
+      type: 'SHOT_RESOLVED', shotId, outcome: args.outcome,
+      ...(args.goalkeeperId && args.outcome === 'save' ? { goalkeeperId: args.goalkeeperId } : {}),
+      ...(args.keeperOfRecordId && args.outcome === 'save' ? { keeperOfRecordId: args.keeperOfRecordId } : {}),
+      second, minute,
+    });
     if (args.outcome === 'goal') {
       if (args.varReviewed) {
         const decision = args.varDecision ?? 'confirmed';
@@ -625,7 +635,7 @@ export class MatchSession {
     if (pos.outcome === 'shot') {
       const shooter = pos.ballHolder ?? pickSlot(att.slots, pos.end, true);
       if (!shooter) throw new Error('A shot outcome requires an available shooter.');
-      const keeperSlot = att.defs.find((s) => isActiveOnPitch(s) && s.slotGroup === 'GK') ?? att.defs.find(isActiveOnPitch);
+      const keeperSlot = resolveKeeper(att.defs);
       const attackerEff = (shooter.player.ratings.att + shooter.player.ratings.fiz) / 2;
       const keeperEff = keeperSlot ? (keeperSlot.player.ratings.kal ?? keeperSlot.player.ratings.gen) : 50;
       const attachShotPresentation = (outcome: 'goal' | 'save' | 'miss') => {
@@ -661,7 +671,10 @@ export class MatchSession {
       if (signal) signal.xg = probabilities.pGoal;
       const assisterId = pos.lastPasser?.player.id !== shooter.player.id ? pos.lastPasser?.player.id : undefined;
       const record = (resolved: ShotOutcome, varReviewed = false, varDecision?: 'confirmed' | 'overturned') => this.recordShotFact({
-        side: owner, shooterId: shooter.player.id, assisterId, goalkeeperId: keeperSlot?.player.id,
+        side: owner, shooterId: shooter.player.id, assisterId,
+        // Aktör kimliği yalnız aktif GK için; istatistiksel sorumluluk birincil GK slotunda kalır
+        goalkeeperId: keeperSlot && isActiveOnPitch(keeperSlot) ? keeperSlot.player.id : undefined,
+        keeperOfRecordId: keeperSlot?.player.id,
         shotType: 'open_play', zone: pos.end, probabilities, outcome: resolved, varReviewed, varDecision,
       });
 
@@ -731,7 +744,7 @@ export class MatchSession {
       });
       fresh.push({ minute: this.minute, side: owner, text: penaltyAwarded ? `Hakem penaltı verdi — ${selectedTaker.slot.player.name} beyaz noktada.` : `Hakem serbest vuruş verdi — ${selectedTaker.slot.player.name} kullanacak.`, kind: 'info', path: pos.path, playerId: selectedTaker.slot.player.id });
 
-      const keeper = att.defs.find((slot) => isActiveOnPitch(slot) && slot.slotGroup === 'GK') ?? att.defs.find(isActiveOnPitch);
+      const keeper = resolveKeeper(att.defs);
       if (penaltyAwarded) {
         const shooterEff = (selectedTaker.slot.player.ratings.att + selectedTaker.slot.player.ratings.fiz) / 2;
         const keeperEff = keeper ? (keeper.player.ratings.kal ?? keeper.player.ratings.gen) : 50;
