@@ -103,6 +103,20 @@ function Harness({ done }: { done: (report: string[]) => void }) {
         log.push('friendlies maç sonrası: ' + JSON.stringify(g().friendlies));
         log.push(`inbox ${inboxBefore} → ${g().inbox.length}`);
 
+        // Dalga 1: kaleci kurtarışları playerStats'a sindi mi?
+        const gkEngineRows = Object.entries(rr.stats.playerRows).filter(([, r]) => r.posGroup === 'GK');
+        const engineSaves = gkEngineRows.reduce((sum, [, r]) => sum + r.saves, 0);
+        const persistedGkSaves = Object.values(g().playerStats ?? {})
+          .filter((r) => g().playerOf(r.playerId)?.group === 'GK')
+          .reduce((sum, r) => sum + (r.saves ?? 0), 0);
+        log.push(persistedGkSaves === engineSaves && engineSaves >= 0
+          ? `✅ Kaleci kurtarışları sindi (motor ${engineSaves} = kayıt ${persistedGkSaves})`
+          : `❌ Kurtarış uyuşmazlığı: motor ${engineSaves}, kayıt ${persistedGkSaves}`);
+        const archived = (g().matchReports ?? [])[0];
+        log.push(archived && archived.xgHome === rr.stats.xgH && archived.xgAway === rr.stats.xgA
+          ? `✅ Maç raporu xG ile arşivlendi (${archived.xgHome.toFixed(2)}-${archived.xgAway.toFixed(2)})`
+          : '❌ Maç raporu xG arşivi eksik/hatalı');
+
         const f1 = g().nextFixture;
         const sameAgain = f1 && f1.day === f0.day && f1.homeId === f0.homeId && f1.awayId === f0.awayId;
         log.push(`Maç sonrası nextFixture: ${f1 ? `gün ${f1.day} ${f1.homeId} vs ${f1.awayId} [${f1.comp}] played=${f1.played}` : 'YOK'}`);

@@ -36,7 +36,10 @@ export const ClubScreen: React.FC = () => {
   const projectInfo = g.career.pending.activeProject;
   const culture = normalizeClubCulture(g.career.culture, g.career.seed, g.career.clubId, c.rivalIds ?? []);
   const seasonTransfers = g.transferLog.filter((entry) => entry.seasonNo === g.seasonNo);
-  const ffp = assessFfp({ payrollM: wageUse, wageCapM: wageCap, transferSpendM: seasonTransfers.filter((entry) => entry.kind === 'in').reduce((sum, entry) => sum + entry.fee, 0), transferIncomeM: seasonTransfers.filter((entry) => entry.kind === 'out').reduce((sum, entry) => sum + entry.fee, 0), baseBudgetM: c.transferBudget });
+  const transferSpend = seasonTransfers.filter((entry) => entry.kind === 'in').reduce((sum, entry) => sum + entry.fee, 0);
+  const transferIncome = seasonTransfers.filter((entry) => entry.kind === 'out').reduce((sum, entry) => sum + entry.fee, 0);
+  const netTransfer = transferSpend - transferIncome;
+  const ffp = assessFfp({ payrollM: wageUse, wageCapM: wageCap, transferSpendM: transferSpend, transferIncomeM: transferIncome, baseBudgetM: c.transferBudget });
 
   return (
     <div className="h-full flex flex-col">
@@ -93,14 +96,25 @@ export const ClubScreen: React.FC = () => {
               <div className="h-2.5 bg-base rounded-full overflow-hidden"><div className={`h-full rounded-full ${wagePct > 85 ? 'bg-danger' : 'bg-ok'}`} style={{ width: `${wagePct}%` }} /></div>
               <div className="text-muted text-[11px] mt-1.5">Kullanılan: ₺{wageUse.toFixed(2)}M / ay · Bütçe: ₺{wageCap.toFixed(2)}M{g.budget?.wbExtra ? ' (+TB aktarımı)' : ''}</div>
             </Card>
-            <div className="grid grid-cols-2 gap-2.5">
+            <Card className="!p-0 overflow-hidden">
+              <div className="px-4 py-2.5 border-b border-line font-display font-bold text-[13px]">Gerçekleşen sezon hareketleri</div>
+              <div className="px-4 py-1 text-[10.5px] text-muted border-b border-line/40">Yalnız kayıtlardaki gerçek kalemler; tahmini gelir kalemi gösterilmez.</div>
               {[
-                ['Giriş/Yayın', '+₺3,1M', 'var(--c-ok)'], ['Maç Günü', '+₺0,8M', 'var(--c-ok)'],
-                ['Maaşlar', `−₺${wageUse.toFixed(1)}M`, 'var(--c-danger)'], ['Operasyon', '−₺0,6M', 'var(--c-danger)'],
-              ].map(([k, v, col]) => (
-                <Card key={k} className="!p-3"><div className="text-muted text-[12px] uppercase tracking-[0.08em]">{k}</div><div className="num font-bold text-[15px] mt-1" style={{ color: col as string }}>{v}</div></Card>
+                ['Aylık maaş yükü', `−₺${wageUse.toFixed(2)}M`, 'var(--c-danger)', `${g.mySquad.length} futbolcu · tavan ₺${wageCap.toFixed(2)}M`],
+                ['Transfer harcaması', `−₺${transferSpend.toFixed(2)}M`, 'var(--c-danger)', `${seasonTransfers.filter((e) => e.kind === 'in').length} oyuncu`],
+                ['Transfer geliri', `+₺${transferIncome.toFixed(2)}M`, 'var(--c-ok)', `${seasonTransfers.filter((e) => e.kind === 'out').length} satış`],
+                ['Net transfer harcaması', `${netTransfer >= 0 ? '−' : '+'}₺${Math.abs(transferSpend - transferIncome).toFixed(2)}M`, (transferSpend - transferIncome) > 0 ? 'var(--c-warn)' : 'var(--c-ok)', 'FFP hesabına giren kalem'],
+                ['Kalan transfer bütçesi', `₺${(g.budget?.tb ?? c.transferBudget).toFixed(1)}M`, 'var(--c-special)', 'sezon içi kullanılabilir'],
+              ].map(([k, v, col, sub]) => (
+                <div key={k} className="flex items-center justify-between gap-3 px-4 py-2 border-b border-line/40 last:border-0">
+                  <div className="min-w-0">
+                    <div className="text-[12px] font-semibold truncate">{k}</div>
+                    <div className="text-[10px] text-muted">{sub}</div>
+                  </div>
+                  <span className="num text-[13.5px] font-extrabold shrink-0" style={{ color: col as string }}>{v}</span>
+                </div>
               ))}
-            </div>
+            </Card>
             <Card>
               <div className="text-primary text-[13px] font-bold">Bütçe Aktarımı: Transfer → Maaş</div>
               <p className="text-secondary text-[12px] mt-1 leading-snug">₺1M transfer bedeli = <b className="text-amber">+₺0,05M/ay</b> maaş payı (20 ay vade dengesi). Aktarım tek yön; bankaya dönmez.</p>

@@ -8,6 +8,7 @@ import { useGame, DemoMatchResult, DemoMatchEvent } from '../store/game';
 import { MatchSession, TeamTalkChoice } from '../engine/session';
 import { buildEngineInput } from '../engine/adapter';
 import { PresentationSpeed, presentationDelayMs, projectLiveMatch } from '../engine/adapters/liveProjection';
+import { buildXgTimeline } from '../engine/analytics';
 import { LIVE_CONSOLE_TABS } from './liveMatchConsole';
 import type { ConsoleTab } from './liveMatchConsole';
 import { clubById as clubByIdLive } from '../data/clubs';
@@ -508,6 +509,7 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onE
 
           {activeTab === 'analysis' && <div className="p-3 space-y-3">
             <div><h2 className="text-primary font-black text-sm">Analiz & Şut Haritası</h2><p className="text-muted text-[10px]">Her nokta motorun gerçek şut günlüğünden çizilir; yönler saha koordinatında normalize edilir.</p></div>
+            <XgTimeline shots={shotLog} homeColor={home.color1} awayColor={away.color1} homeShort={home.short} awayShort={away.short} />
             <LiveShotMap shots={shotLog} />
             <div className="rounded-xl border border-line bg-surface p-3">
               <h3 className="text-[11px] text-primary font-bold mb-2">Şut kanalı · sol / merkez / sağ</h3>
@@ -657,6 +659,56 @@ const SubPickerFlow: React.FC<{
         <Btn variant="secondary" onClick={onCancel}>İptal</Btn>
         <Btn variant="amber" disabled={!outId || !inId || subsLeft <= 0 || windowsLeft <= 0} onClick={() => outId && inId && onConfirm(outId, inId)}>Onayla</Btn>
       </div>
+    </div>
+  );
+};
+
+// Dalga 1: kümülatif xG zaman çizelgesi — saf motor şut günlüğünden, SVG/CSS (ek kütüphane yok)
+const XgTimeline: React.FC<{ shots: EngineShot[]; homeColor: string; awayColor: string; homeShort: string; awayShort: string }> = ({ shots, homeColor, awayColor, homeShort, awayShort }) => {
+  const points = buildXgTimeline(shots);
+  const last = points[points.length - 1];
+  const W = 300;
+  const H = 104;
+  const PAD_X = 10;
+  const PAD_TOP = 12;
+  const PAD_BOTTOM = 18;
+  const maxMinute = Math.max(90, last.minute);
+  const maxXg = Math.max(0.5, last.home, last.away);
+  const x = (minute: number) => PAD_X + (minute / maxMinute) * (W - PAD_X * 2);
+  const y = (v: number) => H - PAD_BOTTOM - (v / maxXg) * (H - PAD_TOP - PAD_BOTTOM);
+  const line = (key: 'home' | 'away') => points.map((p) => `${x(p.minute).toFixed(1)},${y(p[key]).toFixed(1)}`).join(' ');
+  const gridVals = [0, 0.5, 1].filter((v) => v <= maxXg + 0.01);
+  return (
+    <div className="rounded-xl border border-line bg-surface p-3">
+      <div className="flex items-center justify-between mb-1.5">
+        <h3 className="text-[11px] text-primary font-bold">Kümülatif xG akışı</h3>
+        <div className="flex items-center gap-2.5 text-[10px] font-bold">
+          <span style={{ color: homeColor }}>● {homeShort} {last.home.toFixed(2)}</span>
+          <span style={{ color: awayColor }}>● {awayShort} {last.away.toFixed(2)}</span>
+        </div>
+      </div>
+      {points.length < 2
+        ? <div className="h-[104px] flex items-center justify-center text-muted text-[10.5px]">İlk şuttan sonra çizgi belirir</div>
+        : (
+          <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label={`Kümülatif xG: ${homeShort} ${last.home.toFixed(2)}, ${awayShort} ${last.away.toFixed(2)}`}>
+            {gridVals.map((v) => (
+              <g key={v}>
+                <line x1={PAD_X} x2={W - PAD_X} y1={y(v)} y2={y(v)} stroke="var(--c-line, #33403a)" strokeWidth="0.6" strokeDasharray="3 3" />
+                <text x={W - PAD_X} y={y(v) - 2} textAnchor="end" fontSize="7" fill="var(--c-muted, #8a968d)">{v}</text>
+              </g>
+            ))}
+            <polyline points={line('home')} fill="none" stroke={homeColor} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+            <polyline points={line('away')} fill="none" stroke={awayColor} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+            {points.slice(1).map((p, i) => (
+              <g key={i}>
+                <circle cx={x(p.minute)} cy={y(p.home)} r="2.2" fill={homeColor} />
+                <circle cx={x(p.minute)} cy={y(p.away)} r="2.2" fill={awayColor} />
+              </g>
+            ))}
+            <text x={PAD_X} y={H - 4} fontSize="7.5" fill="var(--c-muted, #8a968d)">0'</text>
+            <text x={W - PAD_X} y={H - 4} textAnchor="end" fontSize="7.5" fill="var(--c-muted, #8a968d)">{maxMinute}'</text>
+          </svg>
+        )}
     </div>
   );
 };
