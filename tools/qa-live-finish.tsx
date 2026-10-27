@@ -138,6 +138,14 @@ function Harness({ done }: { done: (report: string[]) => void }) {
         log.push(finished ? '✅ Maç tamamlandı, "Maç Sonu Analizine Git" butonu göründü' : '❌ 60sn içinde maç tamamlanmadı (donmuş olabilir)');
         if (!finished) { done(log); return; }
 
+        // Dalga 5: antrenör notları (45/75/90) canlı maç akışına gerçekten düşüyor mu?
+        await clickByText([/^Spiker$/]);
+        await tick(150);
+        const coachNotes = dom.window.document.querySelectorAll('[data-coach-note]').length;
+        const coachText = dom.window.document.querySelector('[data-coach-note]')?.textContent ?? '';
+        log.push(coachNotes >= 1 && coachText.includes('TD') ? `✅ Antrenör notu maç akışına düştü (${coachNotes} TD notu render oldu)` : '❌ TD notu akışta görünmedi');
+        await clickByText([/^Saha$/]);
+
         await clickByText([/Maç Sonu Analizine Git/]);
         await tick(150);
         const reportOpen = /Sonucu Kaydet — Ana Merkez/.test(dom.window.document.body.textContent ?? '');

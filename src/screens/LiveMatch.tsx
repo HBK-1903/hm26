@@ -9,6 +9,8 @@ import { MatchSession, TeamTalkChoice } from '../engine/session';
 import { buildEngineInput } from '../engine/adapter';
 import { PresentationSpeed, presentationDelayMs, projectLiveMatch } from '../engine/adapters/liveProjection';
 import { buildXgTimeline } from '../engine/analytics';
+import { coachNoteAt, nextCoachCheckpoint } from '../engine/matchDay';
+import { tacticalFamiliarity } from '../engine/tacticsStudio';
 import { LIVE_CONSOLE_TABS } from './liveMatchConsole';
 import type { ConsoleTab } from './liveMatchConsole';
 import { clubById as clubByIdLive } from '../data/clubs';
@@ -63,6 +65,8 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onE
   const [loopError, setLoopError] = useState<unknown>(null);
   const lastDecisionShown = useRef('');
   const teamTalkPromptShown = useRef(false);
+  // Dalga 5: antrenör notu kontrol noktaları (45/75/90) her maçta bir kez düşer
+  const coachFiredRef = useRef<Set<number>>(new Set());
   const reducedMotion = !!g.career.settings.reduceMotion || (typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
   if (managerSuspendedRef.current === null) managerSuspendedRef.current = (g.career.managerSuspendedMatches ?? 0) > 0;
   const managerSuspendedAtStart = managerSuspendedRef.current;
@@ -96,6 +100,29 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onE
   const done = projection.status === 'complete';
   const clockMinute = projection.clock.minute;
   const clockSecond = projection.clock.second;
+
+  // Dalga 5: maç içi teknik direktör notları — sunum katmanı, motor sonucuna karışmaz
+  useEffect(() => {
+    const cp = nextCoachCheckpoint(clockMinute);
+    if (cp === null || coachFiredRef.current.has(cp)) return;
+    coachFiredRef.current.add(cp);
+    const slots = session.getSlots(mySide);
+    const meanFitness = slots.length ? slots.reduce((x, s) => x + s.liveFitness, 0) / slots.length : 100;
+    const reds = slots.filter((s) => s.sentOff).length;
+    const plan = g.tactics[tacticIdx] ?? g.tactics[0];
+    const fam = tacticalFamiliarity(plan);
+    const myGoals = mySide === 'home' ? projection.score.home : projection.score.away;
+    const oppGoals = mySide === 'home' ? projection.score.away : projection.score.home;
+    const note = coachNoteAt({
+      checkpoint: cp, myGoals, oppGoals,
+      familiarityPercent: fam.percent, stamped: !!plan.familiarityFormation,
+      meanFitness, reds,
+    });
+    if (note) {
+      setEventsShown((ev) => [...ev, { minute: clockMinute, side: mySide, kind: 'coach', text: note.text }]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clockMinute]);
   const liveStats: MatchStats = projection.stats;
   const gh = projection.score.home, ga = projection.score.away;
   // Son 5 dakikanın topa sahip olma, pres kazanımı, şut ve xG bileşimi.
@@ -247,7 +274,7 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onE
   }, [currentEvent, hapticsEnabled, reducedMotion]);
 
 
-  useEffect(() => { feedRef.current?.scrollTo({ top: feedRef.current.scrollHeight, behavior: 'smooth' }); }, [eventsShown.length, activeTab]);
+  useEffect(() => { feedRef.current?.scrollTo?.({ top: feedRef.current.scrollHeight, behavior: 'smooth' }); }, [eventsShown.length, activeTab]);
 
   // VAR/kart ve kullanıcı tarafı sakatlıklarında karar; devrede tek seferlik team talk.
   useEffect(() => {
@@ -309,10 +336,20 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onE
     <div ref={feedRef} className="h-full w-full overflow-y-auto no-scrollbar" role="log" aria-live="polite" aria-label="Maç olay akışı">
       <div className="space-y-1.5">
         {eventsShown.slice(-40).map((e, i) => (
+          e.kind === 'coach' ? (
+            <div key={`${e.minute}-${i}`} data-coach-note className="flex gap-2 text-[12px] leading-snug m26-in bg-info/10 border border-info/40 rounded-lg px-2.5 py-2">
+              <span className="num shrink-0 w-8 text-info font-bold">{e.minute}'</span>
+              <span className="flex-1">
+                <span className="inline-block text-[8.5px] font-black tracking-wider bg-info/25 text-info rounded px-1 py-px mr-1.5 align-middle">TD</span>
+                <span className="text-primary/95 align-middle">{e.text}</span>
+              </span>
+            </div>
+          ) : (
           <div key={`${e.minute}-${i}`} className={`flex gap-2 text-[12px] leading-snug m26-in ${e.kind === 'goal' ? 'bg-amber/15 border border-amber/50 rounded-lg px-2 py-1.5' : e.kind === 'half' ? 'text-muted' : ''}`}>
             <span className={`num shrink-0 w-8 ${e.kind === 'goal' ? 'text-amber font-bold' : 'text-muted'}`}>{e.minute}'</span>
             <span className={e.kind === 'goal' ? 'text-amber font-bold flex-1' : e.kind === 'save' ? 'text-info' : e.kind === 'card' ? 'text-warn' : e.kind === 'var' ? 'text-special' : 'text-primary/90'}>{e.text}</span>
           </div>
+          )
         ))}
         {eventsShown.length === 0 && <div className="text-muted text-[11.5px] italic px-1 py-2">Yayın bağlanıyor — ilk gelişme bir dakika içinde akışa düşer…</div>}
         {!done && !paused && eventsShown.length > 0 && <div className="text-muted text-[11px] italic px-1">…canlı yayın devam ediyor</div>}

@@ -10,6 +10,7 @@ import { GAME_PLANS } from '../data/meta';
 import { autoXI } from '../data/gen';
 import { DemoMatchResult } from '../store/game';
 import { LiveMatch } from './LiveMatch';
+import { buildMatchBrief, type NoteTone } from '../engine/matchDay';
 
 
 export const MatchPrep: React.FC<{ go: (s: Screen) => void }> = ({ go }) => {
@@ -119,6 +120,43 @@ export const MatchPrep: React.FC<{ go: (s: Screen) => void }> = ({ go }) => {
             </div>
           </Card>
         ))}
+
+        {/* Dalga 5: Teknik Direktör Notu — gerçek veriden brifing (yeni şema yok, arşiv yoksa form yorumu yok) */}
+        {(() => {
+          const tac = g.tactics[activeTacticIdx] ?? g.tactics[0];
+          const briefXi = autoXI(g.mySquad, tac.formation);
+          const briefList = [...briefXi.gk, ...briefXi.defShape, ...briefXi.fbWb, ...briefXi.dm, ...briefXi.cm, ...briefXi.am, ...briefXi.wg, ...briefXi.st];
+          const opp = isHome ? away : home;
+          const brief = buildMatchBrief({
+            myClub: { short: mine.short, strength: mine.strength },
+            oppClub: { short: opp.short, strength: opp.strength },
+            plan: tac, xi: briefList, squad: g.mySquad,
+            reports: g.matchReports ?? [], isHome,
+          });
+          const toneCls: Record<NoteTone, string> = {
+            ok: 'border-ok/45 bg-ok/10 text-ok',
+            warn: 'border-warn/45 bg-warn/10 text-warn',
+            danger: 'border-danger/45 bg-danger/10 text-danger',
+            info: 'border-info/45 bg-info/10 text-info',
+          };
+          return (
+            <Card className="!p-3" >
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="text-[13px]">📋</span>
+                <div className="text-[12px] text-muted uppercase tracking-[0.08em]">Teknik Direktör Notu</div>
+              </div>
+              <p className="text-primary text-[12.5px] font-bold leading-snug mb-2">{brief.headline}</p>
+              <div className="space-y-1.5" data-testid="td-brief">
+                {brief.notes.map((n, i) => (
+                  <div key={`${n.tag}-${i}`} className={`rounded-lg border px-2.5 py-1.5 flex gap-2 items-start ${toneCls[n.tone]}`} data-brief-tone={n.tone}>
+                    <span className="text-[9px] font-black tracking-wider shrink-0 mt-0.5 opacity-80">{n.tag}</span>
+                    <span className="text-[11.5px] leading-snug text-secondary flex-1">{n.text}</span>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          );
+        })()}
 
         {/* §13.2 rakip analizi mini raporu */}
         <Card>
