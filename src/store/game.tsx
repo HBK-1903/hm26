@@ -25,7 +25,7 @@ import { advanceInternationalSeason, archiveInternationalSeason, buildInternatio
 export const SEED_BASE = 20260803;
 export { dayToDate };
 
-export interface DemoMatchEvent { minute: number; text: string; kind: 'info' | 'goal' | 'card' | 'chance' | 'save' | 'var' | 'sub' | 'half' | 'injury'; side?: 'home' | 'away'; path?: string[]; anim?: MatchStateEvent['anim']; playerId?: string; scorerId?: string; assisterId?: string; visualEvent?: 'free_kick' | 'brawl' | 'woodwork' | 'volley'; visualActors?: string[]; }
+export interface DemoMatchEvent { minute: number; text: string; kind: 'info' | 'goal' | 'card' | 'chance' | 'save' | 'var' | 'sub' | 'half' | 'injury' | 'coach'; side?: 'home' | 'away'; path?: string[]; anim?: MatchStateEvent['anim']; playerId?: string; scorerId?: string; assisterId?: string; visualEvent?: 'free_kick' | 'brawl' | 'woodwork' | 'volley'; visualActors?: string[]; }
 // Dalga 2 (§5-D): vuruş haritası noktası — dikey saha yüzde koordinatı (ev üst yarı, dep alt yarı)
 export interface ShotDot { minute: number; side: 'home' | 'away'; x: number; y: number; xg: number; outcome: 'goal' | 'save' | 'miss' | 'clearance' | 'woodwork' }
 export interface MatchCardRow { min: number; g: number; a: number; shots: number; saves: number; yellow: number; red: number; posGroup: string; rating: number }
