@@ -55,6 +55,7 @@ export interface CareerSeasonRow {
   apps: number; goals: number; assists: number;
   conceded?: number;       // sadece kaleciler
   cleanSheets?: number;    // sadece kaleciler
+  saves?: number;          // Dalga 1: sadece kaleciler
   avgRating: number;
   retired?: boolean;       // "Jübile Yaptı" mührü
 }

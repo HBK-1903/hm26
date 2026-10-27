@@ -97,6 +97,14 @@ function Harness({ done }: { done: (report: string[]) => void }) {
         await act(async () => setFixture(g().nextFixture));
         await act(async () => setPhase('live'));
 
+        // Dalga 1: Analiz sekmesi açılınca kümülatif xG grafiği render oluyor mu?
+        await clickByText([/Analiz/]);
+        await tick(150);
+        log.push(/Kümülatif xG/.test(dom.window.document.body.textContent ?? '')
+          ? '✅ Analiz sekmesinde kümülatif xG grafiği render oldu'
+          : '❌ xG grafiği Analiz sekmesinde bulunamadı');
+        await clickByText([/Saha/]);
+
         // Otomatik karar kapatıcı + maç sonu bekleyici
         await clickByText([/4 kat hız/]);
         const startedAt = Date.now();

@@ -74,6 +74,7 @@ interface PersistedState {
     goals: number; assists: number; yellows: number; reds: number; ratingSum: number; apps: number;
     conceded?: number;    // v0.9.5: kaleci gol yeme (GK)
     cleanSheets?: number; // v0.9.5: gol yememe (GK, min>0 & conceded==0)
+    saves?: number;       // Dalga 1: kaleci kurtarışları (kurtarış yüzdesi için; eski kayıtlarda yok → 0)
   }>;
   // Aşama 2 — kalıcı dünya modeli
   playerClub: Record<string, string>;        // playerId → clubId (override; yoksa p.clubId)
@@ -439,14 +440,14 @@ export function GameProvider({ career: initialCareer, snapshot, children }: {
   }, [squads]);
 
   // Motor maçı için: res.engine.playerRows üzerinden tam doğru birikim (gol+asist+kartlar)
-  const digestEngineRows = useCallback((stats: NonNullable<PersistedState['playerStats']>, rows: Record<string, { min: number; g: number; a: number; yellow: number; red: number; rating: number; conceded?: number; posGroup?: string }>, clubIdHome: string, squadHome: Player[], squadAway: Player[]): NonNullable<PersistedState['playerStats']> => {
+  const digestEngineRows = useCallback((stats: NonNullable<PersistedState['playerStats']>, rows: Record<string, { min: number; g: number; a: number; yellow: number; red: number; rating: number; conceded?: number; saves?: number; posGroup?: string }>, clubIdHome: string, squadHome: Player[], squadAway: Player[]): NonNullable<PersistedState['playerStats']> => {
     const out = { ...stats };
     Object.entries(rows).forEach(([pid, r]) => {
       if (!r.min) return;
       const club = squadHome.some((p) => p.id === pid) ? clubIdHome : (squadAway.some((p) => p.id === pid) ? '?' : '?');
       // Gerçek clubId çöz
       const realClub = squads ? Object.keys(squads).find((cid) => (squads[cid] ?? []).some((p) => p.id === pid)) ?? club : club;
-      const prev = out[pid] ?? { playerId: pid, clubId: realClub, goals: 0, assists: 0, yellows: 0, reds: 0, ratingSum: 0, apps: 0, conceded: 0, cleanSheets: 0 };
+      const prev = out[pid] ?? { playerId: pid, clubId: realClub, goals: 0, assists: 0, yellows: 0, reds: 0, ratingSum: 0, apps: 0, conceded: 0, cleanSheets: 0, saves: 0 };
       const con = r.conceded ?? 0;
       const isGK = r.posGroup === 'GK';
       out[pid] = {
@@ -457,6 +458,7 @@ export function GameProvider({ career: initialCareer, snapshot, children }: {
         // v0.9.5 GK hijyeni
         conceded: (prev.conceded ?? 0) + con,
         cleanSheets: (prev.cleanSheets ?? 0) + (isGK && con === 0 ? 1 : 0),
+        saves: (prev.saves ?? 0) + (r.saves ?? 0),
       };
     });
     return out;
@@ -903,6 +905,7 @@ export function GameProvider({ career: initialCareer, snapshot, children }: {
         apps: row.apps, goals: row.goals, assists: row.assists,
         conceded: (row.conceded ?? 0) || undefined,
         cleanSheets: (row.cleanSheets ?? 0) || undefined,
+        saves: (row.saves ?? 0) || undefined,
         avgRating: +(row.ratingSum / row.apps).toFixed(2),
       });
       playerPatch[row.playerId] = { ...prev, careerHistory: hist };
@@ -1179,7 +1182,7 @@ export function GameProvider({ career: initialCareer, snapshot, children }: {
     setSt((s) => {
       let next = finishUserFixture(s, fx, res.hg, res.ag);
       // Wave 13: exact engine/player-row evidence is now read from the adapter's public projection (legacy nested result remains supported).
-      const engineRows = (res as unknown as { engine?: { playerRows: Record<string, { min: number; g: number; a: number; yellow: number; red: number; rating: number; conceded?: number; posGroup?: string }> } }).engine?.playerRows
+      const engineRows = (res as unknown as { engine?: { playerRows: Record<string, { min: number; g: number; a: number; yellow: number; red: number; rating: number; conceded?: number; saves?: number; posGroup?: string }> } }).engine?.playerRows
         ?? res.playerRows;
       if ((fx.comp === 'intl-grup' || fx.comp === 'intl-ko') && engineRows) {
         const scorerLines = Object.entries(engineRows).filter(([, row]) => row.g > 0).map(([playerId, row]) => ({ playerId, clubId: (squads[fx.homeId] ?? []).some((player) => player.id === playerId) ? fx.homeId : fx.awayId, goals: row.g }));
