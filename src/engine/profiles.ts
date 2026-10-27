@@ -3,6 +3,7 @@
 
 import {Player, TacticPlan, Formation, PositionGroup} from '../types';
 import {effectivePlayer} from './ratings';
+import {cohesionFactor} from './tacticsStudio';
 
 export interface TeamMatchProfile {
   buildUp: number;          // BuildUpScore
@@ -178,6 +179,11 @@ export function teamProfile(slots: LineupSlot[], tactic: TacticPlan, ctx: { home
   if (tactic.press === 'high' && tactic.defLine === 'high') block *= 0.95;
 
   if (ctx.derby) { press *= 1.03; block *= 1.02; } // §9.1 derbi atmosferi (güçlendirilmemiş ince fark)
+
+  // Dalga 4: taktiksel uyum yalnız pas/top tutma kanallarına ince etki yapar.
+  // Damgasız plan (eski kayıt/AI/henüz maç oynamamış) çarpanı 1.00 olduğu için denge değişmez.
+  const cohesion = cohesionFactor(tactic);
+  buildUp *= cohesion; midfield *= cohesion; transition *= cohesion;
 
   const meanFitness = mean(activeSlots, (s) => s.player.fitness);
   const meanForm = mean(activeSlots, (s) => s.player.form);
