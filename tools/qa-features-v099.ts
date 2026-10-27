@@ -111,8 +111,8 @@ const tactic = aiDefaultTactic(home, away, away.strength);
   const market = readFileSync(new URL('../src/screens/Market.tsx', import.meta.url), 'utf8');
   const squadUI = readFileSync(new URL('../src/screens/Squad.tsx', import.meta.url), 'utf8');
   const live = readFileSync(new URL('../src/screens/LiveMatch.tsx', import.meta.url), 'utf8');
-  const pass = /clinicTreat/.test(store) && /CLINIC_COST_M/.test(store) && /setMentor/.test(store) && /playerClub: \{ \.\.\.cur\.playerClub, \[p\.id\]: myId/.test(store) && /Takasa Oyuncu Ekle/.test(market) && /Sağlık & Rehberlik/.test(squadUI) && /session\.protest\(mySide\)/.test(live) && /recordManagerYellow/.test(store) && /managerSuspendedMatches/.test(store);
-  ok('UI/store wiring: clinic, mentor, trade, protest, manager discipline', pass, `clinic=${/clinicTreat/.test(store)} mentor=${/setMentor/.test(store)} swap=${/Takasa Oyuncu Ekle/.test(market)} protest=${/session\.protest\(mySide\)/.test(live)} managerBan=${/managerSuspendedMatches/.test(store)}`);
+  const pass = /clinicTreat/.test(store) && /CLINIC_COST_M/.test(store) && /setMentor/.test(store) && /playerClub: \{ \.\.\.cur\.playerClub, \[p\.id\]: myId/.test(store) && /aria-label="Takas oyuncusu"/.test(market) && /Sağlık & Rehberlik/.test(squadUI) && /session\.protest\(mySide\)/.test(live) && /recordManagerYellow/.test(store) && /managerSuspendedMatches/.test(store);
+  ok('UI/store wiring: clinic, mentor, trade, protest, manager discipline', pass, `clinic=${/clinicTreat/.test(store)} mentor=${/setMentor/.test(store)} swap=${/aria-label="Takas oyuncusu"/.test(market)} protest=${/session\.protest\(mySide\)/.test(live)} managerBan=${/managerSuspendedMatches/.test(store)}`);
 }
 
 for (const r of out) console.log(`${r.pass ? '✅' : '❌'} ${r.name} | ${r.detail}`);
