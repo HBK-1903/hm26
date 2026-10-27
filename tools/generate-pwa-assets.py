@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 # HM26 — PWA görsel varlık üretimi (offline, deterministik, harici servis yok):
-#   1) public/splash-cover.webp kaynağından iOS apple-touch-startup-image PNG'leri
-#      (cover-crop + 256 renk octree kuantalama; launch ekranı kısa gösterildiği için
-#       fotoğraf kalitesi pratikte kayıpsıza yakın, boyut ~%80 düşer)
+#   1) iOS apple-touch-startup-image PNG'leri: markalı kompozisyon (lacivert degrade,
+#      altın HM26 wordmark, ayraç, slogan); yumuşak degrade bantlaşmasın diye tam RGB
+#      kaydedilir (DEFLATE sıkıştırmasıyla dosya yine ~80 KB düzeyinde kalır).
+#      Not: uygulama içi sinematik açılış (public/splash-cover.webp) ayrı kalır, buna dokunulmaz.
 #   2) Manifest shortcuts için 96x96 marka ikonları (lacivert yuvarlak köşe + altın harf)
 #   3) Android kurulum diyaloğu için markalı tanıtım ekran görüntüleri (1080x1920).
 #      Bunlar canlı UI yakalama DEĞİLDİR; gerçek ekran görüntüsüyle değiştirmek için
@@ -67,27 +68,72 @@ PROMO_SHOTS = [
 ]
 
 
-def cover_crop(src: Image.Image, w: int, h: int) -> Image.Image:
-    sw, sh = src.size
-    scale = max(w / sw, h / sh)
-    resized = src.resize((round(sw * scale), round(sh * scale)), Image.LANCZOS)
-    rw, rh = resized.size
-    left = (rw - w) // 2
-    top = (rh - h) // 2
-    return resized.crop((left, top, left + w, top + h))
+def _navy_gradient(w: int, h: int) -> Image.Image:
+    """Marka lacivertinde dikey çok-duraklı degrade; ortada hafif ışıma derinlik katar."""
+    stops = [(0.0, (4, 7, 11)), (0.34, (9, 21, 33)), (0.62, (7, 24, 34)), (1.0, (4, 7, 11))]
+    canvas = Image.new("RGB", (w, h))
+    px = canvas.load()
+    for y in range(h):
+        t = y / max(h - 1, 1)
+        for i in range(len(stops) - 1):
+            t0, c0 = stops[i]
+            t1, c1 = stops[i + 1]
+            if t0 <= t <= t1:
+                k = (t - t0) / max(t1 - t0, 1e-9)
+                col = tuple(round(c0[j] + (c1[j] - c0[j]) * k) for j in range(3))
+                break
+        for x in range(w):
+            px[x, y] = col
+    return canvas
+
+
+def _draw_tracked(draw: ImageDraw.ImageDraw, text: str, font, y: int, w: int,
+                  fill, tracking: int) -> None:
+    widths = [draw.textlength(ch, font=font) for ch in text]
+    total = sum(widths) + tracking * (len(text) - 1)
+    x = (w - total) / 2
+    for ch, cw in zip(text, widths):
+        draw.text((x, y), ch, font=font, fill=fill)
+        x += cw + tracking
 
 
 def generate_splashes() -> list[str]:
-    src = Image.open(os.path.join(PUBLIC, "splash-cover.webp")).convert("RGB")
+    """Markalı launch ekranı: lacivert degrade + ortalı altın HM26 wordmark + altın ayraç + slogan.
+
+    Sinematik fotoğraf (splash-cover.webp) uygulama içi açılışta kalır; OS launch ekranı
+    kısa gösterildiği için sade ve okunaklı marka kompozisyonu kullanılır."""
+    wordmark = Image.open(os.path.join(PUBLIC, "assets", "brand", "HM26_Seffaf.webp")).convert("RGBA")
     out_dir = os.path.join(PUBLIC, "splash")
     os.makedirs(out_dir, exist_ok=True)
+    tagline = "TÜRK FUTBOL MENAJERLİK OYUNU"
     written = []
     for w, h, *_ in SPLASH_TARGETS:
-        frame = cover_crop(src, w, h)
-        # 256 renk octree + FS dither: gradyanlarda bantlaşmayı önler, boyutu ~%80 azaltır
-        frame = frame.quantize(colors=256, method=Image.FASTOCTREE, dither=Image.FLOYDSTEINBERG)
+        canvas = _navy_gradient(w, h)
+        draw = ImageDraw.Draw(canvas)
+
+        # Wordmark: genişlik %66, dikey merkezi ekran yüksekliğinin %42'si
+        wm_w = round(w * 0.66)
+        wm_h = round(wordmark.size[1] * wm_w / wordmark.size[0])
+        wm = wordmark.resize((wm_w, wm_h), Image.LANCZOS)
+        wm_top = round(h * 0.42) - wm_h // 2
+        canvas.paste(wm, ((w - wm_w) // 2, wm_top), wm)
+
+        # Altın ayraç
+        rule_w, rule_h = round(w * 0.16), max(4, round(w * 0.006))
+        rule_y = wm_top + wm_h + round(h * 0.035)
+        draw.rounded_rectangle(
+            ((w - rule_w) // 2, rule_y, (w + rule_w) // 2, rule_y + rule_h),
+            radius=rule_h // 2, fill=GOLD,
+        )
+
+        # Harf aralıklı slogan
+        tag_font = ImageFont.truetype(FONT_REG, round(w * 0.034))
+        _draw_tracked(draw, tagline, tag_font, rule_y + rule_h + round(h * 0.028),
+                      w, (196, 206, 214), max(2, round(w * 0.008)))
+
+        # Yumuşak degrade kuantalamada bantlaşır; tam RGB PNG, DEFLATE sayesinde yine küçük (~80 KB)
         path = os.path.join(out_dir, f"apple-splash-{w}x{h}.png")
-        frame.save(path, "PNG", optimize=True)
+        canvas.save(path, "PNG", optimize=True)
         written.append(os.path.relpath(path, ROOT))
     return written
 
@@ -211,7 +257,6 @@ def generate_promo_screenshots() -> list[str]:
         draw.text(((W - tw) / 2, H - 220), tag, font=gold_font, fill=GOLD)
 
         path = os.path.join(out_dir, shot["file"])
-        canvas = canvas.quantize(colors=256, method=Image.FASTOCTREE, dither=Image.FLOYDSTEINBERG)
         canvas.save(path, "PNG", optimize=True)
         written.append(os.path.relpath(path, ROOT))
     return written

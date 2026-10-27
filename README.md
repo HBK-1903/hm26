@@ -2,6 +2,8 @@
 
 Offline-first Turkish football management game. Built with React, TypeScript, Vite and Phaser.
 
+**🌐 Canlı:** [https://hbkmanage26.pages.dev/](https://hbkmanage26.pages.dev/) · Cloudflare Pages
+
 ## Requirements
 
 - Node.js 20 or newer

@@ -1,5 +1,8 @@
 # ☁️ MANAGER26 → Cloudflare Pages Dağıtımı
 
+**Canlı adres:** [https://hbkmanage26.pages.dev/](https://hbkmanage26.pages.dev/)
+(Cloudflare Pages proje adı: `hbkmanage26`).
+
 Production build `dist/` klasörüne çıkar; PWA kabiliyeti (service worker, manifest,
 kurulum) yalnız production build'de aktiftir.
 
@@ -19,17 +22,17 @@ npm run qa:pwa     # manifest, shortcuts, splash linkleri, SW precache sözleşm
 ## Yol 1 — Sürükle & Bırak (en kolay, hesap/Git gerekmez)
 
 1. [dash.cloudflare.com](https://dash.cloudflare.com) → **Workers & Pages** → **Create** → **Pages** → **Upload assets**
-2. Proje adı: `manager26`
+2. Proje adı: `hbkmanage26`
 3. **`dist/` klasörünün İÇİNDEKİLERİ** sürükle: `index.html`, `assets/`, `sw.js`,
    `manifest.json`, `_redirects`, `_headers`, `icons/`, `splash/`, `screenshots/`, SVG ikonlar
-4. **Deploy** → oyun verilen `*.pages.dev` adresinde canlanır
+4. **Deploy** → oyun [https://hbkmanage26.pages.dev/](https://hbkmanage26.pages.dev/) altında canlanır
 
 ## Yol 2 — Wrangler CLI
 
 ```bash
 npm i -g wrangler
-wrangler pages project create manager26
-wrangler pages deploy dist --project-name=manager26
+wrangler pages project create hbkmanage26
+wrangler pages deploy dist --project-name=hbkmanage26
 ```
 
 ## Yol 3 — Git bağlantısı (otomatik yayın)
