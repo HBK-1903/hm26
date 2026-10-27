@@ -5,6 +5,10 @@ import { join, relative } from 'path';
 
 const DIST = new URL('../dist', import.meta.url).pathname;
 const skip = new Set(['hm26-cloudflare.zip', '_redirects', '_headers']);
+// Sistem/mağaza seviyesi varlıklar app-shell precache'ine girmez:
+//  - /splash/*      → iOS apple-touch-startup-image (açılıştan önce OS tarafından okunur)
+//  - /screenshots/* → Android kurulum diyaloğu/mağaza tanıtım görselleri
+const PRECACHE_EXCLUDE_PREFIXES = ['/splash/', '/screenshots/'];
 const files = [];
 (function walk(dir) {
   for (const name of readdirSync(dir)) {
@@ -12,6 +16,7 @@ const files = [];
     if (statSync(p).isDirectory()) { walk(p); continue; }
     if (skip.has(name)) continue;
     const rel = '/' + relative(DIST, p).split('\\').join('/');
+    if (PRECACHE_EXCLUDE_PREFIXES.some((prefix) => rel.startsWith(prefix))) continue;
     files.push(rel);
   }
 })(DIST);

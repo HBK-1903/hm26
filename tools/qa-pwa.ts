@@ -15,6 +15,8 @@ const manifest = JSON.parse(read('public/manifest.json')) as {
   display?: string;
   orientation?: string;
   icons?: Array<{ src: string; sizes: string; type: string; purpose: string }>;
+  shortcuts?: Array<{ name: string; url: string; icons?: Array<{ src: string; sizes: string; type: string }> }>;
+  screenshots?: Array<{ src: string; sizes: string; type: string; form_factor?: string }>;
 };
 assert.ok(manifest.name && manifest.short_name && manifest.description, 'Manifest identity fields must be present');
 assert.equal(manifest.start_url, '/');
@@ -64,4 +66,40 @@ assert.ok(html.includes('name="theme-color"'));
 assert.ok(html.includes('property="og:title"'));
 pass('Production-only update UI wiring and PWA/SEO document metadata');
 
-console.log('\nPWA-QA: 4/4 PASS');
+// Manifest kısayolları ve tanıtım ekran görüntüleri: dosyalar hem public hem dist'te olmalı
+const NAV_HASHES = ['#hub', '#squad', '#tactics', '#market', '#club', '#comps', '#stats', '#inbox',
+  '#careerProfile', '#settings', '#backup', '#matchPrep', '#newsroom'];
+assert.ok(manifest.shortcuts && manifest.shortcuts.length >= 1, 'Manifest must declare shortcuts');
+for (const shortcut of manifest.shortcuts!) {
+  assert.ok(NAV_HASHES.includes(shortcut.url.replace('/', '')), `Shortcut URL must target a NAV screen: ${shortcut.url}`);
+  assert.ok(/^\/#/.test(shortcut.url), 'Shortcut URL must use the in-app hash route');
+  for (const icon of shortcut.icons ?? []) {
+    assert.ok(existsSync(join(root, 'public', icon.src.slice(1))), `Missing shortcut icon ${icon.src}`);
+    assert.ok(existsSync(join(root, 'dist', icon.src.slice(1))), `Build did not copy ${icon.src}`);
+  }
+}
+for (const shot of manifest.screenshots ?? []) {
+  assert.ok(existsSync(join(root, 'public', shot.src.slice(1))), `Missing screenshot ${shot.src}`);
+  assert.ok(existsSync(join(root, 'dist', shot.src.slice(1))), `Build did not copy ${shot.src}`);
+  assert.equal(shot.form_factor, 'narrow');
+}
+// Kısayollar gerçek derin link ister: Shell ilk ekranı hash'ten çözmeli ve #hub'a ezmemeli
+const shell = read('src/screens/Shell.tsx');
+assert.ok(shell.includes('function screenFromHash'), 'Shell must expose a hash-to-screen resolver');
+assert.ok(shell.includes('useState<Screen>(screenFromHash)'), 'Initial screen must honor the launch hash');
+assert.ok(!/replaceState\(\{ hm26s: 'hub' \}, '', '#hub'\)/.test(shell), 'Initial load must not overwrite a deep-link hash with #hub');
+pass('Manifest shortcuts (hash-routed) and promo screenshots with shipped files');
+
+// iOS launch screen etiketleri: her link dist'te gerçekten var olan PNG'e işaret etmeli
+const splashLinks = [...html.matchAll(/rel="apple-touch-startup-image" href="(\/splash\/[^"]+)"/g)].map((m) => m[1]);
+assert.ok(splashLinks.length >= 8, `Expected at least 8 iOS splash links, got ${splashLinks.length}`);
+for (const href of splashLinks) {
+  assert.ok(existsSync(join(root, 'dist', href.slice(1))), `iOS launch image missing in dist: ${href}`);
+}
+// Splash ve mağaza görselleri app-shell precache'ini şişirmemeli
+for (const excluded of ['/splash/', '/screenshots/']) {
+  assert.ok(!new RegExp(`"${excluded}[^"]+"`).test(builtWorker), `Precache must not contain ${excluded} entries`);
+}
+pass('iOS apple-touch-startup-image links and precache exclusion of store-level assets');
+
+console.log('\nPWA-QA: 6/6 PASS');

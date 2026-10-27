@@ -20,3 +20,7 @@ Thumbs.db
 *.log
 npm-debug.log*
 .playwright-cli/
+
+# Python (PWA asset generator)
+__pycache__/
+*.pyc

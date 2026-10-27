@@ -43,9 +43,19 @@ const MORE_IDS: string[] = MORE_MENU.map((m) => m.id);
 // v0.8.3 RISK-01: tarayıcı geri/ileri için yalnızca kalıcı ekranlar geçmişe yazılır (liveMatch/matchReport geçici)
 const NAV_SCREENS = new Set<Screen>(['hub', 'squad', 'tactics', 'market', 'club', 'comps', 'stats', 'inbox', 'careerProfile', 'settings', 'backup', 'matchPrep', 'newsroom']);
 
+// PWA kısayolları (#squad, #market …) ve yenileme sonrası derin link: bilinmeyen hash güvenle Merkez'e düşer
+function screenFromHash(): Screen {
+  try {
+    const h = location.hash.replace(/^#/, '').split('?')[0] as Screen;
+    return NAV_SCREENS.has(h) ? h : 'hub';
+  } catch {
+    return 'hub';
+  }
+}
+
 export const AppShell: React.FC<{ pendingScreen: Screen | null; setPendingScreen: (s: Screen | null) => void }> = ({ pendingScreen, setPendingScreen }) => {
   const g = useGame();
-  const [screen, setScreen] = useState<Screen>('hub');
+  const [screen, setScreen] = useState<Screen>(screenFromHash);
   const [moreOpen, setMoreOpen] = useState(false);
   const [blockedReason, setBlockedReason] = useState<string | null>(null);
   const [lastSummary, setLastSummary] = useState<string[] | null>(null);
@@ -64,7 +74,11 @@ export const AppShell: React.FC<{ pendingScreen: Screen | null; setPendingScreen
   // v0.8.3 RISK-01: popstate → SPA içinde geri/ileri; bilinmeyen hash güvenli şekilde Merkez'e düşer
   useEffect(() => {
     try {
-      if (!(history.state as { hm26s?: Screen } | null)?.hm26s) history.replaceState({ hm26s: 'hub' }, '', '#hub');
+      // İlk derin linki (PWA kısayolu/yenilenen sekme) koru; yalnız durum nesnesi eksikse ekranı hash'ten bağla
+      if (!(history.state as { hm26s?: Screen } | null)?.hm26s) {
+        const initial = screenFromHash();
+        history.replaceState({ hm26s: initial }, '', '#' + initial);
+      }
     } catch { /* file:// fallback */ }
     const onPop = (e: PopStateEvent) => {
       const fromState = (e.state as { hm26s?: Screen } | null)?.hm26s;
