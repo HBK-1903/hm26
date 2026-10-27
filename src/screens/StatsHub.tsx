@@ -7,6 +7,7 @@ import { useGame } from '../store/game';
 import { Card, Badge } from '../components/ui/kit';
 import { clubById } from '../data/clubs';
 import { buildXptsTable, buildFairPlayTable, goalkeeperSaveRate } from '../engine/analytics';
+import { normalizeMyMatches, teamSplit, formStrip, goalBuckets, perMatch, type TeamSplitRow } from '../engine/teamInsights';
 
 type Tab = 'krallik' | 'analiz' | 'karakter' | 'oduller';
 
@@ -105,6 +106,15 @@ export const StatsHub: React.FC = () => {
   const trophies = g.career.trophyCabinet ?? [];
   const noDataYet = rows.length === 0;
 
+  // Dalga 6: takımımın gerçek arşivinden ev/deplasman performansı, form şeridi ve gol dağılımı
+  const myMatches = useMemo(
+    () => normalizeMyMatches(g.matchReports ?? [], g.career.clubId, g.seasonNo),
+    [g.matchReports, g.career.clubId, g.seasonNo],
+  );
+  const mySplit = useMemo(() => teamSplit(myMatches), [myMatches]);
+  const myStrip = useMemo(() => formStrip(myMatches, 10), [myMatches]);
+  const myBuckets = useMemo(() => goalBuckets(myMatches), [myMatches]);
+
   return (
     <div className="h-full flex flex-col">
       <div className="shrink-0 px-4 pt-3 pb-2">
@@ -138,6 +148,88 @@ export const StatsHub: React.FC = () => {
 
         {tab === 'analiz' && (
           <>
+            {/* Dalga 6: Takımım — ev/deplasman performansı (yalnız gerçek arşiv) */}
+            <Card className="!p-0 overflow-hidden">
+              <div data-testid="team-split">
+              <div className="px-4 py-2.5 border-b border-line font-display font-bold text-[13px]">🏟️ Takımım — Ev / Deplasman</div>
+              {mySplit.all.played === 0 ? (
+                <div className="px-4 py-3 text-muted text-[12px]">Bu sezon henüz arşivde maçın yok — ilk maçlardan sonra ev/deplasman dağılımın burada belirir.</div>
+              ) : (
+                <div className="px-2 py-2">
+                  <div className="grid grid-cols-[1fr_repeat(9,34px)] gap-y-1 text-center text-[9px] text-muted font-extrabold tracking-wider py-1">
+                    <span className="text-left pl-2">BAĞLAM</span><span>O</span><span>G</span><span>B</span><span>M</span><span>AG</span><span>YG</span><span>xG</span><span>xGA</span><span>P</span>
+                  </div>
+                  {([
+                    ['Ev', mySplit.home],
+                    ['Deplasman', mySplit.away],
+                    ['Toplam', mySplit.all],
+                  ] as [string, TeamSplitRow][]).map(([label, r], i) => (
+                    <div key={label} className={`grid grid-cols-[1fr_repeat(9,34px)] gap-y-1 items-center text-center text-[11.5px] num py-1.5 rounded-lg ${i === 2 ? 'bg-amber/5 font-extrabold text-primary' : 'text-secondary'}`}>
+                      <span className="text-left pl-2 font-sans font-bold">{label}</span>
+                      <span>{r.played}</span><span className="text-ok">{r.wins}</span><span>{r.draws}</span><span className="text-danger">{r.losses}</span>
+                      <span>{r.gf}</span><span>{r.ga}</span>
+                      <span className="text-[10.5px]">{r.xgf.toFixed(1)}</span><span className="text-[10.5px]">{r.xga.toFixed(1)}</span>
+                      <span className="text-amber">{r.points}</span>
+                    </div>
+                  ))}
+                  <div className="px-2 pt-1.5 text-[10px] text-muted leading-snug">
+                    Maç başına: {perMatch(mySplit.all.gf, mySplit.all.played)} gol · {perMatch(mySplit.all.xgf, mySplit.all.played)} xG · {perMatch(mySplit.all.ga, mySplit.all.played)} yenilen
+                  </div>
+                </div>
+              )}
+              </div>
+            </Card>
+
+            {/* Dalga 6: son maçlar form şeridi + gol dağılımı */}
+            <Card className="!p-0 overflow-hidden">
+              <div data-testid="team-form">
+              <div className="px-4 py-2.5 border-b border-line font-display font-bold text-[13px]">📈 Son Maçlar & Gol Dağılımı</div>
+              {myStrip.length === 0 ? (
+                <div className="px-4 py-3 text-muted text-[12px]">Form şeridi oynanan maçlarla dolar; şu an gerçek veri yok.</div>
+              ) : (
+                <div className="px-4 py-3 space-y-3">
+                  <div className="flex gap-2 flex-wrap">
+                    {myStrip.map((m, i) => {
+                      const opp = clubById(m.oppClubId);
+                      const cls = m.result === 'W' ? 'bg-ok/20 border-ok/60 text-ok' : m.result === 'D' ? 'bg-muted/15 border-line text-muted' : 'bg-danger/15 border-danger/60 text-danger';
+                      return (
+                        <div key={`${m.day}-${i}`} className={`w-[42px] rounded-lg border py-1.5 text-center ${cls}`} title={`${m.isHome ? 'Ev' : 'Deplasman'} · ${opp?.short ?? m.oppClubId} · ${m.gf}-${m.ga}`} data-form-dot={m.result}>
+                          <div className="num text-[13px] font-black leading-none">{m.result === 'W' ? 'G' : m.result === 'D' ? 'B' : 'M'}</div>
+                          <div className="num text-[9px] mt-1 opacity-85">{m.gf}-{m.ga}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {(() => {
+                    const Bar: React.FC<{ label: string; b: { zero: number; one: number; twoPlus: number } }> = ({ label, b }) => {
+                      const total = b.zero + b.one + b.twoPlus || 1;
+                      const seg = (n: number) => `${(n / total) * 100}%`;
+                      return (
+                        <div>
+                          <div className="text-[10px] text-muted font-bold mb-1">{label}</div>
+                          <div className="flex h-2.5 rounded-full overflow-hidden bg-base border border-line/60">
+                            <div style={{ width: seg(b.zero), background: 'var(--c-muted)' }} title={`0 gol: ${b.zero} maç`} />
+                            <div style={{ width: seg(b.one), background: 'var(--c-info)' }} title={`1 gol: ${b.one} maç`} />
+                            <div style={{ width: seg(b.twoPlus), background: 'var(--c-ok)' }} title={`2+ gol: ${b.twoPlus} maç`} />
+                          </div>
+                          <div className="flex justify-between text-[9.5px] text-muted mt-1 num">
+                            <span>0 gol: {b.zero}</span><span>1 gol: {b.one}</span><span>2+: {b.twoPlus}</span>
+                          </div>
+                        </div>
+                      );
+                    };
+                    return (
+                      <div className="space-y-2.5">
+                        <Bar label="ATILAN GOLLER (maç sayısı)" b={myBuckets.scored} />
+                        <Bar label="YENİLEN GOLLER (maç sayısı)" b={myBuckets.conceded} />
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+              </div>
+            </Card>
+
             <Card className="!p-0 overflow-hidden">
               <div className="px-4 py-2.5 border-b border-line font-display font-bold text-[13px]">⚖️ xPTS Adalet Tablosu</div>
               <div className="px-4 py-2 text-[10.5px] text-muted leading-snug border-b border-line/40">
