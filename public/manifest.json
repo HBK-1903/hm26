@@ -24,5 +24,44 @@
       "type": "image/png",
       "purpose": "any maskable"
     }
+  ],
+  "shortcuts": [
+    {
+      "name": "Kadro",
+      "short_name": "Kadro",
+      "description": "Kadronu, sakatlıkları ve rehberliği aç",
+      "url": "/#squad",
+      "icons": [{ "src": "/icons/shortcuts/kadro-96.png", "sizes": "96x96", "type": "image/png" }]
+    },
+    {
+      "name": "Transfer Masası",
+      "short_name": "Transfer",
+      "description": "Oyuncu ara, pazarlık et ve takas kur",
+      "url": "/#market",
+      "icons": [{ "src": "/icons/shortcuts/transfer-96.png", "sizes": "96x96", "type": "image/png" }]
+    },
+    {
+      "name": "Taktik",
+      "short_name": "Taktik",
+      "description": "Diziliş, roller ve ilk 11 kararları",
+      "url": "/#tactics",
+      "icons": [{ "src": "/icons/shortcuts/taktik-96.png", "sizes": "96x96", "type": "image/png" }]
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshots/shot-match-1080x1920.png",
+      "sizes": "1080x1920",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Canlı maç konsolu ve 2D saha animasyonu"
+    },
+    {
+      "src": "/screenshots/shot-club-1080x1920.png",
+      "sizes": "1080x1920",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Transfer, altyapı ve çevrimdışı kariyer yönetimi"
+    }
   ]
 }
