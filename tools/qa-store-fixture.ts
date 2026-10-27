@@ -22,6 +22,7 @@ import { MatchSession } from '../src/engine/session';
 import { buildEngineInput } from '../src/engine/adapter';
 import { tacticalFamiliarity } from '../src/engine/tacticsStudio';
 import { recentRatings, rotationAdvice } from '../src/engine/squadInsights';
+import { normalizeMyMatches, teamSplit, formStrip } from '../src/engine/teamInsights';
 import { FORMATION_SLOTS } from '../src/engine/profiles';
 import { clubById } from '../src/data/clubs';
 
@@ -152,6 +153,18 @@ function Harness({ done }: { done: (report: string[]) => void }) {
           log.push(Array.isArray(liveAdvice) && liveAdvice.every((a) => a.reason && a.playerId)
             ? `✅ Rotasyon masası gerçek kadroyla çalıştı (${liveAdvice.length} öneri)`
             : '❌ Rotasyon masası geçersiz çıktı');
+
+          // Dalga 6: gerçek arşivden takım split'i uçtan uca
+          const myM = normalizeMyMatches(reports, g().career.clubId, g().seasonNo);
+          const sp = teamSplit(myM);
+          const totalsOk = myM.length === 2 && sp.all.played === 2
+            && sp.all.wins + sp.all.draws + sp.all.losses === 2
+            && sp.all.points === sp.all.wins * 3 + sp.all.draws
+            && sp.home.played + sp.away.played === 2
+            && formStrip(myM).length === 2;
+          log.push(totalsOk
+            ? `✅ Takım performans split'i gerçek arşivden türedi (${sp.all.played} maç · ${sp.all.gf}-${sp.all.ga} · ${sp.all.points} puan)`
+            : '❌ Takım split tutarsız');
         }
         if (errors.length) log.push('YAKALANAN HATALAR:\n' + errors.slice(0, 5).join('\n---\n'));
         done(log);
