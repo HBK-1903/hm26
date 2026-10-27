@@ -7,7 +7,7 @@ import { FORMATIONS, GAME_PLANS, PLAN_SLOTS } from '../data/meta';
 import { FORMATION_SLOTS } from '../engine/profiles';
 import { positionMod } from '../engine/ratings';
 import { autoXI } from '../data/gen';
-import { canSlotGroup, fitnessRing, tacticalFamiliarity } from '../engine/tacticsStudio';
+import { canSlotGroup, cohesionEffectPct, cohesionFactor, fitnessRing, tacticalFamiliarity } from '../engine/tacticsStudio';
 import { Formation, Player } from '../types';
 
 const POS_LABEL: Record<string, string> = { GK: 'KL', CB: 'STP', FB: 'BK', WB: 'KB', DM: 'DOS', CM: 'MO', AM: 'OOS', WG: 'KNT', ST: 'SN' };
@@ -100,6 +100,10 @@ export const TacticsScreen: React.FC<{ pendingXI?: Player | null; onClearXI?: ()
   const canSlot = (slotGroup: string, p: Player): boolean => canSlotGroup(slotGroup, p);
   const reduceMotion = !!g.career.settings.reduceMotion;
   const familiarity = tacticalFamiliarity(plan);
+  const cohesionPct = cohesionEffectPct(plan);
+  const cohesionTitle = cohesionFactor(plan) === 1
+    ? 'maç etkisi: nötr (bu planla henüz maç oynanmadı veya uyum %80’de)'
+    : `maç etkisi: pas/top kontrolü kanalları ${cohesionPct}%`;
 
   // v0.9.4: yuvanın MOTOR mevki grubu (FORMATION_SLOTS) üzerinden gerçek güç cezası yüzdesi
   const penaltyOf = (slotIdx: number, p: Player): number => {
@@ -141,11 +145,13 @@ export const TacticsScreen: React.FC<{ pendingXI?: Player | null; onClearXI?: ()
             <span
               className="flex items-center gap-1 rounded-full border px-2 py-1"
               style={{ borderColor: familiarity.percent >= 85 ? 'rgba(74,222,128,.55)' : familiarity.percent >= 70 ? 'rgba(243,198,78,.55)' : 'rgba(239,68,68,.55)' }}
-              title={familiarity.fresh ? `Yeni ${plan.formation} dizilisi — ilk ${3 - familiarity.matches} maç alışma dönemi` : `${plan.formation} formasyonunda ${familiarity.matches} maç`}
+              title={`${familiarity.fresh ? `Yeni ${plan.formation} dizilisi — ilk ${3 - familiarity.matches} maç alışma dönemi` : `${plan.formation} formasyonunda ${familiarity.matches} maç`} · ${cohesionTitle}`}
+              data-cohesion-chip
             >
               <span className="text-[11px]">🌟</span>
               <span className="num text-[11px] font-extrabold text-primary">%{familiarity.percent}</span>
               <span className="text-[9px] text-muted font-semibold">uyum</span>
+              {cohesionPct && <span className={`num text-[9.5px] font-extrabold ${cohesionPct.startsWith('+') ? 'text-ok' : 'text-danger'}`}>{cohesionPct}%</span>}
             </span>
             {plan.customLineup && <span className="text-[9px] text-muted border border-line rounded px-1.5 py-0.5">Manuel dizilim</span>}
             <button onClick={() => setPlan({ customLineup: undefined, customBench: undefined })} className="text-amber text-[10.5px] font-bold min-h-[44px] underline underline-offset-2">Otomatik 11</button>

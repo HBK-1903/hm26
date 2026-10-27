@@ -62,3 +62,33 @@ export function bumpFamiliarity(plan: TacticPlan): Pick<TacticPlan, 'familiarity
     familiarityMatches: sameFormation ? (plan.familiarityMatches ?? 0) + 1 : 1,
   };
 }
+
+// ——— Dalga 4: uyumun maç motoru etkisi ———
+/** Bu uyum yüzdesinde etki sıfırdır (nötr nokta). */
+export const COHESION_NEUTRAL = 80;
+/** Her uyum yüzdesi, pas/top kontrolü kanallarını %0.1 oynatır. */
+export const COHESION_SLOPE = 0.001;
+export const COHESION_MIN = 0.97;
+export const COHESION_MAX = 1.02;
+/** Etki yalnız topu tutma/pas kanallarına uygulanır; kaleci, duran top ve savunma blokları dokunulmaz. */
+export const COHESION_CHANNELS = ['buildUp', 'midfield', 'transition'] as const;
+
+/**
+ * Uyum yüzdesi → maç profili çarpanı. %60 → 0.98 (en kötü), %80 → 1.00 (nötr), %99 → 1.019.
+ * Uyum damgası yoksa (eski kayıt, henüz maç oynamamış plan veya AI planı) çarpan 1.00'dür:
+ * veri olmayan yerde ne ceza ne avantaj üretilir.
+ */
+export function cohesionFactor(plan: Pick<TacticPlan, 'formation' | 'familiarityMatches' | 'familiarityFormation'>): number {
+  if (!plan.familiarityFormation) return 1;
+  const { percent } = tacticalFamiliarity(plan);
+  const raw = 1 + (percent - COHESION_NEUTRAL) * COHESION_SLOPE;
+  return Math.min(COHESION_MAX, Math.max(COHESION_MIN, raw));
+}
+
+/** Ekranda gösterim için işaretli yüzde metni (örn "−2.0", "+1.9"); nötrse null. */
+export function cohesionEffectPct(plan: Pick<TacticPlan, 'formation' | 'familiarityMatches' | 'familiarityFormation'>): string | null {
+  const factor = cohesionFactor(plan);
+  if (factor === 1) return null;
+  const pct = Math.round((factor - 1) * 1000) / 10;
+  return `${pct > 0 ? '+' : '−'}${Math.abs(pct).toFixed(1)}`;
+}

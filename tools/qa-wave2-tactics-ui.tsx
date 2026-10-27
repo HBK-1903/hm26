@@ -43,6 +43,10 @@ const bodyText = () => dom.window.document.body.textContent ?? '';
 
 // 1) Uyum çipi taze kariyerde taban %60 (çip metinleri bitişik birleşir: "%60uyum")
 ok('Uyum çipi %60 taban gösteriyor', bodyText().includes('%60uyum'), bodyText().match(/%[0-9]+uyum/)?.[0] ?? 'çip yok');
+// Dalga 4: çip maç etkisi ipucunu taşır; maçsız planda etiket gizli (nötr)
+const cohesionChip = dom.window.document.querySelector('[data-cohesion-chip]') as HTMLElement | null;
+ok('Uyum çipi maç etkisi ipucu taşıyor', !!cohesionChip?.title.includes('maç etkisi'), cohesionChip?.title ?? 'çip yok');
+ok('Nötr planda etki yüzdesi etiketi görünmez', !cohesionChip?.textContent?.match(/[−+][0-9.]+%/));
 ok('Yeni diziliş ipucu görünüyor', bodyText().includes('alışma dönemi') || bodyText().includes('maç daha var'));
 
 // 2) Saha rozetleri kondisyon tonu taşıyor (11 oyuncu)
