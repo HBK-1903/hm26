@@ -23,6 +23,8 @@ import { buildEngineInput } from '../src/engine/adapter';
 import { tacticalFamiliarity } from '../src/engine/tacticsStudio';
 import { recentRatings, rotationAdvice } from '../src/engine/squadInsights';
 import { normalizeMyMatches, teamSplit, formStrip } from '../src/engine/teamInsights';
+import { fanPulse } from '../src/engine/atmosphere';
+import { normalizeClubCulture } from '../src/data/culture';
 import { FORMATION_SLOTS } from '../src/engine/profiles';
 import { clubById } from '../src/data/clubs';
 
@@ -165,6 +167,15 @@ function Harness({ done }: { done: (report: string[]) => void }) {
           log.push(totalsOk
             ? `✅ Takım performans split'i gerçek arşivden türedi (${sp.all.played} maç · ${sp.all.gf}-${sp.all.ga} · ${sp.all.points} puan)`
             : '❌ Takım split tutarsız');
+
+          // Dalga 7: gerçek kültür + sonuç şeridinden taraftar nabzı
+          const liveCulture = normalizeClubCulture(g().career.culture, g().career.seed, g().career.clubId, g().myClub.rivalIds ?? []);
+          const pulse = fanPulse(liveCulture, myM.map((m) => m.result));
+          const pulseOk = !pulse.noMatches && pulse.momentum !== 'silent'
+            && [pulse.trust, pulse.heat, pulse.community, pulse.discipline].every((l) => typeof l.label === 'string' && l.label.length > 0);
+          log.push(pulseOk
+            ? `✅ Taraftar nabzı gerçek veriyle çalıştı (momentum: ${pulse.momentum}, güven ${liveCulture.fanTrust}/100)`
+            : '❌ Taraftar nabzı tutarsız');
         }
         if (errors.length) log.push('YAKALANAN HATALAR:\n' + errors.slice(0, 5).join('\n---\n'));
         done(log);

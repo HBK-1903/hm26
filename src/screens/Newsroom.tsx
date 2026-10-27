@@ -7,12 +7,16 @@ import { buildHeadlines, leaguePulse, refereeReportEntries, selectTeamOfWeek } f
 import { Card, Badge, Seg } from '../components/ui/kit';
 import { Crest } from '../components/assets/Crest';
 import { GameIcon } from '../components/icons';
+import { normalizeClubCulture } from '../data/culture';
+import { fanPulse, type PulseTone } from '../engine/atmosphere';
+import { normalizeMyMatches } from '../engine/teamInsights';
 
 const TABS = [
   { v: 'headlines', label: 'Manşet' },
   { v: 'pulse', label: 'Lig Nabzı' },
   { v: 'xi', label: 'Haftanın 11’i' },
   { v: 'referees', label: 'Hakemler' },
+  { v: 'fans', label: 'Taraftar' },
 ] as const;
 
 type NewsTab = typeof TABS[number]['v'];
@@ -35,6 +39,12 @@ export const NewsroomScreen: React.FC = () => {
   const teamOfWeek = useMemo(() => selectTeamOfWeek(g.matchReports ?? [], fromDay, g.career.day, (id) => g.playerOf(id)), [g.matchReports, fromDay, g.career.day, g.playerOf]);
   const refereeReports = useMemo(() => refereeReportEntries(g.matchReports ?? []), [g.matchReports]);
   const latestDate = allFixtures.filter((fixture) => fixture.played).reduce((day, fixture) => Math.max(day, fixture.day), 0);
+  // Dalga 7: taraftar nabzı — gerçek kültür değerleri + oynanmış maçların sonuç şeridi
+  const fanData = useMemo(() => {
+    const culture = normalizeClubCulture(g.career.culture, g.career.seed, g.career.clubId, g.myClub.rivalIds ?? []);
+    const results = normalizeMyMatches(g.matchReports ?? [], g.career.clubId, g.seasonNo).map((m) => m.result);
+    return { pulse: fanPulse(culture, results), culture, results };
+  }, [g.career.culture, g.career.seed, g.career.clubId, g.myClub.rivalIds, g.matchReports, g.seasonNo]);
 
   return (
     <div className="h-full min-h-0 flex flex-col">
@@ -109,6 +119,67 @@ export const NewsroomScreen: React.FC = () => {
                 <p className="text-muted text-[11px] mt-2 leading-relaxed">Bu özet, maç kaydındaki hakem profili ve reducer istatistiklerinden derlenmiştir; kart/sonuç yeniden yorumlanmaz.</p>
               </Card>
             ))}
+          </>
+        )}
+
+        {tab === 'fans' && (
+          <>
+            <Card className="!p-3.5">
+              <div data-testid="fan-pulse">
+              <div className="flex items-center gap-2"><span className="text-[18px]">📣</span><div><div className="m26-overline">Taraftar nabzı</div><div className="text-primary font-display text-[17px] font-bold">Tribün Masası</div></div></div>
+              <p className="text-secondary text-[12.5px] mt-3 leading-snug" data-momentum-text>{fanData.pulse.momentumLabel}</p>
+              <div className="grid grid-cols-2 gap-2 mt-3">
+                {([
+                  ['Taraftar güveni', fanData.pulse.trust, fanData.culture.fanTrust],
+                  ['Taraftar ısısı', fanData.pulse.heat, fanData.culture.ultrasHeat],
+                  ['Topluluk bağı', fanData.pulse.community, fanData.culture.communityTrust],
+                  ['Disiplin imajı', fanData.pulse.discipline, fanData.culture.discipline],
+                ] as [string, { tone: PulseTone; label: string }, number][]).map(([label, level, value]) => (
+                  <div key={label} className="bg-base rounded-lg p-2.5 border border-line/60">
+                    <div className="text-muted text-[10px] font-bold">{label}</div>
+                    <div className="flex items-center justify-between mt-1">
+                      <span className={`num text-[15px] font-black ${level.tone === 'ok' ? 'text-ok' : level.tone === 'info' ? 'text-info' : level.tone === 'warn' ? 'text-warn' : 'text-danger'}`}>{value}</span>
+                      <span className="text-[10px] font-bold text-secondary">{level.label}</span>
+                    </div>
+                    <div className="h-1.5 bg-line/50 rounded-full mt-1.5 overflow-hidden">
+                      <div className={`h-full rounded-full ${level.tone === 'ok' ? 'bg-ok' : level.tone === 'info' ? 'bg-info' : level.tone === 'warn' ? 'bg-warn' : 'bg-danger'}`} style={{ width: `${value}%` }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {fanData.pulse.noMatches && <p className="text-muted text-[11px] mt-3 leading-relaxed">Trend yorumu ilk resmî maçların ardından gelecek; gösterilen göstergeler kulübün canlı kültür verisidir, tahmin üretilmez.</p>}
+              </div>
+            </Card>
+
+            <Card className="!p-3.5">
+              <div className="m26-overline">Ezeli rekabet</div>
+              {fanData.culture.nemesisClubId && clubByIdSafe(fanData.culture.nemesisClubId) ? (
+                <div className="flex items-center gap-2.5 mt-2">
+                  <Crest club={clubByIdSafe(fanData.culture.nemesisClubId)!} size={30} />
+                  <div className="min-w-0">
+                    <div className="text-primary text-[13px] font-bold truncate">{clubByIdSafe(fanData.culture.nemesisClubId)?.name}</div>
+                    <div className="text-muted text-[11px]">Son hesaplaşmalar tribünlerin hafızasında taze — bu eşleşme ekstra motivasyon getirir.</div>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-secondary text-[12px] mt-2">Şu an işaretlenmiş bir ezeli rakip yok; rekabet kimliği derbi sonuçlarıyla şekillenir.</p>
+              )}
+            </Card>
+
+            <Card className="!p-3.5">
+              <div className="m26-overline">Sezon sonuç şeridi</div>
+              {fanData.results.length === 0 ? (
+                <p className="text-secondary text-[12px] mt-2">Henüz oynanmış maç yok — şerit ilk maçla birlikte dolacak.</p>
+              ) : (
+                <div className="flex flex-wrap gap-1.5 mt-2" data-result-strip>
+                  {fanData.results.map((r, i) => (
+                    <span key={i} className={`w-8 h-8 rounded-lg flex items-center justify-center num text-[13px] font-black border ${r === 'W' ? 'bg-ok/15 border-ok/50 text-ok' : r === 'D' ? 'bg-muted/15 border-line text-muted' : 'bg-danger/15 border-danger/50 text-danger'}`}>
+                      {r === 'W' ? 'G' : r === 'D' ? 'B' : 'M'}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </Card>
           </>
         )}
       </main>

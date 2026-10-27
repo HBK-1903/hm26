@@ -11,6 +11,8 @@ import { autoXI } from '../data/gen';
 import { DemoMatchResult } from '../store/game';
 import { LiveMatch } from './LiveMatch';
 import { buildMatchBrief, type NoteTone } from '../engine/matchDay';
+import { buildMatchdayAtmosphere } from '../engine/atmosphere';
+import { normalizeClubCulture } from '../data/culture';
 
 
 export const MatchPrep: React.FC<{ go: (s: Screen) => void }> = ({ go }) => {
@@ -151,6 +153,40 @@ export const MatchPrep: React.FC<{ go: (s: Screen) => void }> = ({ go }) => {
                   <div key={`${n.tag}-${i}`} className={`rounded-lg border px-2.5 py-1.5 flex gap-2 items-start ${toneCls[n.tone]}`} data-brief-tone={n.tone}>
                     <span className="text-[9px] font-black tracking-wider shrink-0 mt-0.5 opacity-80">{n.tag}</span>
                     <span className="text-[11.5px] leading-snug text-secondary flex-1">{n.text}</span>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          );
+        })()}
+
+        {/* Dalga 7: maç günü atmosferi — gerçek kültür/fikstür verisinden tribün hissi */}
+        {(() => {
+          const opp = isHome ? away : home;
+          const clubCulture = normalizeClubCulture(g.career.culture, g.career.seed, g.career.clubId, mine.rivalIds ?? []);
+          const isDerby = (home.rivalIds ?? []).includes(away.id) || home.derby === away.id;
+          const isNemesis = clubCulture.nemesisClubId === opp.id;
+          const atm = buildMatchdayAtmosphere({
+            isHome, isDerby, isNemesis, oppShort: opp.short, stadium: home.stadium, culture: clubCulture,
+          });
+          const toneCls: Record<string, string> = {
+            ok: 'border-ok/45 bg-ok/10 text-ok',
+            info: 'border-info/45 bg-info/10 text-info',
+            warn: 'border-warn/45 bg-warn/10 text-warn',
+            danger: 'border-danger/45 bg-danger/10 text-danger',
+          };
+          return (
+            <Card className="!p-3">
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="text-[13px]">🏟️</span>
+                <div className="text-[12px] text-muted uppercase tracking-[0.08em]">Maç Günü Atmosferi</div>
+              </div>
+              <p className="text-primary text-[12.5px] font-bold leading-snug mb-2">{atm.headline}</p>
+              <div className="space-y-1.5" data-testid="atmosphere-card">
+                {atm.lines.map((l, i) => (
+                  <div key={`${l.tag}-${i}`} className={`rounded-lg border px-2.5 py-1.5 flex gap-2 items-start ${toneCls[l.tone]}`} data-atm-tone={l.tone}>
+                    <span className="text-[9px] font-black tracking-wider shrink-0 mt-0.5 opacity-80">{l.tag}</span>
+                    <span className="text-[11.5px] leading-snug text-secondary flex-1">{l.text}</span>
                   </div>
                 ))}
               </div>
