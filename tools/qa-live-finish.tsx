@@ -110,6 +110,7 @@ function Harness({ done }: { done: (report: string[]) => void }) {
         const startedAt = Date.now();
         let finished = false;
         let lastClock = '';
+        let coachChecked = false;
         while (Date.now() - startedAt < 60000) {
           // arıza kurtarma paneli
           if (/Maç akışı beklenmedik bir sorun/.test(dom.window.document.body.textContent ?? '')) {
@@ -132,24 +133,33 @@ function Harness({ done }: { done: (report: string[]) => void }) {
           const body = dom.window.document.body.textContent ?? '';
           const timer = dom.window.document.querySelector('[role="timer"]')?.textContent ?? '';
           if (timer && timer !== lastClock) { lastClock = timer; log.push('akış: ' + timer.replace(/\s+/g, ' ')); }
-          if (/Maç Sonu Analizine Git/.test(body)) { finished = true; break; }
+          // Dalga 5: antrenör notları (45/75/90) canlı maç akışına düşüyor mu?
+          // Maç bitimi otomatik röportaja geçtiği için kontrol maç sürerken, Spiker sekmesinde yapılır.
+          if (!coachChecked) {
+            const minute = Number((timer ?? '').trim().split(/[:\n]/)[0]);
+            if (Number.isFinite(minute) && minute >= 46) {
+              coachChecked = true;
+              await clickByText([/^Spiker$/]);
+              await tick(150);
+              const coachNotes = dom.window.document.querySelectorAll('[data-coach-note]').length;
+              const coachText = dom.window.document.querySelector('[data-coach-note]')?.textContent ?? '';
+              log.push(coachNotes >= 1 && coachText.includes('TD') ? `✅ Antrenör notu maç akışına düştü (${coachNotes} TD notu render oldu)` : '❌ TD notu akışta görünmedi');
+              await clickByText([/^Saha$/]);
+              await tick(80);
+            }
+          }
+          if (/Flash Röportaj/.test(body)) { finished = true; break; }
           await tick(200);
         }
-        log.push(finished ? '✅ Maç tamamlandı, "Maç Sonu Analizine Git" butonu göründü' : '❌ 60sn içinde maç tamamlanmadı (donmuş olabilir)');
+        log.push(finished ? '✅ Maç tamamlandı, maç sonu röportajı otomatik açıldı' : '❌ 60sn içinde maç tamamlanmadı (donmuş olabilir)');
         if (!finished) { done(log); return; }
 
-        // Dalga 5: antrenör notları (45/75/90) canlı maç akışına gerçekten düşüyor mu?
-        await clickByText([/^Spiker$/]);
-        await tick(150);
-        const coachNotes = dom.window.document.querySelectorAll('[data-coach-note]').length;
-        const coachText = dom.window.document.querySelector('[data-coach-note]')?.textContent ?? '';
-        log.push(coachNotes >= 1 && coachText.includes('TD') ? `✅ Antrenör notu maç akışına düştü (${coachNotes} TD notu render oldu)` : '❌ TD notu akışta görünmedi');
-        await clickByText([/^Saha$/]);
-
-        await clickByText([/Maç Sonu Analizine Git/]);
-        await tick(150);
+        // Röportaj ekranı: ilk seçeneği işaretle, ardından maç sonu analizi açılmalı
+        const interviewOption = dom.window.document.querySelector('[data-testid="interview-option-0"]') as HTMLButtonElement | null;
+        log.push(interviewOption ? '✅ Maç sonu röportaj seçenekleri render oldu' : '❌ Röportaj seçeneği bulunamadı');
+        if (interviewOption) { await act(async () => interviewOption.click()); await tick(150); }
         const reportOpen = /Sonucu Kaydet — Ana Merkez/.test(dom.window.document.body.textContent ?? '');
-        log.push(reportOpen ? '✅ Maç raporu açıldı' : '❌ Rapor açılmadı');
+        log.push(reportOpen ? '✅ Röportaj sonrası maç raporu açıldı' : '❌ Rapor açılmadı');
 
         await clickByText([/Sonucu Kaydet/]);
         await tick(200);

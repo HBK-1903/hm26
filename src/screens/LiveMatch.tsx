@@ -19,6 +19,8 @@ import { Crest } from '../components/assets/Crest';
 import { GameIcon } from '../components/icons';
 import { clubById } from '../data/clubs';
 import { MatchReport } from './MatchReport';
+import { PostMatchInterview } from './PostMatchInterview';
+import type { InterviewOption } from '../data/interview';
 import { Suspense } from 'react';
 import { lazyWithRecovery } from '../utils/lazyWithRecovery';
 import { PitchFallback } from '../components/assets/PitchFallback';
@@ -57,7 +59,9 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onE
   const [decision, setDecision] = useState<DemoMatchEvent | null>(null);
   const [showSubPicker, setShowSubPicker] = useState(false);
   const [showTacticPicker, setShowTacticPicker] = useState(false);
-  const [showReport, setShowReport] = useState(false);
+  // Akış: canlı maç → (otomatik) röportaj → maç sonu analizi. Maçtan erken çıkış yok; kullanıcı akışı sonuna kadar kalır.
+  const [phase, setPhase] = useState<'live' | 'interview' | 'report'>('live');
+  const interviewChoiceRef = useRef<InterviewOption | null>(null);
   const feedRef = useRef<HTMLDivElement>(null);
   const managerSuspendedRef = useRef<boolean | null>(null);
   const resultCommitted = useRef(false);
@@ -291,14 +295,25 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onE
     setPaused(true); setDecision(last);
   }, [currentEvent, paused, done, decision, mySide]);
 
-  if (showReport && finResult) {
+  // Maç biter bitmez kısa bir tam zamanı molası verip otomatik olarak röportaja geç;
+  // kullanıcı dilerse beklemeden elle de ilerleyebilir (footer'daki atla butonu).
+  useEffect(() => {
+    if (!done || phase !== 'live') return;
+    const t = setTimeout(() => setPhase('interview'), 1600);
+    return () => clearTimeout(t);
+  }, [done, phase]);
+
+  if (phase === 'interview' && finResult) {
+    return <PostMatchInterview result={finResult} fixture={fixture} onChoose={(opt) => { interviewChoiceRef.current = opt; setPhase('report'); }} />;
+  }
+  if (phase === 'report' && finResult) {
     return <MatchReport result={finResult} fixture={fixture} onDone={() => { commitResult(); (onSaved ?? onExit)(); }} />;
   }
   function commitResult() {
     if (resultCommitted.current) return;
     resultCommitted.current = true;
     // P0: canlı izlenen skor table'a ACTİVE olarak bırakılır (re-simülasyon yok)
-    g.playLeagueMatch(fixture, finResult ?? undefined, tacticIdx);
+    g.playLeagueMatch(fixture, finResult ?? undefined, tacticIdx, interviewChoiceRef.current ?? undefined);
     g.consumeManagerSuspension(managerSuspendedAtStart);
     // v0.9.9: iğneyle oynatma kumarı maç sonunda çözülür (%25 nüks — oynayan onaylılar)
     const rows = (finResult as unknown as { engine?: { playerRows: Record<string, { min: number }> } })?.engine?.playerRows ?? {};
@@ -607,7 +622,14 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onE
 
       {!done && <button onClick={() => setShowTouchline(true)} className="absolute right-3 bottom-[118px] z-30 min-h-[44px] rounded-full border border-[#c19245] bg-[#463519] text-[#ffe09b] text-[10px] font-black shadow-lg px-3" aria-label="Kenar Talimatı">⚡ Kenar Talimatı</button>}
       <footer className="shrink-0 px-3 py-2 bg-[#111b16] border-t border-line/50">
-        {!done ? <Btn variant="secondary" className="w-full !min-h-[42px] !text-[11px]" onClick={onExit}>Maçtan çık</Btn> : <Btn variant="amber" className="w-full !min-h-[46px] !text-[11px]" onClick={() => { if (!finResult) finalizeFromSession(); setShowReport(true); }}>Maç Sonu Analizine Git →</Btn>}
+        {!done ? (
+          <div className="w-full !min-h-[42px] flex items-center justify-center gap-2 rounded-xl border border-line bg-surface text-muted text-[11px] font-bold" aria-live="polite">
+            <span className="w-1.5 h-1.5 rounded-full bg-danger animate-pulse" />
+            Maç canlı — bitince otomatik olarak maç sonu ekranına geçilecek
+          </div>
+        ) : (
+          <Btn variant="amber" className="w-full !min-h-[46px] !text-[11px]" onClick={() => { if (!finResult) finalizeFromSession(); setPhase('interview'); }}>Maç Sonu Röportajına Geç →</Btn>
+        )}
       </footer>
 
       <Sheet open={showTouchline} onClose={() => setShowTouchline(false)} title="Kenar Talimatı">
