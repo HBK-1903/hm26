@@ -13,6 +13,8 @@ import { LiveMatch } from './LiveMatch';
 import { buildMatchBrief, type NoteTone } from '../engine/matchDay';
 import { buildMatchdayAtmosphere } from '../engine/atmosphere';
 import { normalizeClubCulture } from '../data/culture';
+import { headToHead } from '../engine/teamInsights';
+import { COMP_LABEL } from '../data/newsroom';
 
 
 export const MatchPrep: React.FC<{ go: (s: Screen) => void }> = ({ go }) => {
@@ -189,6 +191,52 @@ export const MatchPrep: React.FC<{ go: (s: Screen) => void }> = ({ go }) => {
                     <span className="text-[11.5px] leading-snug text-secondary flex-1">{l.text}</span>
                   </div>
                 ))}
+              </div>
+            </Card>
+          );
+        })()}
+
+        {/* Birebir eşleşme geçmişi (H2H) — yalnız gerçek arşiv, veri yoksa dürüst boş durum */}
+        {(() => {
+          const oppId = isHome ? away.id : home.id;
+          const h2h = headToHead(g.matchReports ?? [], mine.id, oppId, 5);
+          return (
+            <Card className="!p-3">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-[13px]">🤝</span>
+                <div className="text-[12px] text-muted uppercase tracking-[0.08em]">Birebir Geçmiş · {away.short} ile</div>
+              </div>
+              <div data-testid="h2h-card">
+                {h2h.played === 0 ? (
+                  <p className="text-muted text-[12px]">Bu rakiple kayıtlı karşılaşma yok — ilk maçın ardından geçmiş burada belirir.</p>
+                ) : (
+                  <div>
+                    <div className="grid grid-cols-4 gap-1.5 text-center mb-2.5">
+                      {[
+                        [`${h2h.played}`, 'Maç'],
+                        [`${h2h.wins}-${h2h.draws}-${h2h.losses}`, 'G-B-M'],
+                        [`${h2h.gf}:${h2h.ga}`, 'Gol'],
+                        [`${h2h.xgf.toFixed(1)}-${h2h.xga.toFixed(1)}`, 'xG'],
+                      ].map(([v, l]) => (
+                        <div key={l} className="bg-base/70 rounded-lg py-1.5">
+                          <div className="num text-primary font-extrabold text-[14px]">{v}</div>
+                          <div className="text-muted text-[9px] uppercase">{l}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="space-y-1" data-testid="h2h-meetings">
+                      {h2h.meetings.map((m, i) => (
+                        <div key={`${m.day}-${i}`} data-testid="h2h-meeting"
+                          className={`flex items-center gap-2 rounded-lg bg-base/60 px-2.5 py-1.5 text-[11px] ${m.result === 'W' ? 'text-ok' : m.result === 'L' ? 'text-danger' : 'text-muted'}`}>
+                          <span className="w-9 shrink-0 text-muted">{COMP_LABEL[m.comp]}</span>
+                          <span className="w-4 shrink-0 text-muted">{m.isHome ? 'E' : 'D'}</span>
+                          <span className="flex-1 num font-extrabold text-right">{m.gf}–{m.ga}</span>
+                          <span className="num text-muted w-16 text-right">xG {m.xgf.toFixed(1)}-{m.xga.toFixed(1)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </Card>
           );

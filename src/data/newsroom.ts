@@ -10,7 +10,7 @@ export interface EvidenceHeadline {
   comp: string;
 }
 
-const COMP_LABEL: Record<DemoFixture['comp'], string> = { lig: 'Lig', kupa: 'Miras Kupası', 'kupa-ko': 'Kupa elemesi', hazirlik: 'Hazırlık', 'intl-grup': 'Uluslararası grup', 'intl-ko': 'Uluslararası eleme' };
+export const COMP_LABEL: Record<DemoFixture['comp'], string> = { lig: 'Lig', kupa: 'Miras Kupası', 'kupa-ko': 'Kupa elemesi', hazirlik: 'Hazırlık', 'intl-grup': 'Uluslararası grup', 'intl-ko': 'Uluslararası eleme' };
 
 export function buildHeadlines(fixtures: readonly DemoFixture[], clubName: (id: string) => string, limit = 8): EvidenceHeadline[] {
   return fixtures.filter((fixture) => fixture.played && Number.isFinite(fixture.hg) && Number.isFinite(fixture.ag))

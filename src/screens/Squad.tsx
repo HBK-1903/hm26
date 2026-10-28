@@ -10,6 +10,9 @@ import { Crest } from '../components/assets/Crest';
 import { clubById } from '../data/clubs';
 import { FORMATION_SLOTS } from '../engine/profiles';
 import { fitnessBreakdown, formTrend, recentRatings, rotationAdvice, type FormTrend } from '../engine/squadInsights';
+import { playerMatchLog, summarizePlayerLog, ratingTrend } from '../engine/playerInsights';
+import { RatingSparkline } from '../components/ui/charts';
+import { COMP_LABEL } from '../data/newsroom';
 
 const G_LABEL: Record<string, string> = { GK: 'Kaleci', CB: 'Stoper', FB: 'Bek', WB: 'Kanat Bek', DM: 'D.O. Saha', CM: 'M. Orta Saha', AM: 'H. Orta Saha', WG: 'Kanat', ST: 'Santrfor' };
 const G_GROUP: Record<string, string> = { GK: 'GK', CB: 'DF', FB: 'DF', WB: 'DF', DM: 'MF', CM: 'MF', AM: 'MF', WG: 'FW', ST: 'FW' };
@@ -373,6 +376,60 @@ export const SquadScreen: React.FC<{ goXI: (p: Player) => void }> = ({ goXI }) =
               <div className="flex justify-between text-[13px]"><span className="text-secondary">Aylık maaş</span><span className="num text-primary font-bold">₺{full.wage}B</span></div>
               <div className="flex justify-between text-[13px] mt-1.5"><span className="text-secondary">Kalan sözleşme</span><Badge kind={(full.contractYears ?? 3) <= 1 ? 'danger' : (full.contractYears ?? 3) <= 2 ? 'warn' : 'muted'}>{(full.contractYears ?? 3)} yıl</Badge></div>
               <div className="flex justify-between text-[13px] mt-1.5"><span className="text-secondary">Statü</span><Badge kind="info">{full.ratings.gen >= 72 ? 'Yıldız Oyuncu' : full.ratings.gen >= 64 ? 'İlk 11 Oyuncusu' : full.age <= 21 ? 'Gelişim Oyuncusu' : 'Rotasyon Oyuncusu'}</Badge></div>
+            </Card>
+            {/* Gerçek arşivden maç maç performans günlüğü (yeni kalıcı alan yok) */}
+            <Card>
+              <div className="text-[11px] text-muted uppercase mb-2">Son Maçlar · Maç Günlüğü</div>
+              {(() => {
+                const log = playerMatchLog(full.id, g.matchReports ?? [], g.career.clubId, 5);
+                if (!log.length) {
+                  return <p className="text-muted text-[12px]">Henüz oynanmış maç kaydı yok — ilk maçlardan sonra reyting trendi ve maç günlüğü burada birikir.</p>;
+                }
+                const sum = summarizePlayerLog(log);
+                const trend = ratingTrend(log);
+                return (
+                  <div data-testid="player-match-log">
+                    <RatingSparkline ratings={trend} />
+                    <div className="grid grid-cols-4 gap-1.5 text-center my-2.5">
+                      {[
+                        [`${sum.played}`, 'Maç'],
+                        [`${sum.goals}/${sum.assists}`, 'Gol/A'],
+                        [sum.ratingAvg?.toFixed(2) ?? '—', 'Ort. Reyting'],
+                        [`${sum.yellows + sum.reds}`, 'Kart'],
+                      ].map(([v, l]) => (
+                        <div key={l} className="bg-base/70 rounded-lg py-1.5">
+                          <div className="num text-primary font-extrabold text-[14px]">{v}</div>
+                          <div className="text-muted text-[9px] uppercase">{l}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="space-y-1" data-testid="player-match-rows">
+                      {log.map((m, i) => {
+                        const opp = clubById(m.oppClubId);
+                        const rc = m.rating >= 8 ? 'text-ok' : m.rating >= 7 ? 'text-amber' : m.rating >= 6.2 ? 'text-info' : 'text-danger';
+                        return (
+                          <div key={`${m.day}-${i}`} data-testid="player-match-row"
+                            className="flex items-center gap-2 rounded-lg bg-base/60 px-2.5 py-1.5 text-[11px]">
+                            <span className="text-muted w-9 shrink-0">{COMP_LABEL[m.comp]}</span>
+                            <span className="text-muted w-4 shrink-0">{m.isHome ? 'E' : 'D'}</span>
+                            <span className="text-primary font-semibold flex-1 truncate">{opp?.short ?? m.oppClubId}</span>
+                            <span className="text-muted num w-9 text-right">{m.min}'</span>
+                            <span className="num text-amber w-10 text-right">{m.g > 0 ? `${m.g} G` : ''}{m.a > 0 ? ` ${m.a} A` : ''}{!m.g && !m.a ? '—' : ''}</span>
+                            {m.yellow > 0 && <span className="text-warn">🟨</span>}
+                            {m.red > 0 && <span className="text-danger">🟥</span>}
+                            <span className={`num font-extrabold w-9 text-right ${rc}`}>{m.rating.toFixed(1)}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <p className="text-muted text-[10px] mt-2 leading-snug">
+                      Tam maç {sum.fullMatches} · sonradan giriş/erken çıkış {sum.subAppearances} · toplam {sum.minutes} dk
+                      {sum.goalsPer90 !== null && ` · 90 dk başına ${sum.goalsPer90} gol`}
+                      {sum.assistsPer90 !== null && `, ${sum.assistsPer90} asist`}
+                    </p>
+                  </div>
+                );
+              })()}
             </Card>
             <Card>
               <div className="text-[11px] text-muted uppercase mb-2">Bu Sezon</div>

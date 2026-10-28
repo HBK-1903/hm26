@@ -113,3 +113,108 @@ export function goalBuckets(matches: MyMatch[]): GoalBuckets {
 /** Maç başına ortalama yardımcıları (ekran tek yerden biçimlesin). */
 export const perMatch = (total: number, played: number, digits = 2): number =>
   played === 0 ? 0 : Math.round((total / played) * 10 ** digits) / 10 ** digits;
+
+// ——— Maç maç xG trendi (beklenen vs gerçek performans) ———
+export interface XgTrendPoint {
+  day: number;
+  comp: MyMatch['comp'];
+  oppClubId: string;
+  isHome: boolean;
+  xgf: number;
+  gf: number;
+  xga: number;
+  ga: number;
+}
+
+/** Normalize edilmiş maçlardan en eski → en yeni xG/gol çizelgesi. */
+export function xgTrend(matches: MyMatch[]): XgTrendPoint[] {
+  return matches.map((m) => ({
+    day: m.day, comp: m.comp, oppClubId: m.oppClubId, isHome: m.isHome,
+    xgf: m.xgf, gf: m.gf, xga: m.xga, ga: m.ga,
+  }));
+}
+
+export interface XgVerdict {
+  /** Atılan gol − beklenen gol: pozitifse bitiricilikte şanslı/iyi, negatifse hakkı yeniyor. */
+  finishingDelta: number;
+  /** Yenilen gol − beklenen yenilen: pozitifse savunma/kaleci beklenenden çok gol yedi. */
+  defensiveDelta: number;
+  label: 'over' | 'under' | 'neutral';
+  text: string;
+}
+
+const round1 = (v: number) => Math.round(v * 10) / 10;
+
+/** En az 3 maçlık örneklemde xG karşılaştırması; az veri varsa label nötr kalır (sahte yargı yok). */
+export function xgVerdict(matches: MyMatch[]): XgVerdict | null {
+  if (matches.length < 3) return null;
+  const sum = matches.reduce(
+    (acc, m) => ({ xgf: acc.xgf + m.xgf, gf: acc.gf + m.gf, xga: acc.xga + m.xga, ga: acc.ga + m.ga }),
+    { xgf: 0, gf: 0, xga: 0, ga: 0 },
+  );
+  const finishingDelta = round1(sum.gf - sum.xgf);
+  const defensiveDelta = round1(sum.ga - sum.xga);
+  const label: XgVerdict['label'] = finishingDelta >= 2 ? 'over' : finishingDelta <= -2 ? 'under' : 'neutral';
+  const text = label === 'over'
+    ? `Beklenenden ${finishingDelta} fazla gol attın — bitiricilik ve şans şu an lehine.`
+    : label === 'under'
+      ? `xG'ne göre ${Math.abs(finishingDelta)} gol eksiktesin — pozisyonlar geliyor ama sonuç gelmiyor.`
+      : 'Atılan goller beklenen golle dengeli; performansın istatistiğe yansıyor.';
+  return { finishingDelta, defensiveDelta, label, text };
+}
+
+// ——— Birebir rakip eşleşme geçmişi (H2H) ———
+export interface H2hMeeting {
+  day: number;
+  seasonNo: number;
+  comp: MatchArchiveEntry['comp'];
+  isHome: boolean;
+  gf: number;
+  ga: number;
+  xgf: number;
+  xga: number;
+  result: MatchResult;
+}
+
+export interface HeadToHead {
+  played: number;
+  wins: number;
+  draws: number;
+  losses: number;
+  gf: number;
+  ga: number;
+  xgf: number;
+  xga: number;
+  meetings: H2hMeeting[]; // en yeni önce
+}
+
+/** İki kulüp arasındaki tüm arşiv maçlarını benim kulüp perspektifimden özetler. */
+export function headToHead(reports: readonly MatchArchiveEntry[], myClubId: string, oppClubId: string, limit = 5): HeadToHead {
+  const empty: HeadToHead = { played: 0, wins: 0, draws: 0, losses: 0, gf: 0, ga: 0, xgf: 0, xga: 0, meetings: [] };
+  const pair = reports
+    .filter((r) => (r.homeId === myClubId && r.awayId === oppClubId) || (r.homeId === oppClubId && r.awayId === myClubId))
+    .sort((a, b) => b.day - a.day || b.seasonNo - a.seasonNo);
+  if (!pair.length) return empty;
+  for (const r of pair) {
+    const isHome = r.homeId === myClubId;
+    const gf = isHome ? r.hg : r.ag;
+    const ga = isHome ? r.ag : r.hg;
+    empty.played += 1;
+    empty.gf += gf; empty.ga += ga;
+    empty.xgf += isHome ? r.xgHome : r.xgAway;
+    empty.xga += isHome ? r.xgAway : r.xgHome;
+    const result: MatchResult = gf > ga ? 'W' : gf === ga ? 'D' : 'L';
+    if (result === 'W') empty.wins += 1;
+    else if (result === 'D') empty.draws += 1;
+    else empty.losses += 1;
+    if (empty.meetings.length < limit) {
+      empty.meetings.push({
+        day: r.day, seasonNo: r.seasonNo, comp: r.comp, isHome, gf, ga,
+        xgf: isHome ? r.xgHome : r.xgAway,
+        xga: isHome ? r.xgAway : r.xgHome,
+        result,
+      });
+    }
+  }
+  return empty;
+}
