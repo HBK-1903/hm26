@@ -11,6 +11,7 @@ import { normalizeClubCulture } from '../data/culture';
 import { fanPulse, type PulseTone } from '../engine/atmosphere';
 import { normalizeMyMatches } from '../engine/teamInsights';
 import { buildPressProfile } from '../engine/pressProfile';
+import { buildLeagueLuckSnapshot } from '../engine/analytics';
 
 const NEWS_TAG_STYLE: Record<MatchNewsTag, { label: string; cls: string }> = {
   derbi: { label: 'Derbi', cls: 'bg-danger/15 text-danger border-danger/40' },
@@ -58,6 +59,11 @@ export const NewsroomScreen: React.FC = () => {
   const fromDay = Math.max(1, g.career.day - 6);
   const teamOfWeek = useMemo(() => selectTeamOfWeek(g.matchReports ?? [], fromDay, g.career.day, (id) => g.playerOf(id)), [g.matchReports, fromDay, g.career.day, g.playerOf]);
   const refereeReports = useMemo(() => refereeReportEntries(g.matchReports ?? []), [g.matchReports]);
+  // v4: xPTS–gerçek puan farkından lig şans/fırsat özeti
+  const luckRows = useMemo(
+    () => buildLeagueLuckSnapshot(g.fixtures, g.table[g.myLeague] ?? []),
+    [g.fixtures, g.table, g.myLeague],
+  );
   const latestDate = allFixtures.filter((fixture) => fixture.played).reduce((day, fixture) => Math.max(day, fixture.day), 0);
   // Dalga 7: taraftar nabzı — gerçek kültür değerleri + oynanmış maçların sonuç şeridi
   const fanData = useMemo(() => {
@@ -131,6 +137,36 @@ export const NewsroomScreen: React.FC = () => {
               </Card>
             )}
 
+            {luckRows.length >= 4 && (
+              <Card className="!p-3.5" >
+                <div data-testid="league-luck-card">
+                  <div className="m26-overline mb-2">🍀 Lig Nabzı · xPTS Adaleti</div>
+                  <p className="text-muted text-[11px] leading-snug mb-2.5">Beklenen puanla gerçek puan arasındaki fark; pozitif değer puanın beklentinin üstünde toplandığını gösterir.</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(() => {
+                      const luckiest = luckRows[0];
+                      const unluckiest = luckRows[luckRows.length - 1];
+                      const xgLeader = [...luckRows].sort((a, b) => b.xpts - a.xpts)[0];
+                      const cell = (title: string, clubId: string, value: string, tone: 'ok' | 'danger' | 'info') => (
+                        <div key={title} className="bg-base rounded-lg p-2.5">
+                          <div className="text-[9.5px] text-muted uppercase">{title}</div>
+                          <div className="text-[12.5px] font-bold text-primary truncate mt-0.5">{clubByIdSafe(clubId)?.name ?? clubId}</div>
+                          <div className={`num text-[12px] font-extrabold mt-0.5 ${tone === 'ok' ? 'text-ok' : tone === 'danger' ? 'text-danger' : 'text-info'}`}>{value}</div>
+                        </div>
+                      );
+                      return (
+                        <>
+                          {cell('En şanslı', luckiest.clubId, `+${luckiest.diff.toFixed(1)} puan`, 'ok')}
+                          {cell('Hakkı yeniyor', unluckiest.clubId, `${unluckiest.diff.toFixed(1)} puan`, 'danger')}
+                          {cell('xPTS lideri', xgLeader.clubId, `${xgLeader.xpts.toFixed(1)} xPTS`, 'info')}
+                          {cell('Senin durumun', g.career.clubId, (() => { const me = luckRows.find((r) => r.clubId === g.career.clubId); return me ? `${me.diff >= 0 ? '+' : ''}${me.diff.toFixed(1)} puan` : '—'; })(), 'info')}
+                        </>
+                      );
+                    })()}
+                  </div>
+                </div>
+              </Card>
+            )}
             {headlines.length === 0 ? <Card className="text-center py-8"><GameIcon id="news" className="w-8 h-8 mx-auto text-muted" /><p className="text-primary font-bold mt-3">İlk maç sonucu beklendiği için manşet yok</p><p className="text-secondary text-[12px] mt-1">Basın masası yalnızca fikstürde kaydedilmiş skorları yayımlar.</p></Card> : headlines.map((item) => (
               <Card key={item.id} className="!p-3.5">
                 <div className="flex items-center justify-between gap-2"><Badge kind="info">{item.comp}</Badge><span className="text-muted text-[11px] num">Gün {item.day}</span></div>

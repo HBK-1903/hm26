@@ -271,3 +271,86 @@ export function seasonMatchStats(reports: readonly MatchArchiveEntry[], myClubId
     pressPerMatch: avg(press),
   };
 }
+
+// ——— v4: pozisyon grubu bazında kart disiplini (oyuncu karnelerindeki posGroup'tan) ———
+export interface PositionDiscipline {
+  posGroup: string;
+  yellows: number;
+  reds: number;
+  /** 1000 dakika başına kart ağırlığı (sarı 1 + kırmızı 3); veri yoksa null */
+  cardsPer1000: number | null;
+  minutes: number;
+}
+
+/**
+ * Yalnız myClubId kadrosuna ait oyuncu satırlarını (playerClubIds eşleşmesi) pozisyon
+ * grubuna göre toplar. Eski kayıtlarda posGroup boş gelebilir; "—" grubuna yazılır.
+ */
+export function cardDisciplineByPosition(
+  reports: readonly MatchArchiveEntry[],
+  myClubId: string,
+): PositionDiscipline[] {
+  const acc = new Map<string, { yellows: number; reds: number; minutes: number }>();
+  for (const r of reports) {
+    for (const [playerId, row] of Object.entries(r.playerRows ?? {})) {
+      if ((r.playerClubIds ?? {})[playerId] !== myClubId) continue;
+      const key = row.posGroup || '—';
+      const cur = acc.get(key) ?? { yellows: 0, reds: 0, minutes: 0 };
+      cur.yellows += row.yellow;
+      cur.reds += row.red;
+      cur.minutes += row.min;
+      acc.set(key, cur);
+    }
+  }
+  return [...acc.entries()].map(([posGroup, v]) => ({
+    posGroup,
+    yellows: v.yellows,
+    reds: v.reds,
+    minutes: v.minutes,
+    cardsPer1000: v.minutes > 0 ? Math.round(((v.yellows + v.reds * 3) / v.minutes) * 1000 * 10) / 10 : null,
+  })).sort((a, b) => (b.yellows + b.reds * 3) - (a.yellows + a.reds * 3) || a.posGroup.localeCompare(b.posGroup));
+}
+
+// ——— v4: sezon kapanış özeti (seasonHistory zenginleştirmesi için) ———
+export interface SeasonSummary {
+  matches: number;
+  xgf: number;
+  xga: number;
+  shotAccuracy: number | null;
+  cornersPerMatch: number | null;
+}
+
+/**
+ * Sezonun maç raporlarından kulüp perspektifinde özet üretir. xG tüm kayıtlarda var;
+ * şut isabeti ve korner yalnız C1 bloğu taşıyan kayıtlardan ortalanır.
+ */
+export function seasonSummary(reports: readonly MatchArchiveEntry[], myClubId: string, seasonNo: number): SeasonSummary {
+  let matches = 0;
+  let xgf = 0;
+  let xga = 0;
+  let c1Matches = 0;
+  let shots = 0;
+  let shotsOn = 0;
+  let corners = 0;
+  for (const r of reports) {
+    if (r.seasonNo !== seasonNo || (r.homeId !== myClubId && r.awayId !== myClubId)) continue;
+    const isHome = r.homeId === myClubId;
+    matches += 1;
+    xgf += isHome ? r.xgHome : r.xgAway;
+    xga += isHome ? r.xgAway : r.xgHome;
+    if (typeof r.shotsH === 'number' && typeof r.poss === 'number') {
+      c1Matches += 1;
+      shots += isHome ? (r.shotsH ?? 0) : (r.shotsA ?? 0);
+      shotsOn += isHome ? (r.shotsOnH ?? 0) : (r.shotsOnA ?? 0);
+      corners += isHome ? (r.cornersH ?? 0) : (r.cornersA ?? 0);
+    }
+  }
+  const r2 = (v: number) => Math.round(v * 100) / 100;
+  return {
+    matches,
+    xgf: r2(xgf),
+    xga: r2(xga),
+    shotAccuracy: shots > 0 ? Math.round((shotsOn / shots) * 100) : null,
+    cornersPerMatch: c1Matches > 0 ? r2(corners / c1Matches) : null,
+  };
+}

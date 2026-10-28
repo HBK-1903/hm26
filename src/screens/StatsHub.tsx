@@ -6,9 +6,9 @@ import React, { useMemo, useState } from 'react';
 import { useGame } from '../store/game';
 import { Card, Badge } from '../components/ui/kit';
 import { clubById } from '../data/clubs';
-import { buildXptsTable, buildLeagueXptsTable, buildFairPlayTable, goalkeeperSaveRate } from '../engine/analytics';
-import { normalizeMyMatches, teamSplit, formStrip, goalBuckets, perMatch, xgTrend, xgVerdict, seasonMatchStats, type TeamSplitRow } from '../engine/teamInsights';
-import { goalMinuteProfile } from '../engine/matchEvents';
+import { buildXptsTable, buildLeagueXptsTable, buildFairPlayTable, goalkeeperSaveRate, buildRefereeProfile } from '../engine/analytics';
+import { normalizeMyMatches, teamSplit, formStrip, goalBuckets, perMatch, xgTrend, xgVerdict, seasonMatchStats, cardDisciplineByPosition, type TeamSplitRow } from '../engine/teamInsights';
+import { goalMinuteProfile, firstGoalProfile, injuryTally, varStats } from '../engine/matchEvents';
 import { XgTrendChart } from '../components/ui/charts';
 
 type Tab = 'krallik' | 'analiz' | 'karakter' | 'oduller';
@@ -106,6 +106,12 @@ export const StatsHub: React.FC = () => {
   const xptsSource = leagueXptsRows.length ? 'league' : 'archive';
   const minuteProfile = useMemo(() => goalMinuteProfile(reports, g.career.clubId), [reports, g.career.clubId]);
   const seasonStats = useMemo(() => seasonMatchStats(reports, g.career.clubId, g.seasonNo), [reports, g.career.clubId, g.seasonNo]);
+  // v4: ilk gol psikolojisi, VAR karnesi, hakem profili, pozisyon disiplini, sakatlık geçmişi
+  const firstGoal = useMemo(() => firstGoalProfile(reports, g.career.clubId), [reports, g.career.clubId]);
+  const varReport = useMemo(() => varStats(reports, g.career.clubId), [reports, g.career.clubId]);
+  const refereeProfiles = useMemo(() => buildRefereeProfile(reports, g.career.clubId), [reports, g.career.clubId]);
+  const discipline = useMemo(() => cardDisciplineByPosition(reports, g.career.clubId), [reports, g.career.clubId]);
+  const injuries = useMemo(() => injuryTally(reports, g.career.clubId), [reports, g.career.clubId]);
   const fairPlayRows = useMemo(() => buildFairPlayTable(reports, g.seasonNo), [reports, g.seasonNo]);
   const actualPts = useMemo(() => new Map((g.table[myLeague] ?? []).map((r) => [r.clubId, r.pts])), [g.table, myLeague]);
   const leagueClubs = useMemo(() => (g.table[myLeague] ?? []).map((r) => clubById(r.clubId)).filter(Boolean), [g.table, myLeague]);
@@ -330,6 +336,110 @@ export const StatsHub: React.FC = () => {
                       </div>
                     ))}
                     <p className="col-span-2 text-muted text-[10px]">{seasonStats.matches} maçın motor istatistik bloğundan hesaplandı.</p>
+                  </div>
+                )}
+              </div>
+            </Card>
+
+            {/* v4: ilk gol/öne geçme psikolojisi + VAR karnesi */}
+            <Card className="!p-0 overflow-hidden">
+              <div data-testid="first-goal-card">
+                <div className="px-4 py-2.5 border-b border-line font-display font-bold text-[13px]">🧠 İlk Gol & Maç Psikolojisi</div>
+                {firstGoal.matchesWithEvents === 0 ? (
+                  <div className="px-4 py-3 text-muted text-[12px]">Dakikalı olay kaydı biriken maçlarda ilk golün kimden çıktığı ve sonucu nasıl etkilediği burada özetlenir.</div>
+                ) : (
+                  <div className="px-4 py-3 space-y-2.5">
+                    <div className="grid grid-cols-2 gap-1.5 text-center">
+                      <div className="bg-ok/10 border border-ok/25 rounded-lg py-2">
+                        <div className="text-[9.5px] text-muted uppercase">İlk golü attığın</div>
+                        <div className="num text-primary font-extrabold text-[15px]">{firstGoal.scoredFirst.matches} maç</div>
+                        <div className="num text-[11px] text-ok font-bold">{firstGoal.scoredFirst.wins}G {firstGoal.scoredFirst.draws}B {firstGoal.scoredFirst.losses}M</div>
+                        <div className="text-[9.5px] text-muted">Puan verimi: <b className="num text-secondary">{firstGoal.scoredFirst.pointRate === null ? '—' : `%${Math.round(firstGoal.scoredFirst.pointRate * 100)}`}</b></div>
+                      </div>
+                      <div className="bg-danger/10 border border-danger/25 rounded-lg py-2">
+                        <div className="text-[9.5px] text-muted uppercase">İlk golü yediğin</div>
+                        <div className="num text-primary font-extrabold text-[15px]">{firstGoal.concededFirst.matches} maç</div>
+                        <div className="num text-[11px] text-danger font-bold">{firstGoal.concededFirst.wins}G {firstGoal.concededFirst.draws}B {firstGoal.concededFirst.losses}M</div>
+                        <div className="text-[9.5px] text-muted">Geri dönüş: <b className="num text-secondary">{firstGoal.concededFirst.comebackRate === null ? '—' : `%${Math.round(firstGoal.concededFirst.comebackRate * 100)}`}</b></div>
+                      </div>
+                    </div>
+                    {firstGoal.leadCollapses > 0 && (
+                      <p className="text-[10.5px] text-warn leading-snug">⚠️ Öne geçtiğin {firstGoal.leadCollapses} maçta galibiyeti koruyamadın (beraberlik veya mağlubiyet).</p>
+                    )}
+                    <div className="flex items-center justify-between bg-base rounded-lg px-3 py-2 text-[11px]" data-testid="var-stats">
+                      <span className="text-secondary">VAR kayıtları</span>
+                      <span className="num">
+                        <b className="text-danger">{varReport.myCancelled}</b> golün iptal edildi · rakiplerin <b className="text-ok">{varReport.oppCancelled}</b> iptali
+                        {varReport.total === 0 && <span className="text-muted"> — bu sezon VAR olayı yok</span>}
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </Card>
+
+            {/* v4: pozisyon disiplini + sakatlık geçmişi */}
+            <Card className="!p-0 overflow-hidden">
+              <div data-testid="discipline-card">
+                <div className="px-4 py-2.5 border-b border-line font-display font-bold text-[13px]">🟨 Disiplin & Sakatlık Haritası</div>
+                <div className="px-4 py-3 space-y-3">
+                  {discipline.length === 0 ? (
+                    <p className="text-muted text-[12px]">Kart verisi maçlarda birikir.</p>
+                  ) : (
+                    <div>
+                      <div className="text-[10px] text-muted uppercase mb-1.5">Pozisyon gruplarına göre kart yükü</div>
+                      <div className="space-y-1">
+                        {discipline.map((d) => (
+                          <div key={d.posGroup} className="flex items-center gap-2 text-[11.5px]" data-discipline-row={d.posGroup}>
+                            <span className="w-14 shrink-0 font-bold text-secondary">{d.posGroup}</span>
+                            <div className="flex-1 h-2.5 rounded-full bg-base overflow-hidden">
+                              <div className="h-full bg-warn/80" style={{ width: `${Math.min(100, (d.yellows + d.reds * 3) * 12)}%` }} />
+                            </div>
+                            <span className="num text-muted w-20 text-right shrink-0">{d.yellows} sarı · {d.reds} kırmızı</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <div>
+                    <div className="text-[10px] text-muted uppercase mb-1.5">Sakatlık geçmişi (maçtan çıkışlar)</div>
+                    {injuries.length === 0 ? (
+                      <p className="text-muted text-[11.5px]">Bu sezon maç içinde sakatlanarak oyundan çıkan oyuncu yok — kayıtlar maçlarda birikir.</p>
+                    ) : (
+                      <div className="space-y-1" data-testid="injury-list">
+                        {injuries.slice(0, 5).map((t) => (
+                          <div key={t.playerId} className="flex items-center justify-between text-[11.5px] bg-base rounded-lg px-2.5 py-1.5">
+                            <span className="font-semibold text-primary truncate">{g.playerOf(t.playerId)?.name ?? 'Oyuncu'}</span>
+                            <span className="num text-danger font-bold shrink-0 ml-2">{t.count} sakatlık</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </Card>
+
+            {/* v4: hakem profilleri */}
+            <Card className="!p-0 overflow-hidden">
+              <div data-testid="referee-profile-card">
+                <div className="px-4 py-2.5 border-b border-line font-display font-bold text-[13px]">📋 Hakem Profilleri</div>
+                {refereeProfiles.length === 0 ? (
+                  <div className="px-4 py-3 text-muted text-[12px]">Hakem etiketi taşıyan maç raporu birikince profiller burada belirir.</div>
+                ) : (
+                  <div className="divide-y divide-line/40">
+                    {refereeProfiles.slice(0, 6).map((rf) => (
+                      <div key={rf.label} className="px-4 py-2.5 flex items-center gap-2" data-referee={rf.label}>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[12px] font-bold text-primary truncate">{rf.label}</div>
+                          <div className="text-[10px] text-muted num">{rf.matches} maçın · maç başı {rf.foulsPerMatch} faul · {rf.yellows} sarı {rf.reds} kırmızı</div>
+                        </div>
+                        <Badge kind={rf.strictness === 'strict' ? 'danger' : rf.strictness === 'lenient' ? 'ok' : 'muted'}>
+                          {rf.strictness === 'strict' ? 'Sıkı' : rf.strictness === 'lenient' ? 'Yumuşak' : 'Dengeli'}
+                        </Badge>
+                        <span className="num text-[11px] font-extrabold text-secondary w-16 text-right shrink-0">{rf.myWins}G {rf.myDraws}B {rf.myLosses}M</span>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
