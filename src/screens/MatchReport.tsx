@@ -7,7 +7,7 @@ import { Crest } from '../components/assets/Crest';
 import { clubById } from '../data/clubs';
 import { expectedMatchPoints } from '../engine/analytics';
 
-export const MatchReport: React.FC<{ result: DemoMatchResult; fixture: DemoFixture; onDone: () => void }> = ({ result, onDone }) => {
+export const MatchReport: React.FC<{ result: DemoMatchResult; fixture: DemoFixture; onDone: () => void; onEndDay?: () => void }> = ({ result, onDone, onEndDay }) => {
   const g = useGame();
   const home = clubById(result.homeId);
   const away = clubById(result.awayId);
@@ -239,7 +239,12 @@ export const MatchReport: React.FC<{ result: DemoMatchResult; fixture: DemoFixtu
       </div>
 
       <div className="fixed bottom-0 left-0 right-0 max-w-[430px] mx-auto p-4 pt-6 bg-gradient-to-t from-base via-base/95 to-transparent safe-b">
-        <Btn variant="amber" className="w-full !min-h-[50px]" onClick={onDone}>Sonucu Kaydet — Ana Merkez</Btn>
+        <div className="space-y-2">
+          {onEndDay && (
+            <Btn variant="amber" testId="end-day-after-match" className="w-full !min-h-[50px]" onClick={onEndDay}>Kaydet ve Günü Bitir →</Btn>
+          )}
+          <Btn variant={onEndDay ? 'secondary' : 'amber'} className="w-full !min-h-[46px]" onClick={onDone}>Sonucu Kaydet — Ana Merkez</Btn>
+        </div>
       </div>
     </div>
   );

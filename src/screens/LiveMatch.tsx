@@ -39,7 +39,7 @@ const ZONES: Record<string, { x: number; y: number }> = {
   'L-A': { x: 22, y: 18 }, 'C-A': { x: 50, y: 15 }, 'R-A': { x: 78, y: 18 },
 };
 
-export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onExit: () => void; onSaved?: () => void }> = ({ fixture, tacticIdx = 0, onExit, onSaved }) => {
+export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onExit: () => void; onSaved?: () => void; onEndDay?: () => void }> = ({ fixture, tacticIdx = 0, onExit, onSaved, onEndDay }) => {
   const g = useGame();
   // Aşama 3 MOTOR §6.2: Maç artık önceden simüle edilmiyor — MatchSession gerçek zamanlı ilerliyor
   const sessionRef = useRef<MatchSession | null>(null);
@@ -301,7 +301,19 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onE
     return <PostMatchInterview result={finResult} fixture={fixture} onChoose={(opt) => { interviewChoiceRef.current = opt; setPhase('report'); }} />;
   }
   if (phase === 'report' && finResult) {
-    return <MatchReport result={finResult} fixture={fixture} onDone={() => { commitResult(); (onSaved ?? onExit)(); }} />;
+    return <MatchReport
+      result={finResult}
+      fixture={fixture}
+      onDone={() => { commitResult(); (onSaved ?? onExit)(); }}
+      onEndDay={onEndDay ? () => {
+        // Çift dokunuş koruması: commitResult da aynı kilide sahiptir.
+        if (resultCommitted.current) return;
+        commitResult();
+        // Gün ilerletme üst katmanda (MatchPrep), maç state'i işlendikten sonra çalışır;
+        // aynı event içinde advanceDay çağrısı bayat fikstür listesiyle engel dönerdi.
+        onEndDay();
+      } : undefined}
+    />;
   }
   function commitResult() {
     if (resultCommitted.current) return;
