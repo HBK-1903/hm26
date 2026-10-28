@@ -19,6 +19,12 @@ const NEWS_TAG_STYLE: Record<MatchNewsTag, { label: string; cls: string }> = {
   temiz: { label: 'Gol Yememe', cls: 'bg-info/15 text-info border-info/40' },
   xg: { label: 'xG Analizi', cls: 'bg-amber/15 text-amber border-amber/40' },
   gollu: { label: 'Gollü Maç', cls: 'bg-muted/15 text-secondary border-line' },
+  'geri-donus': { label: 'Geri Dönüş', cls: 'bg-ok/15 text-ok border-ok/40' },
+  cokus: { label: 'Çöküş', cls: 'bg-warn/15 text-warn border-warn/40' },
+  kirmizi: { label: 'Kırmızı Kart', cls: 'bg-danger/25 text-danger border-danger/50' },
+  var: { label: 'VAR', cls: 'bg-special/15 text-special border-special/40' },
+  'son-dakika': { label: 'Son Dakika', cls: 'bg-primary/15 text-primary border-primary/40' },
+  sonuc: { label: 'Maç Sonucu', cls: 'bg-muted/15 text-secondary border-line' },
 };
 const OUTCOME_LABEL = { win: 'Galibiyet sonrası', draw: 'Beraberlik sonrası', loss: 'Mağlubiyet sonrası' } as const;
 
