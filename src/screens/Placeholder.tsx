@@ -12,6 +12,7 @@ import { applyComfortSettings, saveLocalComfort } from '../utils/comfort';
 import { readSave, exportSaveFile, exportFileName, parseImportFile, writeSave } from '../store/persist';
 import { dayToDate } from '../data/calendar';
 import { audio, AudioPrefs } from '../audio/engine';
+import { buildPressProfile } from '../engine/pressProfile';
 
 export const PlaceholderScreen: React.FC<{ id: 'careerProfile' | 'settings' | 'backup' }> = ({ id }) => {
   const [theme, setTheme] = React.useState<ThemePref>(loadTheme());
@@ -82,6 +83,39 @@ export const PlaceholderScreen: React.FC<{ id: 'careerProfile' | 'settings' | 'b
             </div>
           )}
         </Card>
+        {(() => {
+          const press = buildPressProfile(g.inbox);
+          return (
+            <Card>
+              <div data-testid="career-press-profile">
+              <div className="m26-overline mb-2">Basın Profili</div>
+              {press.total === 0 ? (
+                <p className="text-secondary text-[12px] leading-snug">Henüz röportaj vermedin. Maç sonu röportajlarındaki tonun burada özetlenir.</p>
+              ) : (
+                <>
+                  <div className="flex items-baseline gap-2">
+                    <span className="font-display text-primary text-[20px] font-black num">{press.total}</span>
+                    <span className="text-secondary text-[12px]">röportajda konuştun</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-1.5 mt-2.5 text-center">
+                    {([['win', 'Galibiyet'], ['draw', 'Beraberlik'], ['loss', 'Mağlubiyet']] as const).map(([k, label]) => (
+                      <div key={k} className="bg-base rounded-lg py-1.5">
+                        <div className="num text-primary font-extrabold text-[14px]">{press.byOutcome[k]}</div>
+                        <div className="text-muted text-[9px] uppercase">{label}</div>
+                      </div>
+                    ))}
+                  </div>
+                  {press.mostUsedTone && (
+                    <p className="text-secondary text-[11.5px] mt-2.5 leading-snug">
+                      En sık tercih ettiğin ton: <b className="text-amber">{press.mostUsedTone.label}</b> ({press.mostUsedTone.count} kez)
+                    </p>
+                  )}
+                </>
+              )}
+              </div>
+            </Card>
+          );
+        })()}
       </div>
     );
   }

@@ -7,6 +7,7 @@ import { Crest } from '../components/assets/Crest';
 import { GameIcon } from '../components/icons';
 import { clubById, LEAGUES } from '../data/clubs';
 import { InstallBanner } from '../components/ui/InstallBanner';
+import { opponentScout } from '../engine/scout';
 
 export const Hub: React.FC<{ go: (s: Screen) => void }> = ({ go }) => {
   const g = useGame();
@@ -15,11 +16,8 @@ export const Hub: React.FC<{ go: (s: Screen) => void }> = ({ go }) => {
   const opponent = next ? clubById(next.homeId === g.myClub.id ? next.awayId : next.homeId) : null;
   const daysLeft = next ? Math.max(0, next.day - g.career.day) : 0;
   const isMatchday = daysLeft === 0 && !!next;
-  const formArr = g.fixtures.filter((f) => f.played && (f.homeId === g.myClub.id || f.awayId === g.myClub.id)).slice(-5).map((f) => {
-    const mine = f.homeId === g.myClub.id ? f.hg! : f.ag!;
-    const theirs = f.homeId === g.myClub.id ? f.ag! : f.hg!;
-    return mine > theirs ? 'G' : mine === theirs ? 'B' : 'M';
-  });
+  // Rakibin gerçek lig verisi: son 5 maç formu ve lig sırası (yalnız oynanmış fikstürler)
+  const oppScout = opponent ? opponentScout(g.fixtures, opponent.id, g.table[g.leagueOf[opponent.id]] ?? []) : null;
   const squadFitRate = Math.round(g.mySquad.filter((p) => p.injuredDays === 0 && p.suspendedMatches === 0).length / Math.max(1, g.mySquad.length) * 100);
   const wageRatio = (() => {
     const totalWageM = g.mySquad.reduce((x, p) => x + (p.wage ?? 0), 0) / 1000;
@@ -117,12 +115,15 @@ export const Hub: React.FC<{ go: (s: Screen) => void }> = ({ go }) => {
                 </div>
               </div>
               <p className="text-center text-muted text-[10.5px] mt-1">{clubById(next.homeId).stadium} · {next.homeId === g.myClub.id ? 'Ev sahibi' : 'Deplasman'}</p>
-              <div className="mt-2 flex items-center gap-1.5 justify-center">
-                <Badge kind={formArr.length ? 'info' : 'muted'}>Rakip form: {(() => { const o = opponent.id; const fs = g.fixtures.filter((f) => f.played && (f.homeId === o || f.awayId === o)).slice(-3); return fs.length ? fs.map((f) => { const m = f.homeId === o ? f.hg! : f.ag!; const t = f.homeId === o ? f.ag! : f.hg!; return m > t ? 'G' : m === t ? 'B' : 'M'; }).join('─') : '—'; })()}</Badge>
+              <div className="mt-2 flex items-center gap-1.5 justify-center flex-wrap">
+                <Badge kind={oppScout && oppScout.form.length ? 'info' : 'muted'}>
+                  Rakip lig formu: {oppScout && oppScout.form.length ? oppScout.form.map((r) => (r === 'W' ? 'G' : r === 'D' ? 'B' : 'M')).join('─') : '—'}
+                </Badge>
+                {oppScout && oppScout.rank !== null && <Badge kind="muted">Lig sırası: {oppScout.rank}</Badge>}
                 <Badge kind="muted">Rakip güç: {opponent.strength}</Badge>
               </div>
               <div className="flex gap-2 mt-3">
-                <Btn variant="secondary" className="flex-1 !min-h-[42px] !text-[12px]" onClick={() => go('comps')}>Rakip Analizi</Btn>
+                <Btn variant="secondary" className="flex-1 !min-h-[42px] !text-[12px]" onClick={() => go('matchPrep')}>Rakip Analizi</Btn>
                 <Btn variant="amber" className="flex-1 !min-h-[42px] !text-[12px]" onClick={() => go('matchPrep')}>Maç Merkezine Git</Btn>
               </div>
             </>

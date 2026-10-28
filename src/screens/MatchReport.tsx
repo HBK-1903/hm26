@@ -5,6 +5,7 @@ import { useGame, DemoMatchResult } from '../store/game';
 import { Card, Btn, Seg } from '../components/ui/kit';
 import { Crest } from '../components/assets/Crest';
 import { clubById } from '../data/clubs';
+import { expectedMatchPoints } from '../engine/analytics';
 
 export const MatchReport: React.FC<{ result: DemoMatchResult; fixture: DemoFixture; onDone: () => void }> = ({ result, onDone }) => {
   const g = useGame();
@@ -31,6 +32,13 @@ export const MatchReport: React.FC<{ result: DemoMatchResult; fixture: DemoFixtu
   };
   const myCorridor = corridor(mine === 'home' ? result.wideH : result.wideA, mine === 'home' ? result.centralH : result.centralA);
   const oppCorridor = corridor(mine === 'home' ? result.wideA : result.wideH, mine === 'home' ? result.centralA : result.wideH);
+  // Maçın xG çiftinden Poisson beklentisi (mevcut arşiv alanları, yeni şema yok)
+  const expectation = expectedMatchPoints(result.xgHome, result.xgAway);
+  const myXp = mine === 'home' ? expectation.homeXp : expectation.awayXp;
+  const myWinP = mine === 'home' ? expectation.pHomeWin : expectation.pAwayWin;
+  const oppWinP = mine === 'home' ? expectation.pAwayWin : expectation.pHomeWin;
+  const pct = (v: number) => `${Math.round(v * 100)}%`;
+  const actualPts = result.hg === result.ag ? 1 : (mine === 'home' ? result.hg > result.ag : result.ag > result.hg) ? 3 : 0;
 
   return (
     <div className="h-full overflow-y-auto no-scrollbar safe-t safe-b">
@@ -78,6 +86,26 @@ export const MatchReport: React.FC<{ result: DemoMatchResult; fixture: DemoFixtu
                 </Card>
               ))}
             </div>
+            <Card>
+              <div data-testid="xpts-card">
+              <div className="text-[11px] text-muted uppercase tracking-[0.08em]">Beklenen Puan (xPTS)</div>
+              <div className="flex items-end justify-between mt-1.5">
+                <div>
+                  <div className="num text-primary font-display text-2xl leading-none">{myXp.toFixed(2)}</div>
+                  <div className="text-muted text-[10px] mt-0.5">3 üzerinden beklenti</div>
+                </div>
+                <div className="text-right text-[11px] text-secondary leading-relaxed">
+                  <div><span className="text-ok font-bold">{pct(myWinP)}</span> galibiyet · <span className="text-muted font-bold">{pct(expectation.pDraw)}</span> beraberlik · <span className="text-danger font-bold">{pct(oppWinP)}</span> mağlubiyet</div>
+                </div>
+              </div>
+              <div className="mt-2 pt-2 border-t border-line/50 text-[10.5px] text-muted flex justify-between">
+                <span>Maçtan alınan gerçek puan: <b className="text-amber num">{actualPts}</b></span>
+                <span className={actualPts + 0.5 < myXp ? 'text-danger' : actualPts - 0.5 > myXp ? 'text-ok' : 'text-muted'}>
+                  {actualPts > myXp ? 'Beklenti üstü' : actualPts < myXp ? 'Beklenti altı' : 'Beklentiye yakın'}
+                </span>
+              </div>
+              </div>
+            </Card>
             <Btn variant="secondary" className="w-full" onClick={() => setTab('istatistik')}>Ayrıntılı Analizi Aç →</Btn>
           </div>
         )}

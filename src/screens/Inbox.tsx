@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { useGame } from '../store/game';
 import { Card, Badge, Sheet, Btn } from '../components/ui/kit';
 import { Screen } from '../types';
+import { INTERVIEW_INBOX_TITLE } from '../data/interview';
 
 const KINDS = [
   ['all', 'Tümü'], ['kritik', 'Kritik'], ['transfer', 'Transfer'], ['yonetim', 'Yönetim'], ['kadro', 'Kadro'], ['lig', 'Lig Haberleri'],
@@ -78,7 +79,7 @@ export const InboxScreen: React.FC<{ go: (s: Screen) => void }> = ({ go }) => {
               <p className="text-primary/95 text-[13.5px] leading-relaxed">{m.body}</p>
               <div className="grid grid-cols-2 gap-2 mt-5">
                 <Btn variant="secondary" onClick={() => setOpen(null)}>Sonra Hatırlat</Btn>
-                <Btn variant="amber" onClick={() => { setOpen(null); go(KIND_ROUTE[m.kind] ?? 'hub'); }}>İlgili Bölüme Git →</Btn>
+                <Btn variant="amber" onClick={() => { setOpen(null); go(m.title === INTERVIEW_INBOX_TITLE ? 'newsroom' : (KIND_ROUTE[m.kind] ?? 'hub')); }}>İlgili Bölüme Git →</Btn>
               </div>
             </div>
           );
