@@ -15,6 +15,9 @@ import { buildMatchdayAtmosphere } from '../engine/atmosphere';
 import { normalizeClubCulture } from '../data/culture';
 import { headToHead } from '../engine/teamInsights';
 import { COMP_LABEL } from '../data/newsroom';
+import { opponentScout } from '../engine/scout';
+import { rotationAdvice } from '../engine/squadInsights';
+import { FORMATION_SLOTS } from '../engine/profiles';
 
 
 export const MatchPrep: React.FC<{ go: (s: Screen) => void }> = ({ go }) => {
@@ -242,27 +245,90 @@ export const MatchPrep: React.FC<{ go: (s: Screen) => void }> = ({ go }) => {
           );
         })()}
 
-        {/* §13.2 rakip analizi mini raporu */}
-        <Card>
-          <div className="text-[12px] text-muted uppercase tracking-[0.08em]">Rakip Analizi</div>
-          <div className="grid grid-cols-2 gap-x-4 gap-y-2 mt-2.5">
-            {(() => {
-              const opp = isHome ? away : home;
-              return [
-                ['Güçlü alan', opp.strength >= 70 ? 'Hücum kalitesi' : 'Savunma disiplin'],
-                ['Zayıf alan', opp.strength >= 70 ? 'Deplasman formu' : 'Bitiricilik'],
-                ['Son biçim', 'G─B─M'],
-                ['Öne çıkan', g.squads[opp.id]?.sort((a, b) => b.ratings.gen - a.ratings.gen)[0]?.name.split(' ').slice(-1)[0] ?? '—'],
-              ].map(([k, v]) => (
-                <div key={k} className="bg-base/70 rounded-lg p-2.5">
-                  <div className="text-muted text-[9.5px] uppercase">{k}</div>
-                  <div className="text-primary text-[13px] font-bold mt-0.5 truncate">{v}</div>
+        {/* Rakip scout raporu — yalnız fikstürde kayıtlı gerçek skorlar ve puan tablosu; xG yoksa "—" */}
+        {(() => {
+          const opp = isHome ? away : home;
+          const scout = opponentScout(g.fixtures, opp.id, g.table[g.leagueOf[opp.id]] ?? []);
+          const star = g.squads[opp.id]?.slice().sort((a, b) => b.ratings.gen - a.ratings.gen)[0];
+          const formLetter = (r: string) => (r === 'W' ? 'G' : r === 'D' ? 'B' : 'M');
+          const formCls = (r: string) => (r === 'W' ? 'bg-ok/20 border-ok/60 text-ok' : r === 'D' ? 'bg-muted/15 border-line text-muted' : 'bg-danger/15 border-danger/60 text-danger');
+          return (
+            <Card>
+              <div className="flex items-center justify-between">
+                <div className="text-[12px] text-muted uppercase tracking-[0.08em]">Rakip Scout Raporu</div>
+                {scout.rank !== null && <Badge kind="info">Lig sırası {scout.rank} · {scout.points} p</Badge>}
+              </div>
+              <div data-testid="opp-scout">
+                {scout.played === 0 ? (
+                  <p className="text-muted text-[12px] mt-2.5">Bu sezon kayıtlı lig maçı yok — form verisi ilk maçlardan sonra birikecek; uydurma biçim üretilmez.</p>
+                ) : (
+                  <div className="mt-2.5 space-y-2.5">
+                    <div>
+                      <div className="text-muted text-[9.5px] uppercase mb-1">Son {scout.form.length} lig maçı</div>
+                      <div className="flex gap-1.5 flex-wrap" data-testid="opp-scout-form">
+                        {scout.form.map((r, i) => (
+                          <span key={i} className={`w-8 h-8 rounded-lg border flex items-center justify-center num text-[13px] font-black ${formCls(r)}`}>{formLetter(r)}</span>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="bg-base/70 rounded-lg p-2.5">
+                        <div className="text-muted text-[9.5px] uppercase">Ev karnesi</div>
+                        <div className="num text-primary text-[13px] font-bold mt-0.5">{scout.home.played ? `${scout.home.wins}G ${scout.home.draws}B ${scout.home.losses}M · ${scout.home.gf}:${scout.home.ga}` : '—'}</div>
+                      </div>
+                      <div className="bg-base/70 rounded-lg p-2.5">
+                        <div className="text-muted text-[9.5px] uppercase">Deplasman karnesi</div>
+                        <div className="num text-primary text-[13px] font-bold mt-0.5">{scout.away.played ? `${scout.away.wins}G ${scout.away.draws}B ${scout.away.losses}M · ${scout.away.gf}:${scout.away.ga}` : '—'}</div>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-center">
+                      <div className="bg-base/70 rounded-lg py-1.5"><div className="num text-primary font-extrabold text-[14px]">{scout.gf}</div><div className="text-muted text-[9px] uppercase">Attığı</div></div>
+                      <div className="bg-base/70 rounded-lg py-1.5"><div className="num text-primary font-extrabold text-[14px]">{scout.ga}</div><div className="text-muted text-[9px] uppercase">Yediği</div></div>
+                      <div className="bg-base/70 rounded-lg py-1.5"><div className="num text-primary font-extrabold text-[14px]">—</div><div className="text-muted text-[9px] uppercase">Rakip xG</div></div>
+                    </div>
+                  </div>
+                )}
+                <div className="bg-base/70 rounded-lg p-2.5 mt-2.5">
+                  <div className="text-muted text-[9.5px] uppercase">Öne çıkan oyuncu</div>
+                  <div className="text-primary text-[13px] font-bold mt-0.5 truncate">{star ? `${star.name} · GEN ${star.ratings.gen}` : '—'}</div>
                 </div>
-              ));
-            })()}
-          </div>
-          <p className="text-info text-[11.5px] mt-2.5">Öneri: Rakip {(isHome ? away : home).strength} gücünde — {g.tactics[0].plan === 'dusukBlok' ? 'Düşük Blok doğru eşleşme.' : 'Dengeli çıkış savunma arkasını korur.'}</p>
-        </Card>
+                <p className="text-info text-[11.5px] mt-2.5">Öneri: Rakip {opp.strength} gücünde — {g.tactics[activeTacticIdx]?.plan === 'dusukBlok' ? 'Düşük Blok doğru eşleşme.' : 'Dengeli çıkış savunma arkasını korur.'}</p>
+              </div>
+            </Card>
+          );
+        })()}
+
+        {/* Risk & rotasyon — gerçek kondisyon, sakatlık ve arşiv reyting sinyalleri */}
+        {(() => {
+          const tac = g.tactics[activeTacticIdx] ?? g.tactics[0];
+          const xiAuto = autoXI(g.mySquad, tac.formation);
+          const lineup = [...xiAuto.gk, ...xiAuto.defShape, ...xiAuto.fbWb, ...xiAuto.dm, ...xiAuto.cm, ...xiAuto.am, ...xiAuto.wg, ...xiAuto.st];
+          const groups = FORMATION_SLOTS[tac.formation];
+          const xiSlots = lineup.map((p, i) => ({ playerId: p.id, slotGroup: groups[i] ?? 'CM' }));
+          const advice = rotationAdvice({ squad: g.mySquad, xi: xiSlots, reports: g.matchReports ?? [] });
+          return (
+            <Card className="!p-3">
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="text-[13px]">🚑</span>
+                <div className="text-[12px] text-muted uppercase tracking-[0.08em]">Risk & Rotasyon</div>
+              </div>
+              <div data-testid="risk-desk">
+                {advice.length === 0 ? (
+                  <p className="text-muted text-[12px]">İlk 11 sağlıklı ve hazır — sakatlık, ceza veya kondisyon uyarısı yok.</p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {advice.slice(0, 4).map((a, i) => (
+                      <div key={`${a.kind}-${a.playerId}-${i}`} data-advice-kind={a.kind} className="flex items-start gap-2 rounded-lg bg-base/60 px-2.5 py-1.5 text-[11.5px]">
+                        <span className="shrink-0">{a.kind === 'injury' ? '🚑' : a.kind === 'rest' ? '🔄' : '🔥'}</span>
+                        <span className="text-secondary leading-snug">{a.reason}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </Card>
+          );
+        })()}
 
         {/* P2: Plan Seçici — 5 taktik yuvası aktif */}
         <Card className="!p-2.5">

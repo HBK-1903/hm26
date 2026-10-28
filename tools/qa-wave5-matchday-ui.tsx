@@ -71,7 +71,7 @@ if (hasFixture) {
   }
 
   // Mevcut checklist ve plan özeti korundu
-  ok('Rakip analizi kartı duruyor', /Rakip Analizi/.test(bodyText()));
+  ok('Rakip scout kartı duruyor', /Rakip Scout Raporu/.test(bodyText()));
   ok('Maça başla / simüle aksiyonları duruyor', /Simüle Et/.test(bodyText()));
 }
 

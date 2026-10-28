@@ -127,7 +127,7 @@ if (metBefore) {
 } else {
   ok('H2H boş durum dürüst metin gösteriyor (uydurma geçmiş yok)', /kayıtlı karşılaşma yok/.test(h2h?.textContent ?? ''));
 }
-ok('H2H kartı mevcut Rakip Analizi kartını bozmadı', /Rakip Analizi/.test(body()));
+ok('H2H kartı mevcut scout kartını bozmadı', /Rakip Scout Raporu/.test(body()));
 
 console.log(`\nANALITIK-UI: ${fail.length === 0 ? 'PASS' : `FAIL (${fail.length} hata)`}`);
 process.exit(fail.length ? 1 : 0);

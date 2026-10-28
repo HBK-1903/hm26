@@ -3,13 +3,23 @@ import React, { useMemo, useState } from 'react';
 import { useGame } from '../store/game';
 import { CLUBS, clubByIdSafe } from '../data/clubs';
 import { internationalFixtures } from '../data/international';
-import { buildHeadlines, leaguePulse, refereeReportEntries, selectTeamOfWeek } from '../data/newsroom';
+import { buildHeadlines, buildMatchNews, leaguePulse, refereeReportEntries, selectTeamOfWeek, type MatchNewsTag } from '../data/newsroom';
 import { Card, Badge, Seg } from '../components/ui/kit';
 import { Crest } from '../components/assets/Crest';
 import { GameIcon } from '../components/icons';
 import { normalizeClubCulture } from '../data/culture';
 import { fanPulse, type PulseTone } from '../engine/atmosphere';
 import { normalizeMyMatches } from '../engine/teamInsights';
+import { buildPressProfile } from '../engine/pressProfile';
+
+const NEWS_TAG_STYLE: Record<MatchNewsTag, { label: string; cls: string }> = {
+  derbi: { label: 'Derbi', cls: 'bg-danger/15 text-danger border-danger/40' },
+  farkli: { label: 'Farklı Skor', cls: 'bg-ok/15 text-ok border-ok/40' },
+  temiz: { label: 'Gol Yememe', cls: 'bg-info/15 text-info border-info/40' },
+  xg: { label: 'xG Analizi', cls: 'bg-amber/15 text-amber border-amber/40' },
+  gollu: { label: 'Gollü Maç', cls: 'bg-muted/15 text-secondary border-line' },
+};
+const OUTCOME_LABEL = { win: 'Galibiyet sonrası', draw: 'Beraberlik sonrası', loss: 'Mağlubiyet sonrası' } as const;
 
 const TABS = [
   { v: 'headlines', label: 'Manşet' },
@@ -34,6 +44,16 @@ export const NewsroomScreen: React.FC = () => {
     ...internationalFixtures(g.international?.cups ?? []),
   ], [g.fixtures, g.friendlies, g.cup, g.international]);
   const headlines = useMemo(() => buildHeadlines(allFixtures, (id) => clubByIdSafe(id)?.short ?? id), [allFixtures]);
+  const matchNews = useMemo(
+    () => buildMatchNews(
+      g.matchReports ?? [],
+      g.career.clubId,
+      (id) => clubByIdSafe(id)?.short ?? id,
+      (h, a) => (clubByIdSafe(h)?.rivalIds ?? []).includes(a) || clubByIdSafe(h)?.derby === a,
+    ),
+    [g.matchReports, g.career.clubId],
+  );
+  const pressProfile = useMemo(() => buildPressProfile(g.inbox), [g.inbox]);
   const pulse = useMemo(() => leaguePulse(g.table[g.myLeague] ?? [], CLUBS), [g.table, g.myLeague]);
   const fromDay = Math.max(1, g.career.day - 6);
   const teamOfWeek = useMemo(() => selectTeamOfWeek(g.matchReports ?? [], fromDay, g.career.day, (id) => g.playerOf(id)), [g.matchReports, fromDay, g.career.day, g.playerOf]);
@@ -63,6 +83,54 @@ export const NewsroomScreen: React.FC = () => {
       <main className="flex-1 min-h-0 overflow-y-auto no-scrollbar px-4 py-3 space-y-2.5">
         {tab === 'headlines' && (
           <>
+            {/* Maç raporlarından türetilen kanıta dayalı hikâyeler — yalnız gerçek arşiv */}
+            {matchNews.length > 0 && (
+              <Card className="!p-0 overflow-hidden" >
+                <div data-testid="match-news">
+                  <div className="px-4 py-2.5 border-b border-line font-display font-bold text-[13px]">📰 Maçın Hikâyesi</div>
+                  {matchNews.map((item) => {
+                    const tag = NEWS_TAG_STYLE[item.tag];
+                    return (
+                      <div key={item.id} data-testid="match-news-item" data-news-tag={item.tag} className="px-4 py-2.5 border-b border-line/40 last:border-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className={`text-[9.5px] font-black border rounded-md px-1.5 py-0.5 ${tag.cls}`}>{tag.label}</span>
+                          <span className="text-muted text-[11px] num">{item.comp} · Gün {item.day}</span>
+                        </div>
+                        <div className="font-display text-primary text-[15px] font-bold mt-1.5">{item.title}</div>
+                        <div className="text-secondary text-[12px] mt-0.5 leading-snug">{item.detail}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </Card>
+            )}
+
+            {/* Menajer basın profili — röportaj seçimlerinin gerçek sayımı */}
+            {pressProfile.total > 0 && (
+              <Card className="!p-3.5">
+                <div data-testid="press-profile">
+                  <div className="m26-overline flex items-center gap-1.5"><span>🎙️</span> Menajer Basın Profili</div>
+                  <div className="flex items-baseline gap-2 mt-2">
+                    <span className="font-display text-primary text-[22px] font-black num">{pressProfile.total}</span>
+                    <span className="text-secondary text-[12px]">röportajda konuştu</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-1.5 mt-2.5 text-center">
+                    {(['win', 'draw', 'loss'] as const).map((k) => (
+                      <div key={k} className="bg-base rounded-lg py-1.5">
+                        <div className="num text-primary font-extrabold text-[14px]">{pressProfile.byOutcome[k]}</div>
+                        <div className="text-muted text-[9px] uppercase">{OUTCOME_LABEL[k]}</div>
+                      </div>
+                    ))}
+                  </div>
+                  {pressProfile.mostUsedTone && (
+                    <p className="text-secondary text-[11.5px] mt-2.5 leading-snug">
+                      En sık tercih ettiğin ton: <b className="text-amber">{pressProfile.mostUsedTone.label}</b> ({pressProfile.mostUsedTone.count} kez)
+                    </p>
+                  )}
+                </div>
+              </Card>
+            )}
+
             {headlines.length === 0 ? <Card className="text-center py-8"><GameIcon id="news" className="w-8 h-8 mx-auto text-muted" /><p className="text-primary font-bold mt-3">İlk maç sonucu beklendiği için manşet yok</p><p className="text-secondary text-[12px] mt-1">Basın masası yalnızca fikstürde kaydedilmiş skorları yayımlar.</p></Card> : headlines.map((item) => (
               <Card key={item.id} className="!p-3.5">
                 <div className="flex items-center justify-between gap-2"><Badge kind="info">{item.comp}</Badge><span className="text-muted text-[11px] num">Gün {item.day}</span></div>
