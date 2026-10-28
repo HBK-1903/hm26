@@ -1,7 +1,7 @@
 // HM26 — Dalga 1 analitik katmanı: yalnız mevcut maç verisinden türetilen saf fonksiyonlar.
 // Yeni kalıcı şema alanı yok (kaleci kurtarış sayısı hariç, o da opsiyonel geriye uyumlu).
 // Kural: veri birikmeden uydurma tablo üretilmez; çağıran taraf maç sayısını gösterir.
-import type { DemoFixture, MatchArchiveEntry } from '../types';
+import type { DemoFixture, MatchArchiveEntry, TableRow } from '../types';
 import type { EngineShot } from './engine';
 
 // ——— Canlı maç: kümülatif xG zaman çizelgesi (şut günlüğünden) ———
@@ -166,4 +166,68 @@ export function goalkeeperSaveRate(saves: number | undefined, conceded: number |
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
+}
+
+// ——— v4: hakem profili (maç raporlarındaki hakem etiketinden) ———
+export interface RefereeProfile {
+  label: string;
+  strictness: 'lenient' | 'balanced' | 'strict';
+  matches: number;
+  foulsPerMatch: number;
+  yellows: number;
+  reds: number;
+  /** Benim takımımın bu hakemdeki karnesi */
+  myWins: number; myDraws: number; myLosses: number;
+}
+
+/**
+ * Hakem etiketi taşıyan arşiv kayıtlarını hakem bazında toplar. Yalnız myClubId
+ * verdiğim maçlardaki G/B/M sayılır; istatistikler maçtaki her iki takımı kapsar.
+ */
+export function buildRefereeProfile(reports: readonly MatchArchiveEntry[], myClubId: string): RefereeProfile[] {
+  const acc = new Map<string, { strictness: RefereeProfile['strictness']; matches: number; fouls: number; yellows: number; reds: number; w: number; d: number; l: number }>();
+  for (const r of reports) {
+    if (!r.referee) continue;
+    const cur = acc.get(r.referee.label) ?? { strictness: r.referee.strictness, matches: 0, fouls: 0, yellows: 0, reds: 0, w: 0, d: 0, l: 0 };
+    cur.matches += 1;
+    cur.fouls += r.foulsHome + r.foulsAway;
+    cur.yellows += r.yellowsHome + r.yellowsAway;
+    cur.reds += r.redsHome + r.redsAway;
+    const isHome = r.homeId === myClubId;
+    const myGf = isHome ? r.hg : r.ag;
+    const myGa = isHome ? r.ag : r.hg;
+    if (myGf > myGa) cur.w += 1; else if (myGf === myGa) cur.d += 1; else cur.l += 1;
+    acc.set(r.referee.label, cur);
+  }
+  return [...acc.entries()].map(([label, v]) => ({
+    label, strictness: v.strictness, matches: v.matches,
+    foulsPerMatch: round2(v.fouls / Math.max(1, v.matches)),
+    yellows: v.yellows, reds: v.reds,
+    myWins: v.w, myDraws: v.d, myLosses: v.l,
+  })).sort((a, b) => b.matches - a.matches || b.foulsPerMatch - a.foulsPerMatch);
+}
+
+// ——— v4: lig şans/fırsat özeti (xPTS ile gerçek puan farkı) ———
+export interface LeagueLuckRow {
+  clubId: string;
+  realPts: number;
+  xpts: number;
+  /** Pozitif = şanslı (gerçek puan beklentinin üstünde) */
+  diff: number;
+  matches: number;
+}
+
+/**
+ * Lig fikstür xG'lerinden üretilen xPTS'yi güncel puan tablosuyla karşılaştırır.
+ * Yalnız her iki kaynakta da görünen kulüpler döner; veri yoksa boş dizi.
+ */
+export function buildLeagueLuckSnapshot(fixtures: readonly DemoFixture[], table: readonly TableRow[]): LeagueLuckRow[] {
+  const xpts = buildLeagueXptsTable(fixtures);
+  const rows: LeagueLuckRow[] = [];
+  for (const t of table) {
+    const x = xpts.find((r) => r.clubId === t.clubId);
+    if (!x) continue;
+    rows.push({ clubId: t.clubId, realPts: t.pts, xpts: x.xpts, diff: Math.round((t.pts - x.xpts) * 10) / 10, matches: x.matches });
+  }
+  return rows.sort((a, b) => b.diff - a.diff);
 }

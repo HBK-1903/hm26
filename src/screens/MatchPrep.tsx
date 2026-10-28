@@ -14,6 +14,7 @@ import { buildMatchBrief, type NoteTone } from '../engine/matchDay';
 import { buildMatchdayAtmosphere } from '../engine/atmosphere';
 import { normalizeClubCulture } from '../data/culture';
 import { headToHead } from '../engine/teamInsights';
+import { goalMinuteProfile } from '../engine/matchEvents';
 import { COMP_LABEL } from '../data/newsroom';
 import { opponentScout } from '../engine/scout';
 import { rotationAdvice } from '../engine/squadInsights';
@@ -203,6 +204,7 @@ export const MatchPrep: React.FC<{ go: (s: Screen) => void }> = ({ go }) => {
         {(() => {
           const oppId = isHome ? away.id : home.id;
           const h2h = headToHead(g.matchReports ?? [], mine.id, oppId, 5);
+          const h2hMinutes = goalMinuteProfile(g.matchReports ?? [], mine.id, oppId);
           return (
             <Card className="!p-3">
               <div className="flex items-center gap-2 mb-2">
@@ -238,6 +240,19 @@ export const MatchPrep: React.FC<{ go: (s: Screen) => void }> = ({ go }) => {
                         </div>
                       ))}
                     </div>
+                    {h2hMinutes.matchesWithEvents > 0 && (
+                      <div className="mt-2.5 pt-2 border-t border-line/50" data-testid="h2h-minutes">
+                        <div className="text-[9.5px] text-muted uppercase mb-1">Bu rakibe gol dakika dağılımın (atılan / yenilen)</div>
+                        <div className="grid grid-cols-6 gap-1 text-center">
+                          {h2hMinutes.buckets.map((b) => (
+                            <div key={b.label} className="bg-base/60 rounded-md py-1">
+                              <div className="text-[8.5px] text-muted">{b.label}</div>
+                              <div className="num text-[11px] font-extrabold leading-tight"><span className="text-ok">{b.scored}</span>/<span className="text-danger">{b.conceded}</span></div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

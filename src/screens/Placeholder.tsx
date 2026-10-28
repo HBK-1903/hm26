@@ -74,10 +74,19 @@ export const PlaceholderScreen: React.FC<{ id: 'careerProfile' | 'settings' | 'b
                 ))}
               </div>
               {[...g.seasonHistory].reverse().map((h) => (
-                <div key={h.season} className="flex items-center justify-between text-[12px] bg-base/60 rounded-lg px-2.5 py-2">
-                  <span className="text-secondary num">{h.season}</span>
-                  <span className="text-primary font-semibold">{h.rank}. sıra · {h.pts}p</span>
-                  <span className="text-muted text-[10.5px]">{h.cup}</span>
+                <div key={h.season} className="text-[12px] bg-base/60 rounded-lg px-2.5 py-2" data-season-row={h.season}>
+                  <div className="flex items-center justify-between">
+                    <span className="text-secondary num">{h.season}</span>
+                    <span className="text-primary font-semibold">{h.rank}. sıra · {h.pts}p</span>
+                    <span className="text-muted text-[10.5px]">{h.cup}</span>
+                  </div>
+                  {typeof h.xgf === 'number' && typeof h.xga === 'number' && (
+                    <div className="flex items-center justify-between mt-1 pt-1 border-t border-line/40 text-[10.5px] text-muted num">
+                      <span>xG {h.xgf} – {h.xga}</span>
+                      <span>Şut isabeti: {h.shotAccuracy === null || h.shotAccuracy === undefined ? '—' : `%${h.shotAccuracy}`}</span>
+                      <span>Maç başı korner: {h.cornersPerMatch ?? '—'}</span>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

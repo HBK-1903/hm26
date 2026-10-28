@@ -3,11 +3,11 @@
 //  C3 fixtureXgPair + buildLeagueXptsTable. Geriye uyum (yeni alansız eski kayıt) da test edilir.
 // Çalıştırma: npm run qa:cwave
 import { fixtureXgPair, xgConfig, hash32 } from '../src/engine/leagueXg';
-import { compactMatchEvents, goalMinuteProfile, EV_GOAL, EV_YELLOW, EV_RED, EV_SUB, SIDE_HOME, SIDE_AWAY } from '../src/engine/matchEvents';
-import { buildLeagueXptsTable, expectedMatchPoints } from '../src/engine/analytics';
-import { seasonMatchStats } from '../src/engine/teamInsights';
+import { compactMatchEvents, goalMinuteProfile, firstGoalProfile, injuryTally, varStats, EV_GOAL, EV_YELLOW, EV_RED, EV_SUB, EV_SAVE, EV_VAR, EV_INJURY, SIDE_HOME, SIDE_AWAY } from '../src/engine/matchEvents';
+import { buildLeagueXptsTable, expectedMatchPoints, buildRefereeProfile, buildLeagueLuckSnapshot } from '../src/engine/analytics';
+import { seasonMatchStats, cardDisciplineByPosition, seasonSummary } from '../src/engine/teamInsights';
 import { mulberry32 } from '../src/data/gen';
-import type { DemoFixture, MatchArchiveEntry } from '../src/types';
+import type { DemoFixture, MatchArchiveEntry, TableRow } from '../src/types';
 import type { DemoMatchEvent } from '../src/store/game';
 
 const results: { name: string; pass: boolean; detail?: string }[] = [];
@@ -151,6 +151,170 @@ const THIRD = 'club_diger';
   check('Korner/kurtarış/pres ortalamaları', s.cornersPerMatch === 7.5 && s.savesPerMatch === 1.5 && s.pressPerMatch === 15, String([s.cornersPerMatch, s.savesPerMatch, s.pressPerMatch]));
   const empty = seasonMatchStats([mkReport({ id: 'x', poss: undefined, shotsH: undefined })], MINE, 1);
   check('Veri yoksa tüm alanlar null dürüst boşluk', empty.matches === 0 && empty.possessionAvg === null && empty.shotAccuracy === null);
+}
+
+// ——— v4: genişletilmiş olay türleri (kurtarış/VAR/sakatlık) ———
+{
+  const ev = (e: Partial<DemoMatchEvent>): DemoMatchEvent => ({ minute: 10, text: '', kind: 'info', ...e } as DemoMatchEvent);
+  const events: DemoMatchEvent[] = [
+    ev({ minute: 20, kind: 'save', side: 'home', playerId: 'gk1' }),
+    ev({ minute: 33, kind: 'var', side: 'away' }),
+    // Gerçek sakatlanma: anim.eventType injury
+    ev({ minute: 60, kind: 'injury', side: 'home', playerId: 'p9', anim: { eventType: 'injury' } }),
+    // Geçici tedavi: anim yok → arşive alınmamalı
+    ev({ minute: 61, kind: 'injury', side: 'home', playerId: 'p9' }),
+  ];
+  const compact = compactMatchEvents(events);
+  check('Kurtarış olayı kodlanır', compact.some((c) => c[1] === EV_SAVE && c[3] === 'gk1'));
+  check('VAR iptali kodlanır', compact.some((c) => c[1] === EV_VAR && c[2] === SIDE_AWAY));
+  const injuryEvents = compact.filter((c) => c[1] === EV_INJURY);
+  check('Yalnız gerçek sakatlanma saklanır (tedavi molası elenir)', injuryEvents.length === 1 && injuryEvents[0][3] === 'p9');
+}
+
+// ——— v4: firstGoalProfile ———
+{
+  const mk = (over: Partial<MatchArchiveEntry>): MatchArchiveEntry => ({
+    id: Math.random().toString(36), day: 1, seasonNo: 1, comp: 'lig', homeId: MINE, awayId: OPP,
+    hg: 0, ag: 0, xgHome: 1, xgAway: 1, foulsHome: 0, foulsAway: 0, yellowsHome: 0, yellowsAway: 0,
+    redsHome: 0, redsAway: 0, playerRows: {}, playerClubIds: {}, ...over,
+  });
+  // Ben ilk golü atıp 2-1 kazandım
+  const r1 = mk({ hg: 2, ag: 1, events: [[10, EV_GOAL, SIDE_HOME], [50, EV_GOAL, SIDE_AWAY], [70, EV_GOAL, SIDE_HOME]] });
+  // Ben ilk golü atıp 1-1 verildim (çöküş)
+  const r2 = mk({ id: 'r2', hg: 1, ag: 1, events: [[20, EV_GOAL, SIDE_HOME], [80, EV_GOAL, SIDE_AWAY]] });
+  // İlk golü yiyip 2-1 döndüm
+  const r3 = mk({ id: 'r3', hg: 2, ag: 1, events: [[15, EV_GOAL, SIDE_AWAY], [40, EV_GOAL, SIDE_HOME], [60, EV_GOAL, SIDE_HOME]] });
+  const p = firstGoalProfile([r1, r2, r3], MINE);
+  check('İlk gol attığım maç sayısı 2', p.scoredFirst.matches === 2);
+  check('İlk golde 1 galibiyet 1 beraberlik', p.scoredFirst.wins === 1 && p.scoredFirst.draws === 1);
+  check('Puan verimi 4/6 = 0.67', p.scoredFirst.pointRate !== null && Math.abs(p.scoredFirst.pointRate - 4 / 6) < 0.01);
+  check('Geriye düşüp dönüş: 1 maç, %100', p.concededFirst.matches === 1 && p.concededFirst.comebackRate === 1);
+  check('Kurşun çöküşü 1 maç', p.leadCollapses === 1);
+  check('Golsüz maçlar ilk gol sayımına girmez', firstGoalProfile([mk({ id: 'z', events: [] })], MINE).matchesWithEvents === 0);
+}
+
+// ——— v4: injuryTally + varStats ———
+{
+  const mk = (over: Partial<MatchArchiveEntry>): MatchArchiveEntry => ({
+    id: Math.random().toString(36), day: 1, seasonNo: 1, comp: 'lig', homeId: MINE, awayId: OPP,
+    hg: 0, ag: 0, xgHome: 1, xgAway: 1, foulsHome: 0, foulsAway: 0, yellowsHome: 0, yellowsAway: 0,
+    redsHome: 0, redsAway: 0, playerRows: {}, playerClubIds: {}, ...over,
+  });
+  const reports = [
+    mk({ events: [[30, EV_INJURY, SIDE_HOME, 'p1']] }),
+    // Deplasmandayım: benim tarafım SIDE_AWAY
+    mk({ id: 'b', events: [[40, EV_INJURY, SIDE_AWAY, 'p1']], homeId: OPP, awayId: MINE }),
+    mk({ id: 'c', events: [[50, EV_INJURY, SIDE_HOME, 'p2']] }),
+    mk({ id: 'd', events: [[60, EV_VAR, SIDE_HOME], [70, EV_VAR, SIDE_AWAY], [80, EV_VAR, 2]] }),
+  ];
+  const tally = injuryTally(reports, MINE);
+  check('Sakatlık sayımı oyuncu bazında ve tarafa duyarlı', tally.length === 2 && tally[0].playerId === 'p1' && tally[0].count === 2 && tally[1].count === 1);
+  const vs = varStats(reports, MINE);
+  check('VAR: 1 benim iptal, 1 rakip, nötr sayılmaz', vs.myCancelled === 1 && vs.oppCancelled === 1 && vs.total === 2);
+  check('Olayısız arşivde sıfırlar', varStats([mk({ id: 'e', events: [] })], MINE).total === 0);
+}
+
+// ——— v4: buildRefereeProfile ———
+{
+  const mk = (over: Partial<MatchArchiveEntry>): MatchArchiveEntry => ({
+    id: Math.random().toString(36), day: 1, seasonNo: 1, comp: 'lig', homeId: MINE, awayId: OPP,
+    hg: 2, ag: 0, xgHome: 1, xgAway: 1, foulsHome: 10, foulsAway: 8, yellowsHome: 3, yellowsAway: 2,
+    redsHome: 0, redsAway: 0, referee: { label: 'Hakem X', strictness: 'strict' },
+    playerRows: {}, playerClubIds: {}, ...over,
+  });
+  const reports = [
+    mk({}),
+    mk({ id: 'r2', hg: 1, ag: 1, foulsHome: 6, foulsAway: 4 }),
+    mk({ id: 'r3', referee: { label: 'Hakem Y', strictness: 'lenient' }, hg: 0, ag: 1, foulsHome: 2, foulsAway: 2, yellowsHome: 0, yellowsAway: 0 }),
+  ];
+  const profiles = buildRefereeProfile(reports, MINE);
+  const x = profiles.find((p) => p.label === 'Hakem X')!;
+  check('Hakem X 2 maçta toplandı', x.matches === 2 && x.strictness === 'strict');
+  check('Maç başı faul ortalaması (10+8+6+4)/2 = 14', x.foulsPerMatch === 14);
+  check('Benim karnem 1G 1B 0M', x.myWins === 1 && x.myDraws === 1 && x.myLosses === 0);
+  check('Hakemsiz raporlar elenir', profiles.every((p) => p.matches > 0) && profiles.length === 2);
+}
+
+// ——— v4: buildLeagueLuckSnapshot ———
+{
+  const fx = (over: Partial<DemoFixture>): DemoFixture => ({ round: 1, day: 1, homeId: MINE, awayId: OPP, played: true, comp: 'lig', ...over });
+  const fixtures = [
+    fx({ xgHome: 2.5, xgAway: 0.4 }),
+    fx({ day: 2, homeId: OPP, awayId: THIRD, xgHome: 1.0, xgAway: 1.0 }),
+    fx({ day: 3, homeId: THIRD, awayId: MINE, xgHome: 0.5, xgAway: 2.0 }),
+  ];
+  const table: TableRow[] = [
+    { clubId: MINE, p: 3, w: 3, d: 0, l: 0, gf: 6, ga: 1, pts: 9 },
+    { clubId: OPP, p: 2, w: 0, d: 1, l: 1, gf: 1, ga: 3, pts: 1 },
+    { clubId: THIRD, p: 2, w: 0, d: 1, l: 1, gf: 1, ga: 4, pts: 1 },
+  ];
+  const luck = buildLeagueLuckSnapshot(fixtures, table);
+  check('Tüm üç kulüp kapsandı', luck.length === 3);
+  check('Sıralama fark azalan (en şanslı başta)', luck[0].diff >= luck[1].diff && luck[1].diff >= luck[2].diff);
+  const mine = luck.find((r) => r.clubId === MINE)!;
+  check('Fark gerçek puan eksi xPTS', Math.abs(mine.diff - (9 - mine.xpts)) < 0.11);
+  check('Veri yetersizse boş dizi', buildLeagueLuckSnapshot([fx({ played: false })], table).length === 0);
+}
+
+// ——— v4: cardDisciplineByPosition ———
+{
+  const mk = (over: Partial<MatchArchiveEntry>): MatchArchiveEntry => ({
+    id: Math.random().toString(36), day: 1, seasonNo: 1, comp: 'lig', homeId: MINE, awayId: OPP,
+    hg: 0, ag: 0, xgHome: 1, xgAway: 1, foulsHome: 0, foulsAway: 0, yellowsHome: 0, yellowsAway: 0,
+    redsHome: 0, redsAway: 0, playerRows: {}, playerClubIds: {}, ...over,
+  });
+  const reports = [
+    mk({
+      playerRows: {
+        p1: { min: 90, g: 0, a: 0, yellow: 2, red: 0, rating: 6, posGroup: 'MC' },
+        p2: { min: 90, g: 0, a: 0, yellow: 0, red: 1, rating: 5, posGroup: 'DF' },
+        p3: { min: 45, g: 0, a: 0, yellow: 1, red: 0, rating: 6, posGroup: 'MC' },
+        opp: { min: 90, g: 1, a: 0, yellow: 1, red: 0, rating: 7, posGroup: 'ST' },
+      },
+      playerClubIds: { p1: MINE, p2: MINE, p3: MINE, opp: OPP },
+    }),
+  ];
+  const disc = cardDisciplineByPosition(reports, MINE);
+  check('Rakip oyuncuları dışlandı, 2 grup var', disc.length === 2);
+  const mc = disc.find((d) => d.posGroup === 'MC')!;
+  check('MC sarı toplamı 3', mc.yellows === 3 && mc.minutes === 135);
+  check('1000 dakika kart ağırlığı hesaplı', mc.cardsPer1000 !== null && mc.cardsPer1000 > 0);
+  check('Boş posGroup güvenli', cardDisciplineByPosition([mk({ id: 'x' })], MINE).length === 0);
+}
+
+// ——— v4: seasonSummary ———
+{
+  const mk = (over: Partial<MatchArchiveEntry>): MatchArchiveEntry => ({
+    id: Math.random().toString(36), day: 1, seasonNo: 1, comp: 'lig', homeId: MINE, awayId: OPP,
+    hg: 0, ag: 0, xgHome: 1.4, xgAway: 0.8, foulsHome: 0, foulsAway: 0, yellowsHome: 0, yellowsAway: 0,
+    redsHome: 0, redsAway: 0, playerRows: {}, playerClubIds: {}, ...over,
+  });
+  const reports = [
+    mk({ poss: 55, shotsH: 10, shotsA: 4, shotsOnH: 5, shotsOnA: 1, cornersH: 6, cornersA: 2 }),
+    mk({ id: 'a', homeId: OPP, awayId: MINE, xgHome: 0.6, xgAway: 1.2, poss: 40, shotsH: 4, shotsA: 10, shotsOnH: 1, shotsOnA: 5, cornersH: 2, cornersA: 8 }),
+    mk({ id: 's2', seasonNo: 2 }), // başka sezon — dışlanır
+  ];
+  const s = seasonSummary(reports, MINE, 1);
+  check('2 maç sayıldı', s.matches === 2);
+  check('xG toplamı perspektif çevirisiyle 2.6 – 1.4', s.xgf === 2.6 && s.xga === 1.4);
+  check('Şut isabeti 10/20 = %50', s.shotAccuracy === 50);
+  check('Maç başı korner 7', s.cornersPerMatch === 7);
+  check('Maçsız sezon nötr özet', seasonSummary([], MINE, 1).matches === 0);
+}
+
+// ——— v4: goalMinuteProfile rakip filtresi ———
+{
+  const mk = (over: Partial<MatchArchiveEntry>): MatchArchiveEntry => ({
+    id: Math.random().toString(36), day: 1, seasonNo: 1, comp: 'lig', homeId: MINE, awayId: OPP,
+    hg: 1, ag: 0, xgHome: 1, xgAway: 1, foulsHome: 0, foulsAway: 0, yellowsHome: 0, yellowsAway: 0,
+    redsHome: 0, redsAway: 0, playerRows: {}, playerClubIds: {}, ...over,
+  });
+  const reports = [
+    mk({ events: [[10, EV_GOAL, SIDE_HOME]] }),
+    mk({ id: 'other', awayId: THIRD, events: [[20, EV_GOAL, SIDE_HOME]] }),
+  ];
+  const vsOpp = goalMinuteProfile(reports, MINE, OPP);
+  check('H2H dakika profili yalnız rakip maçlarını sayar', vsOpp.matchesWithEvents === 1 && vsOpp.scoredTotal === 1);
 }
 
 // ——— Özet ———

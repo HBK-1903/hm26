@@ -7,7 +7,8 @@ import { DemoMatchEvent, DemoMatchResult, ShotDot } from '../store/game';
 
 const KIND_MAP: Record<string, DemoMatchEvent['kind']> = {
   info: 'info', goal: 'goal', save: 'save', card: 'card', sub: 'sub',
-  injury: 'chance', var: 'var', half: 'half', danger: 'chance', corner: 'chance',
+  // v4: sakatlıklar gerçek türüyle korunur (canlı ekranın injury kararları ve arşiv olayları için)
+  injury: 'injury', var: 'var', half: 'half', danger: 'chance', corner: 'chance',
 };
 
 export function matchEngineToDemo(res: MatchResult): DemoMatchResult & { engine: MatchResult } {

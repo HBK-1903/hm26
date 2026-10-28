@@ -13,6 +13,7 @@ import { buildEngineInput } from '../engine/adapter';
 import { buildQuickMatchResult } from '../engine/quickMatchResult';
 import { fixtureXgPair, xgConfig, hash32 } from '../engine/leagueXg';
 import { compactMatchEvents } from '../engine/matchEvents';
+import { seasonSummary } from '../engine/teamInsights';
 import { CLINIC_COST_M, clinicRemainingDays, needleOutcome } from '../engine/medical';
 import { Cup, CupTie, buildCup, buildFriendlies, buildLeagueFixtures, cupGroupTable, dayToDate, inWindow, weekdayOf, ACADEMY_INTAKE_DAY } from '../data/calendar';
 import { writeSave, writeSaveRetry, SaveBlob, SAVE_VERSION } from './persist';
@@ -70,7 +71,8 @@ interface PersistedState {
   career: Career;
   seasonNo: number;
   leagueOf: Record<string, LeagueId>;
-  seasonHistory: { season: string; clubId: string; leagueId: LeagueId; rank: number; pts: number; cup: string }[];
+  // v4: sezon kapanış özet alanları (xgf/xga/şut isabeti/korner) opsiyonel — eski kayıtlarda yok
+  seasonHistory: { season: string; clubId: string; leagueId: LeagueId; rank: number; pts: number; cup: string; xgf?: number; xga?: number; shotAccuracy?: number; cornersPerMatch?: number }[];
   transfers: { id: string; name: string; fee: number; wage: number; day: number }[]; // Aşama 1 basit log
   /** FAZ 4 — sezon boyu oyuncu istatistikleri (gol/asist/kart) */
   playerStats?: Record<string, {
@@ -770,7 +772,12 @@ export function GameProvider({ career: initialCareer, snapshot, children }: {
     const myPts = myTable.find((r) => r.clubId === s.career.clubId)?.pts ?? 0;
     const cupReach = !s.cup.rounds.length ? 'Grup Aşaması' : s.cup.champion === s.career.clubId ? 'Şampiyon' : (s.cup.rounds[s.cup.rounds.length - 1].ties.some((t) => t.homeId === s.career.clubId || t.awayId === s.career.clubId) ? s.cup.rounds[s.cup.rounds.length - 1].name : 'Tur');
     const season = `${2025 + s.seasonNo}–${String(26 + s.seasonNo).padStart(2, '0')}`;
-    const history = [...s.seasonHistory, { season, clubId: s.career.clubId, leagueId: lid, rank: myRank, pts: myPts, cup: cupReach }];
+    // v4: kapanan sezonun xG/şut/korner özeti arşivden türetilir (yeni maç oynanmaz)
+    const summary = seasonSummary(s.matchReports ?? [], s.career.clubId, s.seasonNo);
+    const history = [...s.seasonHistory, {
+      season, clubId: s.career.clubId, leagueId: lid, rank: myRank, pts: myPts, cup: cupReach,
+      ...(summary.matches > 0 ? { xgf: summary.xgf, xga: summary.xga, shotAccuracy: summary.shotAccuracy ?? undefined, cornersPerMatch: summary.cornersPerMatch ?? undefined } : {}),
+    }];
     // Sistem F: sezon sonunda kupa müzesine ekleme
     let trophies = [...(s.career.trophyCabinet ?? [])];
     if (myRank === 1) trophies = [...trophies, { season, type: 'lig', title: `${LEAGUES[lid].name} Şampiyonluğu` }];

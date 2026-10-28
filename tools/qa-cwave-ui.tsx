@@ -82,7 +82,7 @@ const reports = gRef.matchReports ?? [];
 ok('3 maç raporu arşivlendi', reports.length === 3);
 const withEvents = reports.filter((r: any) => Array.isArray(r.events) && r.events.length > 0);
 ok('Raporlar sıkıştırılmış olay taşıyor', withEvents.length >= 1, `${withEvents.length}/3 olaylı`);
-const codeOk = reports.every((r: any) => (r.events ?? []).every((e: any[]) => typeof e[0] === 'number' && e[0] >= 0 && e[0] <= 120 && [0, 1, 2, 3].includes(e[1]) && [0, 1, 2].includes(e[2])));
+const codeOk = reports.every((r: any) => (r.events ?? []).every((e: any[]) => typeof e[0] === 'number' && e[0] >= 0 && e[0] <= 120 && [0, 1, 2, 3, 4, 5, 6].includes(e[1]) && [0, 1, 2].includes(e[2])));
 ok('Olay tuple şeması geçerli (dakika/tür/taraf kodları)', codeOk);
 const goalEvents = reports.flatMap((r: any) => (r.events ?? []).filter((e: any[]) => e[1] === 0));
 ok('Gol olayları gerçek skorla tutarlı', goalEvents.length === reports.reduce((n: number, r: any) => n + r.hg + r.ag, 0), `${goalEvents.length} olay vs ${reports.reduce((n: number, r: any) => n + r.hg + r.ag, 0)} gol`);
@@ -131,6 +131,61 @@ if (seasonCard) {
   const txt = seasonCard.textContent ?? '';
   ok('Şut isabeti yüzdesi görünüyor', /Şut isabeti/.test(txt) && /%?\d/.test(txt));
   ok('Maç sayısı notu var', /3 maçın motor istatistik/.test(txt), txt.match(/\d+ maçın/)?.[0] ?? 'not yok');
+}
+
+// ——— v4: ilk gol psikolojisi + VAR ———
+const firstGoalCard = dom.window.document.querySelector('[data-testid="first-goal-card"]');
+ok('İlk gol & maç psikolojisi kartı render oldu', !!firstGoalCard);
+if (firstGoalCard) {
+  const txt = firstGoalCard.textContent ?? '';
+  ok('İlk gol attığın/yediğin kutuları var', /İlk golü attığın/.test(txt) && /İlk golü yediğin/.test(txt));
+  ok('VAR karnesi görünür', /VAR/.test(txt));
+}
+const varBox = dom.window.document.querySelector('[data-testid="var-stats"]');
+ok('VAR satırı sayısal içerik taşıyor', !!varBox && /iptal/.test(varBox.textContent ?? ''));
+
+// ——— v4: disiplin & sakatlık ———
+const discCard = dom.window.document.querySelector('[data-testid="discipline-card"]');
+ok('Disiplin & sakatlık kartı render oldu', !!discCard);
+if (discCard) {
+  const txt = discCard.textContent ?? '';
+  ok('Pozisyon disiplini başlığı var', /Pozisyon gruplarına göre kart yükü/.test(txt));
+  const injuryList = discCard.querySelector('[data-testid="injury-list"]');
+  ok('Sakatlık bölgesi veri veya dürüst boş durum gösteriyor', !!injuryList || /sakatlanarak oyundan çıkan oyuncu yok/.test(txt));
+}
+
+// ——— v4: hakem profilleri ———
+const refCard = dom.window.document.querySelector('[data-testid="referee-profile-card"]');
+ok('Hakem profili kartı render oldu', !!refCard);
+if (refCard) {
+  const rows = refCard.querySelectorAll('[data-referee]');
+  const txt = refCard.textContent ?? '';
+  ok('Hakem satırları veya boş durum dürüst', rows.length > 0 ? /faul/.test(txt) : /birikince/.test(txt));
+  if (rows.length) ok('Sıkılık rozeti geçerli değerlerde', /Sıkı|Yumuşak|Dengeli/.test(txt));
+}
+
+// ——— v4: Haber Odası lig nabzı ———
+const { NewsroomScreen } = await import('../src/screens/Newsroom');
+await render(React.createElement(NewsroomScreen));
+await tick(80);
+const luckCard = dom.window.document.querySelector('[data-testid="league-luck-card"]');
+ok('Lig nabzı (xPTS adaleti) kartı render oldu', !!luckCard);
+if (luckCard) {
+  const txt = luckCard.textContent ?? '';
+  ok('En şanslı/hakkı yeniyor/xPTS lideri kutuları var', /En şanslı/.test(txt) && /Hakkı yeniyor/.test(txt) && /xPTS lideri/.test(txt));
+  ok('Kendi durumum da listede', txt.includes(gRef.career.clubId) || /puan/.test(txt));
+}
+
+// ——— v4: MatchPrep H2H dakika şeridi (varsa; aynı rakiple tekrar maç yoksa görünmeyebilir) ———
+await render(React.createElement(MatchPrep, { go: () => {} }));
+await tick(80);
+const h2hMinutes = dom.window.document.querySelector('[data-testid="h2h-minutes"]');
+if (h2hMinutes) {
+  const cells = h2hMinutes.querySelectorAll('.grid.grid-cols-6 > div');
+  ok('H2H gol dakika şeridi 6 dilimli', cells.length === 6);
+} else {
+  console.log('ℹ️ Bu kurulumda aynı rakiple olaylı tekrar maç yok — H2H dakika şeridi gizli (dürüst boşluk, hata değil)');
+  ok('H2H dakika şeridi yoksa H2H kartı hâlâ sağlam', !!dom.window.document.querySelector('[data-testid="h2h-card"]'));
 }
 
 console.log(`\nCWAVE-UI: ${fail.length === 0 ? 'PASS' : `FAIL (${fail.length} hata)`}`);

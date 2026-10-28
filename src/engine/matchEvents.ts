@@ -8,6 +8,10 @@ export const EV_GOAL = 0;
 export const EV_YELLOW = 1;
 export const EV_RED = 2;
 export const EV_SUB = 3;
+// v4 genişletmesi
+export const EV_SAVE = 4;
+export const EV_VAR = 5;
+export const EV_INJURY = 6;
 // Taraf kodları
 export const SIDE_HOME = 0;
 export const SIDE_AWAY = 1;
@@ -33,6 +37,14 @@ export function compactMatchEvents(events: readonly DemoMatchEvent[]): CompactMa
       out.push([minute, isRed ? EV_RED : EV_YELLOW, side, e.playerId]);
     } else if (e.kind === 'sub') {
       out.push([minute, EV_SUB, side]);
+    } else if (e.kind === 'save') {
+      out.push([minute, EV_SAVE, side, e.playerId]);
+    } else if (e.kind === 'var') {
+      out.push([minute, EV_VAR, side]);
+    } else if (e.kind === 'injury') {
+      // Yalnız maçtan çıkan gerçek sakatlıklar (anim.eventType === 'injury');
+      // geçici tedavi/geri dönüş olayları (anim yok) sayılmaz
+      if (e.anim?.eventType === 'injury') out.push([minute, EV_INJURY, side, e.playerId]);
     }
   }
   return out.sort((a, b) => a[0] - b[0]);
@@ -65,8 +77,9 @@ const BUCKET_BOUNDS: Array<[string, number, number]> = [
 /**
  * Kulübün arşivindeki sıkıştırılmış olaylardan gol dakika profili.
  * Yalnız events alanı taşıyan kayıtlar sayılır; eski kayıtlar sessizce dışlanır.
+ * opponentId verilirse yalnız o rakiple yapılan maçlar kapsanır (H2H dakika profili).
  */
-export function goalMinuteProfile(reports: readonly MatchArchiveEntry[], clubId: string): GoalMinuteProfile {
+export function goalMinuteProfile(reports: readonly MatchArchiveEntry[], clubId: string, opponentId?: string): GoalMinuteProfile {
   const buckets: MinuteBucket[] = BUCKET_BOUNDS.map(([label]) => ({ label, scored: 0, conceded: 0 }));
   let scoredTotal = 0;
   let concededTotal = 0;
@@ -78,6 +91,7 @@ export function goalMinuteProfile(reports: readonly MatchArchiveEntry[], clubId:
 
   for (const r of reports) {
     if (!r.events || r.events.length === 0) continue;
+    if (opponentId && r.homeId !== opponentId && r.awayId !== opponentId) continue;
     matchesWithEvents += 1;
     const isHome = r.homeId === clubId;
     const mySide = isHome ? SIDE_HOME : SIDE_AWAY;
@@ -121,4 +135,92 @@ export function goalMinuteProfile(reports: readonly MatchArchiveEntry[], clubId:
     comeFromBehindMatches,
     matchesWithEvents,
   };
+}
+
+// ——— v4: ilk gol/öne geçme psikolojisi profili ———
+export interface FirstGoalProfile {
+  /** Olay verisi taşıyan maç sayısı */
+  matchesWithEvents: number;
+  /** İlk golü attığım maçlar ve oralardaki sonuç dağılımı */
+  scoredFirst: { matches: number; wins: number; draws: number; losses: number; pointRate: number | null };
+  /** İlk golü yediğim maçlar ve dönüş dağılımı */
+  concededFirst: { matches: number; wins: number; draws: number; losses: number; comebackRate: number | null };
+  /** Öne geçip de galip bitiremediğim maç sayısı (çöküş) */
+  leadCollapses: number;
+}
+
+/**
+ * Gol olaylarının sırasından ilk golü atan tarafı bulur; 0-0 maçlar dışlanır.
+ * Sonuçlar arşivdeki nihai skordan okunur (canlı skor yeniden hesaplanmaz).
+ */
+export function firstGoalProfile(reports: readonly MatchArchiveEntry[], clubId: string): FirstGoalProfile {
+  const empty = () => ({ matches: 0, wins: 0, draws: 0, losses: 0 });
+  const scoredFirst = empty();
+  const concededFirst = empty();
+  let leadCollapses = 0;
+  let matchesWithEvents = 0;
+
+  for (const r of reports) {
+    if (!r.events || r.events.length === 0) continue;
+    const firstGoal = r.events.find((e) => e[1] === EV_GOAL);
+    if (!firstGoal) continue;
+    matchesWithEvents += 1;
+    const isHome = r.homeId === clubId;
+    const mySide = isHome ? SIDE_HOME : SIDE_AWAY;
+    const myFinal = isHome ? r.hg : r.ag;
+    const oppFinal = isHome ? r.ag : r.hg;
+    const outcome: MatchResultLike = myFinal > oppFinal ? 'W' : myFinal === oppFinal ? 'D' : 'L';
+    const bucket = firstGoal[2] === mySide ? scoredFirst : concededFirst;
+    bucket.matches += 1;
+    if (outcome === 'W') bucket.wins += 1;
+    else if (outcome === 'D') bucket.draws += 1;
+    else bucket.losses += 1;
+    if (firstGoal[2] === mySide && outcome !== 'W') leadCollapses += 1;
+  }
+
+  const rate = (n: number, d: number) => (d === 0 ? null : Math.round((n / d) * 100) / 100);
+  return {
+    matchesWithEvents,
+    scoredFirst: { ...scoredFirst, pointRate: rate(scoredFirst.wins * 3 + scoredFirst.draws, scoredFirst.matches * 3) },
+    concededFirst: { ...concededFirst, comebackRate: rate(concededFirst.wins, concededFirst.matches) },
+    leadCollapses,
+  };
+}
+
+type MatchResultLike = 'W' | 'D' | 'L';
+
+// ——— v4: sakatlık geçmişi (kırılgan oyuncu tespiti) ———
+export interface InjuryTally { playerId: string; count: number }
+
+/** Yalnız gerçek sakatlanma olaylarını (EV_INJURY) oyuncu bazında sayar; tedavi molaları hariç tutulur. */
+export function injuryTally(reports: readonly MatchArchiveEntry[], clubId: string): InjuryTally[] {
+  const counts = new Map<string, number>();
+  for (const r of reports) {
+    if (!r.events) continue;
+    const mySide = r.homeId === clubId ? SIDE_HOME : SIDE_AWAY;
+    for (const e of r.events) {
+      if (e[1] !== EV_INJURY || e[2] !== mySide || !e[3]) continue;
+      counts.set(e[3], (counts.get(e[3]) ?? 0) + 1);
+    }
+  }
+  return [...counts.entries()].map(([playerId, count]) => ({ playerId, count })).sort((a, b) => b.count - a.count || a.playerId.localeCompare(b.playerId));
+}
+
+// ——— v4: VAR iptal karnesi ———
+export interface VarStats { myCancelled: number; oppCancelled: number; total: number }
+
+/** EV_VAR olayları gol iptali anlamına gelir; taraf iptal edilen golün sahibidir. */
+export function varStats(reports: readonly MatchArchiveEntry[], clubId: string): VarStats {
+  let myCancelled = 0;
+  let oppCancelled = 0;
+  for (const r of reports) {
+    if (!r.events) continue;
+    const mySide = r.homeId === clubId ? SIDE_HOME : SIDE_AWAY;
+    for (const e of r.events) {
+      if (e[1] !== EV_VAR) continue;
+      if (e[2] === mySide) myCancelled += 1;
+      else if (e[2] !== SIDE_NEUTRAL) oppCancelled += 1;
+    }
+  }
+  return { myCancelled, oppCancelled, total: myCancelled + oppCancelled };
 }

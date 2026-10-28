@@ -164,6 +164,7 @@ export interface MatchArchiveEntry {
 /**
  * C2 — kalıcı maç olayı (dizi/tuple formatıyla düşük saklama maliyeti).
  * tür: 0 gol · 1 sarı kart · 2 kırmızı kart · 3 oyuncu değişikliği
+ *      4 kurtarış · 5 VAR iptali · 6 sakatlanma (v4)
  * taraf: 0 ev sahibi · 1 deplasman · 2 nötr
  */
 export type CompactMatchEvent = [number, number, number, string?];
