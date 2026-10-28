@@ -6,8 +6,9 @@ import React, { useMemo, useState } from 'react';
 import { useGame } from '../store/game';
 import { Card, Badge } from '../components/ui/kit';
 import { clubById } from '../data/clubs';
-import { buildXptsTable, buildFairPlayTable, goalkeeperSaveRate } from '../engine/analytics';
-import { normalizeMyMatches, teamSplit, formStrip, goalBuckets, perMatch, xgTrend, xgVerdict, type TeamSplitRow } from '../engine/teamInsights';
+import { buildXptsTable, buildLeagueXptsTable, buildFairPlayTable, goalkeeperSaveRate } from '../engine/analytics';
+import { normalizeMyMatches, teamSplit, formStrip, goalBuckets, perMatch, xgTrend, xgVerdict, seasonMatchStats, type TeamSplitRow } from '../engine/teamInsights';
+import { goalMinuteProfile } from '../engine/matchEvents';
 import { XgTrendChart } from '../components/ui/charts';
 
 type Tab = 'krallik' | 'analiz' | 'karakter' | 'oduller';
@@ -98,7 +99,13 @@ export const StatsHub: React.FC = () => {
   // Dalga 1: kullanıcının ligine ait arşiv raporlarından xPTS ve Fair Play agregatı
   const myLeague = g.leagueOf[g.career.clubId] ?? g.myClub.league;
   const reports = g.matchReports ?? [];
-  const xptsRows = useMemo(() => buildXptsTable(reports, g.seasonNo), [reports, g.seasonNo]);
+  // C3: tam lig xPTS'si fikstür xG'lerinden gelir; eski kayıtta (xG yok) arşiv tablosuna düşülür
+  const leagueXptsRows = useMemo(() => buildLeagueXptsTable(g.fixtures), [g.fixtures]);
+  const archiveXptsRows = useMemo(() => buildXptsTable(reports, g.seasonNo), [reports, g.seasonNo]);
+  const xptsRows = leagueXptsRows.length ? leagueXptsRows : archiveXptsRows;
+  const xptsSource = leagueXptsRows.length ? 'league' : 'archive';
+  const minuteProfile = useMemo(() => goalMinuteProfile(reports, g.career.clubId), [reports, g.career.clubId]);
+  const seasonStats = useMemo(() => seasonMatchStats(reports, g.career.clubId, g.seasonNo), [reports, g.career.clubId, g.seasonNo]);
   const fairPlayRows = useMemo(() => buildFairPlayTable(reports, g.seasonNo), [reports, g.seasonNo]);
   const actualPts = useMemo(() => new Map((g.table[myLeague] ?? []).map((r) => [r.clubId, r.pts])), [g.table, myLeague]);
   const leagueClubs = useMemo(() => (g.table[myLeague] ?? []).map((r) => clubById(r.clubId)).filter(Boolean), [g.table, myLeague]);
@@ -252,10 +259,89 @@ export const StatsHub: React.FC = () => {
               </div>
             </Card>
 
+            {/* C2: gol dakika profili — sıkıştırılmış olaylardan; eski kayıtlarda dürüst boş durum */}
+            <Card className="!p-0 overflow-hidden">
+              <div data-testid="goal-minute-card">
+                <div className="px-4 py-2.5 border-b border-line font-display font-bold text-[13px]">⏱️ Gol Dakika Profili</div>
+                {minuteProfile.matchesWithEvents === 0 ? (
+                  <div className="px-4 py-3 text-muted text-[12px]">Dakikalı olay kaydı yeni kayıt sistemiyle birikir; geçmiş maçlarda bu kırılım yok — uydurma gösterilmez.</div>
+                ) : (
+                  <div className="px-4 py-3">
+                    <div className="space-y-1.5">
+                      {minuteProfile.buckets.map((b) => {
+                        const maxV = Math.max(1, ...minuteProfile.buckets.map((x) => Math.max(x.scored, x.conceded)));
+                        return (
+                          <div key={b.label} className="flex items-center gap-2" data-minute-bucket={b.label}>
+                            <span className="num text-[10px] text-muted w-9 shrink-0">{b.label}</span>
+                            <div className="flex-1 flex flex-col gap-0.5">
+                              <div className="h-2 rounded-full bg-base overflow-hidden"><div className="h-full bg-ok/80" style={{ width: `${(b.scored / maxV) * 100}%` }} title={`Atılan: ${b.scored}`} /></div>
+                              <div className="h-2 rounded-full bg-base overflow-hidden"><div className="h-full bg-danger/70" style={{ width: `${(b.conceded / maxV) * 100}%` }} title={`Yenilen: ${b.conceded}`} /></div>
+                            </div>
+                            <span className="num text-[10px] shrink-0 w-14 text-right"><b className="text-ok">{b.scored}</b> / <b className="text-danger">{b.conceded}</b></span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="flex items-center gap-3 mt-2.5 text-[9.5px] text-muted">
+                      <span className="flex items-center gap-1"><i className="w-2.5 h-2.5 rounded-sm bg-ok/80 inline-block" /> atılan</span>
+                      <span className="flex items-center gap-1"><i className="w-2.5 h-2.5 rounded-sm bg-danger/70 inline-block" /> yenilen</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-1.5 mt-2.5 text-center">
+                      <div className="bg-base rounded-lg py-1.5">
+                        <div className="num text-primary font-extrabold text-[13px]">{minuteProfile.firstHalfScoredShare === null ? '—' : `%${Math.round(minuteProfile.firstHalfScoredShare * 100)}`}</div>
+                        <div className="text-muted text-[9px] uppercase">İlk yarı gol</div>
+                      </div>
+                      <div className="bg-base rounded-lg py-1.5">
+                        <div className="num text-primary font-extrabold text-[13px]">{minuteProfile.lateScoredShare === null ? '—' : `%${Math.round(minuteProfile.lateScoredShare * 100)}`}</div>
+                        <div className="text-muted text-[9px] uppercase">76+ gol</div>
+                      </div>
+                      <div className="bg-base rounded-lg py-1.5">
+                        <div className="num text-primary font-extrabold text-[13px]">{minuteProfile.comeFromBehindRate === null ? '—' : `%${Math.round(minuteProfile.comeFromBehindRate * 100)}`}</div>
+                        <div className="text-muted text-[9px] uppercase">Geriden geliş</div>
+                      </div>
+                    </div>
+                    <p className="text-muted text-[10px] mt-2">
+                      Geriden geliş: {minuteProfile.comeFromBehindMatches} maçta önce yenilen gol yendi, {minuteProfile.comeFromBehindWins} tanesi galibiyete döndü.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </Card>
+
+            {/* C1: sezonluk maç istatistik verimliliği — istatistik bloğu taşıyan kayıtlardan */}
+            <Card className="!p-0 overflow-hidden">
+              <div data-testid="season-match-stats">
+                <div className="px-4 py-2.5 border-b border-line font-display font-bold text-[13px]">📊 Sezon İstatistik Verimliliği</div>
+                {seasonStats.matches === 0 ? (
+                  <div className="px-4 py-3 text-muted text-[12px]">Şut, korner ve pres dökümü yeni kayıt sistemiyle maçlarda birikir; eski kayıtlarda bu kırılım yok.</div>
+                ) : (
+                  <div className="px-4 py-3 grid grid-cols-2 gap-1.5">
+                    {([
+                      ['Topa sahip olma ort.', seasonStats.possessionAvg === null ? '—' : `%${seasonStats.possessionAvg}`],
+                      ['Şut isabeti', seasonStats.shotAccuracy === null ? '—' : `%${seasonStats.shotAccuracy}`],
+                      ['Maç başı şut (isabetli)', seasonStats.shotsPerMatch === null ? '—' : `${seasonStats.shotsPerMatch} (${seasonStats.shotsOnPerMatch ?? '—'})`],
+                      ['Maç başı korner', seasonStats.cornersPerMatch === null ? '—' : String(seasonStats.cornersPerMatch)],
+                      ['Maç başı kurtarış', seasonStats.savesPerMatch === null ? '—' : String(seasonStats.savesPerMatch)],
+                      ['Maç başı pres kazanımı', seasonStats.pressPerMatch === null ? '—' : String(seasonStats.pressPerMatch)],
+                    ] as [string, string][]).map(([label, value]) => (
+                      <div key={label} className="bg-base rounded-lg px-2.5 py-2">
+                        <div className="num text-primary font-extrabold text-[14px]">{value}</div>
+                        <div className="text-muted text-[9.5px] uppercase leading-tight mt-0.5">{label}</div>
+                      </div>
+                    ))}
+                    <p className="col-span-2 text-muted text-[10px]">{seasonStats.matches} maçın motor istatistik bloğundan hesaplandı.</p>
+                  </div>
+                )}
+              </div>
+            </Card>
+
             <Card className="!p-0 overflow-hidden">
               <div className="px-4 py-2.5 border-b border-line font-display font-bold text-[13px]">⚖️ xPTS Adalet Tablosu</div>
               <div className="px-4 py-2 text-[10.5px] text-muted leading-snug border-b border-line/40">
-                Maçların xG’lerinden Poisson modeliyle hesaplanan <b>beklenen puan</b> ile gerçek puan farkı. Veri senin oynadığın lig maçlarından birikir; rakip kulüpler onunla eşleştikçe tabloya girer.
+                Maçların xG’lerinden Poisson modeliyle hesaplanan <b>beklenen puan</b> ile gerçek puan farkı.
+                {xptsSource === 'league'
+                  ? ' Tüm lig maçlarının xG’si fikstürlerden okunur; böylece bütün kulüpler aynı haftada tabloya girer.'
+                  : ' Eski kayıtlarda lig geneli xG bulunmadığından veri yalnız senin oynadığın lig maçlarından birikir.'}
               </div>
               {xptsRows.length === 0
                 ? <div className="px-4 py-3 text-muted text-[12px]">Henüz arşivde lig maçı yok — ilk maçların ardından tablo burada belirir.</div>

@@ -771,7 +771,7 @@ export class MatchSession {
             this.stats.playerRows[culprit.player.id].red++;
             this.coreEventLog.append({ type: 'RED_CARD', side: cardedSide, playerId: culprit.player.id, reason: 'direct', refereeId: this.referee.id, second: Math.max(0, Math.floor(this.clockSec)), minute: Math.floor(this.minute) });
             this.suspensions.push({ playerId: culprit.player.id, matches: 3 });
-            fresh.push({ minute: this.minute, side: cardedSide, text: `Direkt kırmızı kart! ${culprit.player.name} oyun dışı.`, kind: 'card' });
+            fresh.push({ minute: this.minute, side: cardedSide, text: `Direkt kırmızı kart! ${culprit.player.name} oyun dışı.`, kind: 'card', playerId: culprit.player.id, anim: { eventType: 'card', outcome: 'red-direct' } });
           } else {
             culprit.yellows++;
             if (cardedSide === 'home') this.stats.yellowH++; else this.stats.yellowA++;
@@ -784,10 +784,10 @@ export class MatchSession {
               this.stats.playerRows[culprit.player.id].red++;
               this.coreEventLog.append({ type: 'RED_CARD', side: cardedSide, playerId: culprit.player.id, reason: 'second_yellow', refereeId: this.referee.id, second: Math.max(0, Math.floor(this.clockSec)), minute: Math.floor(this.minute) });
               this.suspensions.push({ playerId: culprit.player.id, matches: 1 });
-              fresh.push({ minute: this.minute, side: cardedSide, text: `İkinci sarı → kırmızı! ${culprit.player.name} oyun dışı.`, kind: 'card' });
+              fresh.push({ minute: this.minute, side: cardedSide, text: `İkinci sarı → kırmızı! ${culprit.player.name} oyun dışı.`, kind: 'card', playerId: culprit.player.id, anim: { eventType: 'card', outcome: 'red' } });
               if (cardedSide === 'away') fresh.push({ minute: this.minute + 1, side: 'neutral' as 'home', text: 'Teknik direktör savunmayı sıkılaştırdı.', kind: 'info' });
             } else {
-              fresh.push({ minute: this.minute, side: cardedSide, text: `Sarı kart: ${culprit.player.name}.`, kind: 'card' });
+              fresh.push({ minute: this.minute, side: cardedSide, text: `Sarı kart: ${culprit.player.name}.`, kind: 'card', playerId: culprit.player.id, anim: { eventType: 'card', outcome: 'yellow' } });
             }
           }
         }

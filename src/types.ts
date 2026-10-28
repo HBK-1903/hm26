@@ -152,11 +152,27 @@ export interface MatchArchiveEntry {
   referee?: { label: string; strictness: 'lenient' | 'balanced' | 'strict' };
   playerRows: Record<string, { min: number; g: number; a: number; yellow: number; red: number; rating: number; posGroup: string }>;
   playerClubIds: Record<string, string>;
+  // C1 (v3): maç motorunun ürettiği tam istatistik bloğu — eski kayıtlarda yok; ekran "—" gösterir
+  poss?: number;            // ev sahibi topa sahip olma %
+  shotsH?: number; shotsA?: number; shotsOnH?: number; shotsOnA?: number;
+  cornersH?: number; cornersA?: number; savesH?: number; savesA?: number;
+  pressH?: number; pressA?: number; wideH?: number; wideA?: number; centralH?: number; centralA?: number;
+  // C2 (v3): sıkıştırılmış dakikalı olaylar [dakika, tür, taraf, oyuncu?]
+  events?: CompactMatchEvent[];
 }
+
+/**
+ * C2 — kalıcı maç olayı (dizi/tuple formatıyla düşük saklama maliyeti).
+ * tür: 0 gol · 1 sarı kart · 2 kırmızı kart · 3 oyuncu değişikliği
+ * taraf: 0 ev sahibi · 1 deplasman · 2 nötr
+ */
+export type CompactMatchEvent = [number, number, number, string?];
 
 export interface DemoFixture {
   round: number; homeId: string; awayId: string; played: boolean; hg?: number; ag?: number; day: number;
   comp: 'lig' | 'kupa' | 'kupa-ko' | 'hazirlik' | 'intl-grup' | 'intl-ko';
+  /** C3 (v3): maçın beklenen gol çifti — kullanıcı maçında motor xG'si, AI maçında güçten türetilir; eski kayıtlarda yok */
+  xgHome?: number; xgAway?: number;
   league?: LeagueId;
   group?: string;      // kupa grup harfi A..I
   koRound?: string;    // Son 16 / Çeyrek Final / Yarı Final / Final

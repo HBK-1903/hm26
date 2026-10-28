@@ -114,7 +114,13 @@ if (form) {
 } else {
   ok('Rakibin lig maçı yoksa dürüst boş durum metni var', /kayıtlı lig maçı yok/.test(scout?.textContent ?? ''));
 }
-ok('Rakip xG’si uydurulmuyor ("—" gösteriliyor)', /Rakip xG/.test(body()) && /—/.test(body()));
+// C3: fikstürler artık xG taşıyor; rakip xG hücresi gerçek ortalama gösterir (ya da veri yoksa "—")
+const xgCell = dom.window.document.querySelector('[data-testid="opp-scout-xg"]');
+ok('Rakip xG hücresi var', !!xgCell);
+if (xgCell) {
+  const txt = xgCell.textContent ?? '';
+  ok('Rakip xG gerçek değer veya dürüst "—" gösterir', /\d+\.\d{2}/.test(txt) || /—/.test(txt), txt);
+}
 const risk = dom.window.document.querySelector('[data-testid="risk-desk"]');
 ok('Risk & rotasyon masası render oldu', !!risk && (risk.textContent ?? '').length > 10);
 const adviceKinds = Array.from(dom.window.document.querySelectorAll('[data-advice-kind]')).map((el) => (el as HTMLElement).dataset.adviceKind);
