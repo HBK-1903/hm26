@@ -295,14 +295,8 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onE
     setPaused(true); setDecision(last);
   }, [currentEvent, paused, done, decision, mySide]);
 
-  // Maç biter bitmez kısa bir tam zamanı molası verip otomatik olarak röportaja geç;
-  // kullanıcı dilerse beklemeden elle de ilerleyebilir (footer'daki atla butonu).
-  useEffect(() => {
-    if (!done || phase !== 'live') return;
-    const t = setTimeout(() => setPhase('interview'), 1600);
-    return () => clearTimeout(t);
-  }, [done, phase]);
-
+  // Not: düdükten sonra otomatik geçiş YOK. Maç bittiğinde canlı ekran (sekmeler, istatistik,
+  // analiz, tablo ve spiker akışı) incelemeye açık kalır; kullanıcı footer'daki butonla röportaja geçer.
   if (phase === 'interview' && finResult) {
     return <PostMatchInterview result={finResult} fixture={fixture} onChoose={(opt) => { interviewChoiceRef.current = opt; setPhase('report'); }} />;
   }
@@ -625,7 +619,7 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onE
         {!done ? (
           <div className="w-full !min-h-[42px] flex items-center justify-center gap-2 rounded-xl border border-line bg-surface text-muted text-[11px] font-bold" aria-live="polite">
             <span className="w-1.5 h-1.5 rounded-full bg-danger animate-pulse" />
-            Maç canlı — bitince otomatik olarak maç sonu ekranına geçilecek
+            Maç canlı — düdükten sonra özeti inceleyebilir, hazır olunca röportaja geçebilirsin
           </div>
         ) : (
           <Btn variant="amber" className="w-full !min-h-[46px] !text-[11px]" onClick={() => { if (!finResult) finalizeFromSession(); setPhase('interview'); }}>Maç Sonu Röportajına Geç →</Btn>
