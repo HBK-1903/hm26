@@ -7,7 +7,8 @@ import { useGame } from '../store/game';
 import { Card, Badge } from '../components/ui/kit';
 import { clubById } from '../data/clubs';
 import { buildXptsTable, buildFairPlayTable, goalkeeperSaveRate } from '../engine/analytics';
-import { normalizeMyMatches, teamSplit, formStrip, goalBuckets, perMatch, type TeamSplitRow } from '../engine/teamInsights';
+import { normalizeMyMatches, teamSplit, formStrip, goalBuckets, perMatch, xgTrend, xgVerdict, type TeamSplitRow } from '../engine/teamInsights';
+import { XgTrendChart } from '../components/ui/charts';
 
 type Tab = 'krallik' | 'analiz' | 'karakter' | 'oduller';
 
@@ -114,6 +115,8 @@ export const StatsHub: React.FC = () => {
   const mySplit = useMemo(() => teamSplit(myMatches), [myMatches]);
   const myStrip = useMemo(() => formStrip(myMatches, 10), [myMatches]);
   const myBuckets = useMemo(() => goalBuckets(myMatches), [myMatches]);
+  const myXgTrend = useMemo(() => xgTrend(myMatches), [myMatches]);
+  const myXgVerdict = useMemo(() => xgVerdict(myMatches), [myMatches]);
 
   return (
     <div className="h-full flex flex-col">
@@ -227,6 +230,25 @@ export const StatsHub: React.FC = () => {
                   })()}
                 </div>
               )}
+              </div>
+            </Card>
+
+            {/* Maç maç xG vs gerçek gol trendi — yalnız gerçek arşiv, az veride yargı yok */}
+            <Card className="!p-0 overflow-hidden">
+              <div data-testid="xg-trend-card">
+                <div className="px-4 py-2.5 border-b border-line font-display font-bold text-[13px]">📉 xG Trendi (maç maç)</div>
+                {myXgTrend.length < 2 ? (
+                  <div className="px-4 py-3 text-muted text-[12px]">En az iki maç oynanınca beklenen gol ile gerçek gol çizgisi burada belirir.</div>
+                ) : (
+                  <div className="px-3 py-3">
+                    <XgTrendChart points={myXgTrend} oppShort={(id) => clubById(id)?.short ?? id} />
+                    {myXgVerdict && (
+                      <p className={`mt-2 text-[11px] leading-snug ${myXgVerdict.label === 'under' ? 'text-warn' : myXgVerdict.label === 'over' ? 'text-ok' : 'text-secondary'}`} data-testid="xg-verdict">
+                        {myXgVerdict.text} Savunma tarafında fark: {myXgVerdict.defensiveDelta > 0 ? '+' : ''}{myXgVerdict.defensiveDelta} gol.
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             </Card>
 

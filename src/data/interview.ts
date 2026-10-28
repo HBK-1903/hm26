@@ -141,3 +141,20 @@ export function outcomeOfResult(myClubId: string, homeId: string, awayId: string
   const iWon = mineHome ? hg > ag : ag > hg;
   return iWon ? 'win' : 'loss';
 }
+
+export interface QuoteMatch {
+  outcome: InterviewOutcome;
+  optionId: string;
+  label: string;
+}
+
+// Inbox'ta arşivlenen röportaj sözünden hangi tonun seçildiğini geriye doğru çözer.
+// Eşleşmeyen metin (ör. eski sürüm kaydı) için null döner — uydurma sınıflandırma yapılmaz.
+export function interviewToneOfQuote(quote: string): QuoteMatch | null {
+  const clean = quote.trim();
+  for (const outcome of ['win', 'draw', 'loss'] as const) {
+    const found = buildPostMatchInterview(outcome, 'R').options.find((o) => o.quote === clean);
+    if (found) return { outcome, optionId: found.id, label: found.label };
+  }
+  return null;
+}
