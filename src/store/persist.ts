@@ -4,7 +4,8 @@ import { clubByIdSafe } from '../data/clubs';
 
 const DB_NAME = 'manager26';
 const DB_VERSION = 1;
-export const SAVE_VERSION = 2;
+// v3: C1 maç istatistik bloğu + C2 sıkıştırılmış olaylar + C3 fikstür xG çiftleri (hepsi opsiyonel; v2 kayıtları sorunsuz yüklenir)
+export const SAVE_VERSION = 3;
 
 // FIX P1: singleton — upgrade hâlâ çalışırken resolve yok; bütün çağrılar hazır bağla da çalışır
 let dbPromise: Promise<IDBDatabase> | null = null;

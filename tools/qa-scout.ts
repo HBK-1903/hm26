@@ -73,7 +73,17 @@ const derby = (h: string, a: string) => (h === MINE && a === RIVAL) || (h === MI
   check('Lig sırası tablodan okunur', scout.rank === 2 && scout.points === 10);
   const unknown = opponentScout(fixtures, 'club_yok', table);
   check('Hiç maçı olmayan rakip nötr döner', unknown.played === 0 && unknown.form.length === 0 && unknown.rank === null && unknown.points === null);
-  check('xG asla uydurulmaz', scout.xgAvailable === false);
+  // C3: xG'siz eski tip fikstürlerde xG üretilmez (dürüst boşluk)
+  check('xG olmayan fikstürlerde xG üretilmez', scout.xgAvailable === false && scout.xgForPerMatch === null && scout.xgAgainstPerMatch === null);
+
+  // C3: xG taşıyan fikstürlerde maç başı ortalamalar doğru türetilir
+  const xgFixtures: DemoFixture[] = [
+    { round: 1, day: 10, homeId: OPP, awayId: 'c2', played: true, hg: 2, ag: 0, comp: 'lig', xgHome: 2.0, xgAway: 0.5 },
+    { round: 1, day: 17, homeId: 'c3', awayId: OPP, played: true, hg: 1, ag: 1, comp: 'lig', xgHome: 1.2, xgAway: 0.8 },
+    { round: 1, day: 24, homeId: OPP, awayId: 'c4', played: true, hg: 0, ag: 3, comp: 'lig' }, // xG yok — dışlanır
+  ];
+  const xgScout = opponentScout(xgFixtures, OPP, table);
+  check('xG yalnız taşıyan maçlardan ortalanır', xgScout.xgAvailable === true && xgScout.xgForPerMatch === 1.4 && xgScout.xgAgainstPerMatch === 0.85);
 }
 
 // ——— interviewToneOfQuote + buildPressProfile ———

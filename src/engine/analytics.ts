@@ -1,7 +1,7 @@
 // HM26 — Dalga 1 analitik katmanı: yalnız mevcut maç verisinden türetilen saf fonksiyonlar.
 // Yeni kalıcı şema alanı yok (kaleci kurtarış sayısı hariç, o da opsiyonel geriye uyumlu).
 // Kural: veri birikmeden uydurma tablo üretilmez; çağıran taraf maç sayısını gösterir.
-import type { MatchArchiveEntry } from '../types';
+import type { DemoFixture, MatchArchiveEntry } from '../types';
 import type { EngineShot } from './engine';
 
 // ——— Canlı maç: kümülatif xG zaman çizelgesi (şut günlüğünden) ———
@@ -83,6 +83,34 @@ export function buildXptsTable(reports: MatchArchiveEntry[], seasonNo: number): 
     const exp = expectedMatchPoints(r.xgHome, r.xgAway);
     bump(r.homeId, r.xgHome, r.xgAway, exp.homeXp);
     bump(r.awayId, r.xgAway, r.xgHome, exp.awayXp);
+  }
+  return [...acc.entries()].map(([clubId, v]) => ({
+    clubId,
+    matches: v.matches,
+    xgf: round2(v.xgf),
+    xga: round2(v.xga),
+    xpts: round2(v.xpts),
+    xptsPerMatch: round2(v.xpts / Math.max(1, v.matches)),
+  })).sort((a, b) => b.xpts - a.xpts || (b.xgf - b.xga) - (a.xgf - a.xga) || a.clubId.localeCompare(b.clubId));
+}
+
+/**
+ * C3: Lig genelinde fikstür xG çiftlerinden tam xPTS tablosu. Yalnız comp==='lig',
+ * oynanmış ve xG'si saklı fikstürler sayılır. Eski kayıtlarda (xG yok) boş dizi döner;
+ * çağıran taraf bunu görüp eski arşiv tablosuna veya "—" durumuna düşer.
+ */
+export function buildLeagueXptsTable(fixtures: readonly DemoFixture[]): XptsRow[] {
+  const acc = new Map<string, { matches: number; xgf: number; xga: number; xpts: number }>();
+  const bump = (clubId: string, xgf: number, xga: number, xp: number) => {
+    const cur = acc.get(clubId) ?? { matches: 0, xgf: 0, xga: 0, xpts: 0 };
+    cur.matches += 1; cur.xgf += xgf; cur.xga += xga; cur.xpts += xp;
+    acc.set(clubId, cur);
+  };
+  for (const f of fixtures) {
+    if (f.comp !== 'lig' || !f.played || typeof f.xgHome !== 'number' || typeof f.xgAway !== 'number') continue;
+    const exp = expectedMatchPoints(f.xgHome, f.xgAway);
+    bump(f.homeId, f.xgHome, f.xgAway, exp.homeXp);
+    bump(f.awayId, f.xgAway, f.xgHome, exp.awayXp);
   }
   return [...acc.entries()].map(([clubId, v]) => ({
     clubId,

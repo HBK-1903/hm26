@@ -218,3 +218,56 @@ export function headToHead(reports: readonly MatchArchiveEntry[], myClubId: stri
   }
   return empty;
 }
+
+// ——— C1: maç istatistik bloklarının sezonluk agregasyonu (v3+ arşiv kayıtları) ———
+export interface SeasonMatchStats {
+  /** İstatistik bloğu taşıyan maç sayısı; 0 ise tüm alanlar null (eski kayıtlar) */
+  matches: number;
+  possessionAvg: number | null;
+  shotsPerMatch: number | null;
+  shotsOnPerMatch: number | null;
+  /** Şut isabet yüzdesi (0..100) */
+  shotAccuracy: number | null;
+  cornersPerMatch: number | null;
+  savesPerMatch: number | null;
+  pressPerMatch: number | null;
+}
+
+/**
+ * Yalnız opsiyonel C1 alanlarını taşıyan arşiv kayıtlarını sayar; eski kayıtlar
+ * sessizce dışlanır. Sahip olma ev/deplasman perspektifinden kulüp tarafına çevrilir.
+ */
+export function seasonMatchStats(reports: readonly MatchArchiveEntry[], myClubId: string, seasonNo: number): SeasonMatchStats {
+  let matches = 0;
+  let possSum = 0;
+  let shots = 0;
+  let shotsOn = 0;
+  let corners = 0;
+  let saves = 0;
+  let press = 0;
+
+  for (const r of reports) {
+    if (r.seasonNo !== seasonNo || (r.homeId !== myClubId && r.awayId !== myClubId)) continue;
+    if (typeof r.poss !== 'number' || typeof r.shotsH !== 'number') continue;
+    const isHome = r.homeId === myClubId;
+    matches += 1;
+    possSum += isHome ? r.poss : 100 - r.poss;
+    shots += isHome ? (r.shotsH ?? 0) : (r.shotsA ?? 0);
+    shotsOn += isHome ? (r.shotsOnH ?? 0) : (r.shotsOnA ?? 0);
+    corners += isHome ? (r.cornersH ?? 0) : (r.cornersA ?? 0);
+    saves += isHome ? (r.savesH ?? 0) : (r.savesA ?? 0);
+    press += isHome ? (r.pressH ?? 0) : (r.pressA ?? 0);
+  }
+
+  const avg = (v: number) => (matches ? Math.round((v / matches) * 100) / 100 : null);
+  return {
+    matches,
+    possessionAvg: matches ? Math.round(possSum / matches) : null,
+    shotsPerMatch: avg(shots),
+    shotsOnPerMatch: avg(shotsOn),
+    shotAccuracy: shots ? Math.round((shotsOn / shots) * 100) : null,
+    cornersPerMatch: avg(corners),
+    savesPerMatch: avg(saves),
+    pressPerMatch: avg(press),
+  };
+}

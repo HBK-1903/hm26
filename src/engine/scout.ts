@@ -1,6 +1,6 @@
-// HM26 — Rakip scout raporu. Yeni kalıcı şema YOK; lig fikstürlerinde saklı gerçek
-// skorlardan ve güncel puan tablosundan türetilir. Rakip maçlarının xG'si arşivde
-// tutulmadığı için xG alanı üretilmez — ekran dürüstçe "—" gösterir.
+// HM26 — Rakip scout raporu. Lig fikstürlerinde saklı gerçek skorlardan, güncel puan
+// tablosundan ve (v3+) fikstür xG çiftlerinden türetilir. xG'si olmayan eski kayıtlarda
+// alan üretilmez — ekran dürüstçe "—" gösterir.
 import type { DemoFixture, TableRow } from '../types';
 import type { MatchResult } from './teamInsights';
 
@@ -26,8 +26,11 @@ export interface OpponentScout {
   /** Güncel lig sıralaması; tabloda yoksa null */
   rank: number | null;
   points: number | null;
-  /** Rakip xG'si kalıcı tutulmuyor: asla uydurma değer dönmez */
-  xgAvailable: false;
+  /** Rakip maçlarının xG'si fikstürlerde saklanıyorsa true; eski kayıtlarda false → ekran "—" */
+  xgAvailable: boolean;
+  /** Maç başına ortalama beklenen attığı/lediği gol; xgAvailable=false ikisi de null */
+  xgForPerMatch: number | null;
+  xgAgainstPerMatch: number | null;
 }
 
 const emptySplit = (): ScoutSplit => ({ played: 0, wins: 0, draws: 0, losses: 0, gf: 0, ga: 0, points: 0 });
@@ -46,6 +49,9 @@ export function opponentScout(
   const form: MatchResult[] = [];
   let gf = 0;
   let ga = 0;
+  let xgFor = 0;
+  let xgAgainst = 0;
+  let xgMatches = 0;
 
   played.forEach((f, idx) => {
     const isHome = f.homeId === oppClubId;
@@ -53,6 +59,11 @@ export function opponentScout(
     const conceded = isHome ? f.ag ?? 0 : f.hg ?? 0;
     const result: MatchResult = scored > conceded ? 'W' : scored === conceded ? 'D' : 'L';
     gf += scored; ga += conceded;
+    if (typeof f.xgHome === 'number' && typeof f.xgAway === 'number') {
+      xgFor += isHome ? f.xgHome : f.xgAway;
+      xgAgainst += isHome ? f.xgAway : f.xgHome;
+      xgMatches += 1;
+    }
     const split = isHome ? home : away;
     split.played += 1;
     split.gf += scored; split.ga += conceded;
@@ -64,6 +75,7 @@ export function opponentScout(
   form.reverse(); // en eski → en yeni
 
   const tableRow = table.find((r) => r.clubId === oppClubId);
+  const round2 = (v: number) => Math.round(v * 100) / 100;
   return {
     oppClubId,
     form,
@@ -71,6 +83,8 @@ export function opponentScout(
     gf, ga, home, away,
     rank: tableRow ? table.findIndex((r) => r.clubId === oppClubId) + 1 : null,
     points: tableRow ? tableRow.pts : null,
-    xgAvailable: false,
+    xgAvailable: xgMatches > 0,
+    xgForPerMatch: xgMatches ? round2(xgFor / xgMatches) : null,
+    xgAgainstPerMatch: xgMatches ? round2(xgAgainst / xgMatches) : null,
   };
 }

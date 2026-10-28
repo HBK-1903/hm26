@@ -17,6 +17,10 @@ export function matchEngineToDemo(res: MatchResult): DemoMatchResult & { engine:
     kind: KIND_MAP[e.kind] ?? 'info',
     side: e.side,
     path: e.path,
+    // C2: kalıcı olay sıkıştırması için oyuncu kimlikleri ve kart rengi korunur
+    ...(e.playerId ? { playerId: e.playerId } : {}),
+    ...(e.scorerId ? { scorerId: e.scorerId } : {}),
+    ...(e.anim ? { anim: e.anim } : {}),
   }));
   // §5-D: şut günlüğü → yüzde koordinat (deplasman aynalı: rakip yarı alan alta)
   const shotsLog: ShotDot[] = (res.shotsLog ?? []).map((s) => {

@@ -284,8 +284,16 @@ export const MatchPrep: React.FC<{ go: (s: Screen) => void }> = ({ go }) => {
                     <div className="grid grid-cols-3 gap-2 text-center">
                       <div className="bg-base/70 rounded-lg py-1.5"><div className="num text-primary font-extrabold text-[14px]">{scout.gf}</div><div className="text-muted text-[9px] uppercase">Attığı</div></div>
                       <div className="bg-base/70 rounded-lg py-1.5"><div className="num text-primary font-extrabold text-[14px]">{scout.ga}</div><div className="text-muted text-[9px] uppercase">Yediği</div></div>
-                      <div className="bg-base/70 rounded-lg py-1.5"><div className="num text-primary font-extrabold text-[14px]">—</div><div className="text-muted text-[9px] uppercase">Rakip xG</div></div>
+                      <div className="bg-base/70 rounded-lg py-1.5" data-testid="opp-scout-xg">
+                        <div className="num text-primary font-extrabold text-[14px]">{scout.xgAvailable && scout.xgForPerMatch !== null ? scout.xgForPerMatch.toFixed(2) : '—'}</div>
+                        <div className="text-muted text-[9px] uppercase">Rakip xG/maç</div>
+                      </div>
                     </div>
+                    {scout.xgAvailable && scout.xgAgainstPerMatch !== null && (
+                      <p className="text-muted text-[10.5px] leading-snug">
+                        Beklenen gol profili: maç başına <b className="text-primary num">{scout.xgForPerMatch?.toFixed(2)}</b> üretip <b className="text-primary num">{scout.xgAgainstPerMatch.toFixed(2)}</b> veriyor (gerçek skor {scout.gf}:{scout.ga}).
+                      </p>
+                    )}
                   </div>
                 )}
                 <div className="bg-base/70 rounded-lg p-2.5 mt-2.5">

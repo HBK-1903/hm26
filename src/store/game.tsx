@@ -11,6 +11,8 @@ import { minuteGrievance, grievanceLabel, evalPromise, newPromise, MinutePromise
 import type { MatchStateEvent } from '../engine/engine';
 import { buildEngineInput } from '../engine/adapter';
 import { buildQuickMatchResult } from '../engine/quickMatchResult';
+import { fixtureXgPair, xgConfig, hash32 } from '../engine/leagueXg';
+import { compactMatchEvents } from '../engine/matchEvents';
 import { CLINIC_COST_M, clinicRemainingDays, needleOutcome } from '../engine/medical';
 import { Cup, CupTie, buildCup, buildFriendlies, buildLeagueFixtures, cupGroupTable, dayToDate, inWindow, weekdayOf, ACADEMY_INTAKE_DAY } from '../data/calendar';
 import { writeSave, writeSaveRetry, SaveBlob, SAVE_VERSION } from './persist';
@@ -504,6 +506,12 @@ export function GameProvider({ career: initialCareer, snapshot, children }: {
 
     // Lig fikstürleri (kullanıcının maçı hariç)
     let pStats = s.playerStats ?? {};
+    // C3: xG ana rng akışından BAĞIMSIZ tohumla üretilir; mevcut skor determinizmi değişmez
+    const cfg = xgConfig(stateRef.current.career.settings);
+    const aiXg = (f: DemoFixture): [number, number] => {
+      const xgRng = mulberry32((worldSeed + day * 7919 + seedShift * 131 + hash32(`${f.comp}|${f.homeId}|${f.awayId}`)) >>> 0);
+      return fixtureXgPair(effectiveStrength(f.homeId), effectiveStrength(f.awayId), xgRng, cfg);
+    };
     fixtures = fixtures.map((f) => {
       if (f.played || f.day !== day || isMine(f)) return f;
       const [hg, ag] = simGoals(effectiveStrength(f.homeId), effectiveStrength(f.awayId), rng);
@@ -512,7 +520,8 @@ export function GameProvider({ career: initialCareer, snapshot, children }: {
         pStats = attributeGoals(pStats, f.homeId, hg, rng);
         pStats = attributeGoals(pStats, f.awayId, ag, rng);
       }
-      return { ...f, played: true, hg, ag };
+      const [xgHome, xgAway] = aiXg(f);
+      return { ...f, played: true, hg, ag, xgHome, xgAway };
     });
 
     // Kupa grup maçları
@@ -520,8 +529,9 @@ export function GameProvider({ career: initialCareer, snapshot, children }: {
     const newCupFixtures = cup.fixtures.map((f) => {
       if (f.played || f.day !== day || isMine(f)) return f;
       const [hg, ag] = simGoals(effectiveStrength(f.homeId), effectiveStrength(f.awayId), rng);
+      const [xgHome, xgAway] = aiXg(f);
       cupFixtureChanged = true;
-      return { ...f, played: true, hg, ag };
+      return { ...f, played: true, hg, ag, xgHome, xgAway };
     });
     if (cupFixtureChanged) cup = { ...cup, fixtures: newCupFixtures };
 
@@ -529,7 +539,8 @@ export function GameProvider({ career: initialCareer, snapshot, children }: {
     friendlies = friendlies.map((f) => {
       if (f.played || f.day !== day || isMine(f)) return f;
       const [hg, ag] = simGoals(effectiveStrength(f.homeId), effectiveStrength(f.awayId), rng);
-      return { ...f, played: true, hg, ag };
+      const [xgHome, xgAway] = aiXg(f);
+      return { ...f, played: true, hg, ag, xgHome, xgAway };
     });
 
     // Kupa KO turları (AI)
@@ -734,8 +745,9 @@ export function GameProvider({ career: initialCareer, snapshot, children }: {
   }, [worldSeed]);
 
   // Kullanıcı maçını sonuca işle (tüm resmi/comp varyantları dahil)
-  const finishUserFixture = useCallback((s: PersistedState, fx: DemoFixture, hg: number, ag: number): PersistedState => {
-    const add = (arr: DemoFixture[]) => arr.map((f) => (f.day === fx.day && f.homeId === fx.homeId && f.awayId === fx.awayId && f.comp === fx.comp && !f.played ? { ...f, played: true, hg, ag } : f));
+  const finishUserFixture = useCallback((s: PersistedState, fx: DemoFixture, hg: number, ag: number, xgHome?: number, xgAway?: number): PersistedState => {
+    const xgBlock = typeof xgHome === 'number' && typeof xgAway === 'number' ? { xgHome, xgAway } : {};
+    const add = (arr: DemoFixture[]) => arr.map((f) => (f.day === fx.day && f.homeId === fx.homeId && f.awayId === fx.awayId && f.comp === fx.comp && !f.played ? { ...f, played: true, hg, ag, ...xgBlock } : f));
     let table = applyResultToTable(s.table, fx, hg, ag);
     let fixtures = s.fixtures;
     let friendlies = s.friendlies;
@@ -743,7 +755,7 @@ export function GameProvider({ career: initialCareer, snapshot, children }: {
     let international = s.international;
     if (fx.comp === 'lig') fixtures = add(fixtures);
     else if (fx.comp === 'hazirlik') friendlies = add(friendlies);
-    else if (fx.comp === 'kupa') cup = { ...cup, fixtures: cup.fixtures.map((f) => (f.day === fx.day && f.homeId === fx.homeId && f.awayId === fx.awayId ? { ...f, played: true, hg, ag } : f)) };
+    else if (fx.comp === 'kupa') cup = { ...cup, fixtures: cup.fixtures.map((f) => (f.day === fx.day && f.homeId === fx.homeId && f.awayId === fx.awayId ? { ...f, played: true, hg, ag, ...xgBlock } : f)) };
     else if (fx.comp === 'kupa-ko') cup = { ...cup, rounds: cup.rounds.map((r) => r.day === fx.day ? { ...r, ties: r.ties.map((t) => ((t.homeId === fx.homeId && t.awayId === fx.awayId) ? { ...t, hg, ag, pens: hg === ag, winner: (() => { if (hg > ag) return fx.homeId; if (ag > hg) return fx.awayId; const pSeed = (s.career.seed + fx.day * 197 + hg * 13 + ag * 7) >>> 0; return mulberry32(pSeed)() < 0.5 ? fx.homeId : fx.awayId; })() } : t)), played: r.ties.every((t) => t.winner || (t.homeId === fx.homeId && t.awayId === fx.awayId)) } : r) };
     else if (fx.comp === 'intl-grup' || fx.comp === 'intl-ko') international = { ...international, cups: recordInternationalResult(international.cups, fx, hg, ag, s.career.seed + fx.day * 313) };
     return { ...s, table, fixtures, friendlies, cup, international };
@@ -1182,7 +1194,7 @@ export function GameProvider({ career: initialCareer, snapshot, children }: {
     // P0 (SPEC Böl.I/1): canlı maçtan gelen sonuç varsa DIRECT kullan — aksi halde bağımsız re-simülasyon skoru çöpe atardı
     const res = overrideResult ?? buildDemoMatch(fx.homeId, fx.awayId, stateRef.current.tactics[0]?.name ?? 'Ana Plan');
     setSt((s) => {
-      let next = finishUserFixture(s, fx, res.hg, res.ag);
+      let next = finishUserFixture(s, fx, res.hg, res.ag, res.xgHome, res.xgAway);
       // Wave 13: exact engine/player-row evidence is now read from the adapter's public projection (legacy nested result remains supported).
       const engineRows = (res as unknown as { engine?: { playerRows: Record<string, { min: number; g: number; a: number; yellow: number; red: number; rating: number; conceded?: number; saves?: number; posGroup?: string }> } }).engine?.playerRows
         ?? res.playerRows;
@@ -1204,6 +1216,13 @@ export function GameProvider({ career: initialCareer, snapshot, children }: {
         homeId: fx.homeId, awayId: fx.awayId, hg: res.hg, ag: res.ag, xgHome: res.xgHome, xgAway: res.xgAway,
         foulsHome: res.foulsH, foulsAway: res.foulsA, yellowsHome: res.yellowH, yellowsAway: res.yellowA, redsHome: res.redH, redsAway: res.redA,
         ...(res.referee ? { referee: res.referee } : {}), playerRows, playerClubIds,
+        // C1: motorun tam istatistik bloğu (gelecekteki sezon analizlerini besler; eski kayıtlarda alan yok)
+        poss: res.posHome,
+        shotsH: res.shotsH, shotsA: res.shotsA, shotsOnH: res.shotsOnH, shotsOnA: res.shotsOnA,
+        cornersH: res.cornersH, cornersA: res.cornersA, savesH: res.savesH, savesA: res.savesA,
+        pressH: res.pressWinsH, pressA: res.pressWinsA, wideH: res.wideH, wideA: res.wideA, centralH: res.centralH, centralA: res.centralA,
+        // C2: sıkıştırılmış dakikalı olaylar (gol/kart/değişiklik)
+        events: compactMatchEvents(res.events ?? []),
       };
       next = { ...next, matchReports: [matchReport, ...(next.matchReports ?? []).filter((report) => report.id !== matchReport.id)].slice(0, 256) };
       // Dalga 2: maçta kullanılan planın taktiksel uyum sayacı (formasyon değiştiyse sayaç 1'e döner)
