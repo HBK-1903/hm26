@@ -19,6 +19,7 @@ import { consumeManagerBan, registerManagerYellow as registerManagerYellowRule }
 import { normalizeSellOnClauses, withSellOnClause, calculateSellOnSettlement } from '../data/transferNegotiation';
 import { academyIntakeExpired, evaluateAcademySigning, normalizeAcademyIntake } from '../data/academy';
 import { addSeasonCultureHonors, assessFfp, normalizeClubCulture, resolveCultureChoice, type CultureChoice } from '../data/culture';
+import { applyInterviewEffect, INTERVIEW_INBOX_TITLE, type InterviewOption } from '../data/interview';
 import { bumpFamiliarity } from '../engine/tacticsStudio';
 import { advanceInternationalSeason, archiveInternationalSeason, buildInternationalSeason, internationalFixtures, normalizeInternationalSeason, recordInternationalAiScorers, recordInternationalResult, recordInternationalScorers, type InternationalArchiveEntry, type InternationalCup, type InternationalSeason } from '../data/international';
 
@@ -111,7 +112,7 @@ interface GameActions {
   clearSeasonFinale: () => void;
   advanceDay: () => AdvanceResult;
   buildDemoMatch: (homeId: string, awayId: string, tacticName: string) => DemoMatchResult;
-  playLeagueMatch: (fx: DemoFixture, overrideResult?: DemoMatchResult, tacticIdx?: number) => DemoMatchResult;
+  playLeagueMatch: (fx: DemoFixture, overrideResult?: DemoMatchResult, tacticIdx?: number, interview?: InterviewOption) => DemoMatchResult;
   updateTactic: (idx: number, t: TacticPlan) => void;
   setInbox: (fn: (m: InboxMsg[]) => InboxMsg[]) => void;
   setCareer: (fn: (c: Career) => Career) => void;
@@ -1177,7 +1178,7 @@ export function GameProvider({ career: initialCareer, snapshot, children }: {
     return buildQuickMatchResult(input, homeId, awayId);
   }, [worldSeed, squads, stateRef]);
 
-  const playLeagueMatch = useCallback((fx: DemoFixture, overrideResult?: DemoMatchResult, tacticIdx = 0): DemoMatchResult => {
+  const playLeagueMatch = useCallback((fx: DemoFixture, overrideResult?: DemoMatchResult, tacticIdx = 0, interview?: InterviewOption): DemoMatchResult => {
     // P0 (SPEC Böl.I/1): canlı maçtan gelen sonuç varsa DIRECT kullan — aksi halde bağımsız re-simülasyon skoru çöpe atardı
     const res = overrideResult ?? buildDemoMatch(fx.homeId, fx.awayId, stateRef.current.tactics[0]?.name ?? 'Ana Plan');
     setSt((s) => {
@@ -1241,8 +1242,13 @@ export function GameProvider({ career: initialCareer, snapshot, children }: {
         const scandal = myReds >= 2 || isDerby;
         cultureIssue = { id: `${scandal ? 'scandal' : 'discipline'}-${fx.day}-${fx.homeId}-${fx.awayId}`, kind: scandal ? 'scandal' : 'discipline', day: s.career.day, headline: scandal ? 'Maç sonrası disiplin skandalı' : 'Disiplin kurulu açıklama bekliyor', body: `${clubById(s.career.clubId).short} maçında ${myReds} kırmızı kart gösterildi${isDerby ? ' (derbi)' : ''}. Kulüp özür/disiplin planı açıklayabilir veya oyuncuların arkasında durabilir.` };
       }
+      // Maç sonu röportajı: seçilen ton mevcut kültür alanlarını küçük ölçekte etkiler (yeni kalıcı alan yok)
+      if (interview) Object.assign(nextCulture, applyInterviewEffect(nextCulture, interview.effect));
       next = { ...next, career: { ...next.career, culture: nextCulture, pendingCultureIssue: cultureIssue } };
       if (cultureIssue && cultureIssue.id !== pendingCultureIssue?.id) next = { ...next, inbox: [{ id: cultureIssue.id, kind: 'yonetim', title: cultureIssue.headline, body: cultureIssue.body, day: s.career.day, read: false }, ...next.inbox] };
+      if (interview) {
+        next = { ...next, inbox: [{ id: `int-${fx.day}-${fx.homeId}-${fx.awayId}`, kind: 'yonetim', title: INTERVIEW_INBOX_TITLE, body: `“${interview.quote}” — ${s.career.manager.name}`, day: s.career.day, read: false }, ...next.inbox] };
+      }
       const isCupKo = fx.comp === 'kupa-ko' || fx.comp === 'intl-ko';
       let conf = next.career.boardConfidence ?? 70;
       let delta = 0; let note: string | null = null;
