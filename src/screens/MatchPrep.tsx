@@ -1,5 +1,5 @@
 // HM26 — UI/UX §5.12 Maç Hazırlığı kontrol listesi
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Screen } from '../types';
 import { useGame } from '../store/game';
 import { Card, Btn, Badge, Sheet } from '../components/ui/kit';
@@ -21,13 +21,23 @@ import { rotationAdvice } from '../engine/squadInsights';
 import { FORMATION_SLOTS } from '../engine/profiles';
 
 
-export const MatchPrep: React.FC<{ go: (s: Screen) => void }> = ({ go }) => {
+export const MatchPrep: React.FC<{ go: (s: Screen) => void; onEndDay?: () => void }> = ({ go, onEndDay }) => {
   const g = useGame();
   const next = g.nextFixture;
   const [prepared, setPrepared] = useState<Set<string>>(new Set(['tactic', 'xi']));
   const [started, setStarted] = useState(false);
   const [activeTacticIdx, setActiveTacticIdx] = useState(0);   // P2 (SPEC Böl.I/7): 5 plan slotu seçilebilir
   const [quick, setQuick] = useState<DemoMatchResult | null>(null);
+  // "Kaydet ve Günü Bitir": maç commit edilip LiveMatch kapandıktan SONRA gün ilerletilir.
+  // Aynı event içinde çağırsak advanceDay fikstürü oynanmamış görüp engel dönerdi;
+  // efekt, store yeniden render olduktan sonra taze closure ile çalışmayı garanti eder.
+  const [endDayPending, setEndDayPending] = useState(false);
+  useEffect(() => {
+    if (!endDayPending || started) return;
+    setEndDayPending(false);
+    if (onEndDay) onEndDay();
+    else go('hub');
+  }, [endDayPending, started, onEndDay, go]);
   if (!next) {
     return (
       <div className="h-full flex flex-col items-center justify-center px-8 text-center">
@@ -42,7 +52,13 @@ export const MatchPrep: React.FC<{ go: (s: Screen) => void }> = ({ go }) => {
   const isMatchday = next.day === g.career.day;
   const daysLeft = next.day - g.career.day;
   if (started && !isMatchday) setStarted(false); // güvenlik: eski state
-  if (started) return <LiveMatch fixture={next} tacticIdx={activeTacticIdx} onExit={() => setStarted(false)} onSaved={() => { setStarted(false); go('hub'); }} />;
+  if (started) return <LiveMatch
+    fixture={next}
+    tacticIdx={activeTacticIdx}
+    onExit={() => setStarted(false)}
+    onSaved={() => { setStarted(false); go('hub'); }}
+    onEndDay={() => { setStarted(false); setEndDayPending(true); }}
+  />;
 
   // Dalga 1 (v0.5): işsiz menajer maç merkezine giremez
   if (g.career.jobSearch) {

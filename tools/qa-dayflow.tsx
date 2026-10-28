@@ -1,7 +1,8 @@
 // HM26 — Maç sonu akışı regresyon testi.
 // Kapsam: canlı maçta "Maçtan çık" olmaması · maç bitince otomatik röportaj açılması ·
 // röportaj seçiminin kültür + inbox etkisi · reddetme yolunun kayıtsız kalması ·
-// maç sonu analizi → "Sonucu Kaydet — Ana Merkez" → Hub → "Sonraki Gün" zinciri.
+// maç sonu analizi → "Sonucu Kaydet — Ana Merkez" → Hub → "Sonraki Gün" zinciri ·
+// röportaj sonrası "Kaydet ve Günü Bitir" kısayolu (kaydet + gün ilerletme + özet sheet).
 // Gerçek AppShell üzerinde oynatılır.
 import { JSDOM } from 'jsdom';
 const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', { url: 'http://localhost/', pretendToBeVisual: true });
@@ -78,7 +79,8 @@ await act(async () => root.render(React.createElement(GameProvider, { career }, 
 await tick(80);
 
 // Bir canlı maçı baştan sona oynatır; röportajda seçim veya reddetme yapar.
-async function playLiveMatch(mode: 'answer' | 'decline') {
+// endDay=true ise rapor ekranında "Kaydet ve Günü Bitir" kısayolu kullanılır.
+async function playLiveMatch(mode: 'answer' | 'decline', endDay = false) {
   const fixture = gRef.nextFixture;
   // maç gününe ilerle
   let guard = 0;
@@ -146,6 +148,22 @@ async function playLiveMatch(mode: 'answer' | 'decline') {
     ok(await click([tab]), `Analiz sekmesi açılıyor: ${tab.source}`);
     await tick(30);
   }
+  if (endDay) {
+    // Yeni kısayol: röportaj sonrası tek dokunuşta kaydet + günü bitir
+    const endDayBtn = findBtn([/Kaydet ve Günü Bitir/]);
+    ok(!!endDayBtn, 'Rapor ekranında "Kaydet ve Günü Bitir" butonu var');
+    const matchDay = gRef.career.day;
+    const reportsBefore = (gRef.matchReports ?? []).length;
+    ok(await click([/Kaydet ve Günü Bitir/]), 'Kaydet ve Günü Bitir butonuna basıldı');
+    await tick(150);
+    ok(gRef.career.day === matchDay + 1, `Gün tek dokunuşla ilerledi: ${matchDay} → ${gRef.career.day}`);
+    ok((gRef.matchReports ?? []).length === reportsBefore + 1, 'Maç raporu yine de arşive işlendi');
+    ok(/Gün Sonu Özeti/.test(body()), 'Gün Sonu Özeti sheet’i açıldı');
+    ok(!/Maç Hazırlığı/.test(body()), 'Ekran maç merkezinde kalmadı (Hub’a dönüldü)');
+    ok(await click([/^Tamam$/]), 'Özet sheet kapatıldı');
+    await tick(60);
+    return;
+  }
   ok(await click([/Sonucu Kaydet/]), 'Sonucu Kaydet butonuna basıldı');
   await tick(150);
   const onHub = /Manşetler · Saha Defteri|Haftalık antrenman/.test(body()) && !/Maç Hazırlığı/.test(body());
@@ -208,6 +226,12 @@ const before2 = gRef.career.day;
 ok(await click([/Sonraki Gün\s*→/]), 'İkinci maç sonrası Sonraki Gün çalıştı');
 await tick(80);
 ok(gRef.career.day === before2 + 1, `Gün ilerledi: ${before2} → ${gRef.career.day}`);
+
+// ——— 3. MAÇ: röportaj sonrası "Kaydet ve Günü Bitir" kısayolu ———
+const reportsBefore3 = (gRef.matchReports ?? []).length;
+await playLiveMatch('answer', true);
+ok((gRef.matchReports ?? []).length === reportsBefore3 + 1, 'Kısayol maçı arşive işlendi');
+ok(/Sonraki Gün\s*→|Maç Merkezine Git\s*→/.test(dayBarBtn()?.textContent ?? ''), 'Kısayol sonrası Hub gün çubuğu normal akışta çalışıyor');
 
 console.log(checks.join('\n'));
 const failed = checks.filter((c) => c.startsWith('❌')).length;

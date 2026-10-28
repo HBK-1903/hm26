@@ -45,7 +45,7 @@ export const Card: React.FC<{ children: React.ReactNode; className?: string; onC
   </div>
 );
 
-export const Btn: React.FC<{ children: React.ReactNode; onClick?: () => void; variant?: 'primary' | 'secondary' | 'danger' | 'amber'; className?: string; disabled?: boolean; clubColor?: string }> = ({ children, onClick, variant = 'primary', className = '', disabled, clubColor }) => {
+export const Btn: React.FC<{ children: React.ReactNode; onClick?: () => void; variant?: 'primary' | 'secondary' | 'danger' | 'amber'; className?: string; disabled?: boolean; clubColor?: string; testId?: string }> = ({ children, onClick, variant = 'primary', className = '', disabled, clubColor, testId }) => {
   const base = 'min-h-touch px-4 rounded-xl font-bold text-sm flex items-center justify-center gap-2 active:scale-[0.97] transition-transform disabled:opacity-50 disabled:pointer-events-none select-none';
   const styles: Record<string, React.CSSProperties> = {
     primary: clubColor ? { background: clubColor, color: readableText(clubColor) } : { background: 'var(--c-accent)', color: 'var(--c-on-accent)' },
@@ -53,7 +53,7 @@ export const Btn: React.FC<{ children: React.ReactNode; onClick?: () => void; va
     secondary: { background: 'var(--c-elevated)', color: 'var(--c-primary)', border: '1px solid var(--c-line)' },
     danger: { background: 'var(--c-danger)', color: 'var(--c-base)' },
   };
-  return <button type="button" onClick={onClick} disabled={disabled} className={`${base} ${className}`} style={styles[variant]}>{children}</button>;
+  return <button type="button" onClick={onClick} disabled={disabled} data-testid={testId} className={`${base} ${className}`} style={styles[variant]}>{children}</button>;
 };
 
 function readableText(hex: string): string {

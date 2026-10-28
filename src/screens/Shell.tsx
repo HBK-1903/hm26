@@ -114,17 +114,30 @@ export const AppShell: React.FC<{ pendingScreen: Screen | null; setPendingScreen
   const next = g.nextFixture;
   const daysLeft = next ? Math.max(0, next.day - g.career.day) : 0;
   const isMatchday = !!next && daysLeft === 0;
-  const advance = () => {
-    if (isMatchday) { go('matchPrep'); return; }
+  // Gün ilerletmenin ortak çekirdeği: engel varsa sebep gösterilir, yoksa inbox
+  // okunur ve Gün Sonu Özeti sheet'i açılır. Hem Hub CTA'sı hem maç sonu akışı kullanır.
+  const runAdvanceDay = () => {
     // §5.4 — kritik zorunlu karar varken ilerleme engellenir, sebep bildirilir
     const res = g.advanceDay();
     if (res.blocked) {
       setBlockedReason(res.reason ?? 'Bugün kritik bir karar bekleniyor.');
-      return;
+      return res;
     }
     g.setInbox((ms) => ms.map((m) => ({ ...m, read: true })));
     setBlockedReason(null);
     setLastSummary(res.summary.length ? res.summary : ['Gün sakin geçti.']);
+    return res;
+  };
+  const advance = () => {
+    if (isMatchday) { go('matchPrep'); return; }
+    runAdvanceDay();
+  };
+  // Maç sonu röportaj/rapor ekranından gelen "Kaydet ve Günü Bitir" çağrısı:
+  // maç çoktan işlenmiş olacağından engel beklenmez; yine de engel olursa (ör. aynı
+  // gün ikinci maç) Hub'daki engel bildirimi ve "Maç Merkezine Git" CTA'sı görünür.
+  const endDayFromMatch = () => {
+    runAdvanceDay();
+    go('hub');
   };
 
   const Icon = ({ id, className }: { id: string; className?: string }) => <GameIcon id={id} className={className ?? 'w-5 h-5'} />;
@@ -160,7 +173,7 @@ export const AppShell: React.FC<{ pendingScreen: Screen | null; setPendingScreen
           {current === 'inbox' && <InboxScreen go={go} />}
           {current === 'stats' && <StatsHub />}
           {current === 'newsroom' && <NewsroomScreen />}
-          {current === 'matchPrep' && <MatchPrep go={go} />}
+          {current === 'matchPrep' && <MatchPrep go={go} onEndDay={endDayFromMatch} />}
           {(current === 'careerProfile' || current === 'settings' || current === 'backup') && <PlaceholderScreen id={current} />}
         </ScreenBoundary>
       </div>
