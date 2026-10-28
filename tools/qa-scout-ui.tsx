@@ -24,10 +24,16 @@ if (!dom.window.HTMLCanvasElement.prototype.getContext) {
 import React from 'react';
 import { act } from 'react-dom/test-utils';
 import { createRoot } from 'react-dom/client';
-import { GameProvider, useGame } from '../src/store/game';
+import { GameProvider, useGame, type DemoMatchResult } from '../src/store/game';
 import { NewsroomScreen } from '../src/screens/Newsroom';
 import { MatchPrep } from '../src/screens/MatchPrep';
-import { buildPostMatchInterview, outcomeOfResult } from '../src/data/interview';
+import { PostMatchInterview } from '../src/screens/PostMatchInterview';
+import { buildPostMatchInterview, outcomeOfResult, buildPostMatchInterviewWithContext } from '../src/data/interview';
+import { detectInterviewContext } from '../src/engine/interviewContext';
+import { compactMatchEvents } from '../src/engine/matchEvents';
+import { normalizeMyMatches } from '../src/engine/teamInsights';
+import { CLUBS } from '../src/data/clubs';
+import type { DemoFixture } from '../src/types';
 
 const fail: string[] = [];
 const ok = (name: string, cond: boolean, detail = '') => { console.log(`${cond ? '✅' : '❌'} ${name}${detail ? ` | ${detail}` : ''}`); if (!cond) fail.push(name); };
@@ -89,16 +95,74 @@ if (press) {
   ok('Sonuç dağılımı üç kutu olarak var', /Galibiyet sonrası|Beraberlik sonrası|Mağlubiyet sonrası/.test(press.textContent ?? ''));
 }
 const newsItems = dom.window.document.querySelectorAll('[data-testid="match-news-item"]');
-const validTags = ['derbi', 'farkli', 'temiz', 'xg', 'gollu'];
-if (newsItems.length) {
+const validTags = ['derbi', 'farkli', 'temiz', 'xg', 'gollu', 'geri-donus', 'cokus', 'kirmizi', 'var', 'son-dakika', 'sonuc'];
+ok('Her oynanmış maç için tam bir haber render oldu (jenerik dahil)', newsItems.length === (gRef.matchReports ?? []).length);
+ok('Maç haberleri geçerli etiketlerle render oldu', (() => {
   const tags = Array.from(newsItems).map((el) => (el as HTMLElement).dataset.newsTag);
-  ok('Maç haberleri geçerli etiketlerle render oldu', tags.every((t) => t && validTags.includes(t)), tags.join(','));
-  ok('Haber detaylarında skor/gerçek sayı var', Array.from(newsItems).every((el) => /\d+–\d+|\d+\.\d/.test(el.textContent ?? '')));
-} else {
-  console.log('ℹ️ Bu kurulumdaki maçlar "sessiz" kategoride — haber üretmemesi doğru davranış (saf testler tüm etiketleri kapsıyor)');
-  ok('Sessiz maçlarda haber bölümü zorlanmaz (sahte haber yok)', !dom.window.document.querySelector('[data-testid="match-news"]'));
-}
+  return tags.length > 0 && tags.every((t) => t && validTags.includes(t));
+})(), Array.from(newsItems).map((el) => (el as HTMLElement).dataset.newsTag).join(','));
+ok('Haber detaylarında skor/gerçek sayı var', Array.from(newsItems).every((el) => /\d+–\d+|\d+\.\d/.test(el.textContent ?? '')));
 ok('Fikstür manşetleri korundu (regresyon)', /Gün \d+/.test(body()));
+
+// ——— Bölüm 1b: Bağlama duyarlı röportaj ekranı (olay kanıtından tema) ———
+{
+  const myId: string = gRef.myClub.id;
+  const rivalIds: string[] = gRef.myClub.rivalIds ?? [];
+  const opp = CLUBS.find((c) => c.id !== myId && !rivalIds.includes(c.id))!;
+  const emptyResult = (over: Partial<DemoMatchResult>): DemoMatchResult => ({
+    homeId: myId, awayId: opp.id, hg: 1, ag: 0, events: [], xgHome: 1.1, xgAway: 0.9,
+    posHome: 50, shotsH: 4, shotsA: 3, shotsOnH: 2, shotsOnA: 1, insights: [],
+    cornersH: 0, cornersA: 0, foulsH: 0, foulsA: 0, yellowH: 0, yellowA: 0,
+    redH: 0, redA: 0, savesH: 0, savesA: 0, wideH: 0, wideA: 0, centralH: 0, centralA: 0,
+    pressWinsH: 0, pressWinsA: 0, shotsLog: [], playerRows: {}, ...over,
+  });
+  const fixtureOf = (hg: number, ag: number): DemoFixture =>
+    ({ round: 1, day: 99, homeId: myId, awayId: opp.id, played: true, hg, ag, comp: 'lig' });
+
+  // Geri dönüş: ilk golü yiyip 2-1 kazanan maç
+  let chosen: any = null;
+  const comeback = emptyResult({
+    hg: 2, ag: 1, xgHome: 1.4, xgAway: 1.1,
+    events: [
+      { minute: 14, text: 'Deplasman golü', kind: 'goal', side: 'away' },
+      { minute: 40, text: 'Beraberlik', kind: 'goal', side: 'home' },
+      { minute: 71, text: 'Dönüş golü', kind: 'goal', side: 'home' },
+    ],
+  });
+  await render(React.createElement(PostMatchInterview, { result: comeback, fixture: fixtureOf(2, 1), onChoose: (o: any) => { chosen = o; } }));
+  await tick(60);
+  ok('Geri dönüş temalı soru ekranda', /pes etmeyip üç puanı/.test(body()));
+  ok('Temalı 3 seçenek render oldu', dom.window.document.querySelectorAll('[data-testid^="interview-option-"]').length === 3);
+  const opt0 = dom.window.document.querySelector('[data-testid="interview-option-0"]') as HTMLButtonElement;
+  await act(async () => opt0.click());
+  await tick(40);
+  ok('Seçilen seçenek tema önekli id taşıyor', !!chosen && String(chosen.id).startsWith('comeback-'), chosen?.id);
+
+  // Kırmızı kart: olaysız ama redH=1 olan 1-0 galibiyeti → redcard teması
+  const red = emptyResult({ redH: 1 });
+  await render(React.createElement(PostMatchInterview, { result: red, fixture: fixtureOf(1, 0), onChoose: () => {} }));
+  await tick(60);
+  ok('Kırmızı kart temalı soru ekranda', /eksik kaldı/.test(body()));
+
+  // Kanıtsız maç: ekran, kamusal bağlam API'sinin ürettiği diyalogla birebir örtüşmeli
+  // (seri varsa streak teması, yoksa klasik win diyalogu — ekran da aynı dağıtıcıyı kullanır)
+  const plain = emptyResult({});
+  const prior = normalizeMyMatches(gRef.matchReports ?? [], myId, gRef.seasonNo).map((m: any) =>
+    m.result === 'W' ? 'win' : m.result === 'D' ? 'draw' : 'loss');
+  const expectedCtx = detectInterviewContext({
+    myClubId: myId, homeId: myId, awayId: opp.id, hg: 1, ag: 0,
+    xgHome: 1.1, xgAway: 0.9, redsHome: 0, redsAway: 0,
+    isDerby: rivalIds.includes(opp.id), events: compactMatchEvents(plain.events), priorOutcomes: prior,
+  });
+  const expectedId = buildPostMatchInterviewWithContext(expectedCtx, opp.short ?? opp.name).options[0].id;
+  let plainPick: any = null;
+  await render(React.createElement(PostMatchInterview, { result: plain, fixture: fixtureOf(1, 0), onChoose: (o: any) => { plainPick = o; } }));
+  await tick(60);
+  const plainOpt = dom.window.document.querySelector('[data-testid="interview-option-0"]') as HTMLButtonElement;
+  await act(async () => plainOpt.click());
+  await tick(40);
+  ok('Ekran bağlam dağıtıcısıyla aynı diyaloğu üretiyor', plainPick?.id === expectedId, `ekran=${plainPick?.id} beklenen=${expectedId} tema=${expectedCtx.theme}`);
+}
 
 // ——— Bölüm 2: MatchPrep scout + risk ———
 await render(React.createElement(MatchPrep, { go: () => {} }));

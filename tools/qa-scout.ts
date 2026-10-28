@@ -44,8 +44,48 @@ const derby = (h: string, a: string) => (h === MINE && a === RIVAL) || (h === MI
     buildMatchNews([rep({ id: 'c1', hg: 1, ag: 0, xgHome: 1.1 })], MINE, names, derby)[0].tag === 'temiz');
   check('Limit uygulanır', buildMatchNews(reports, MINE, names, derby, 2).length === 2);
   check('Haber detayında skor ve kulüp adları var', news.every((n) => n.detail.includes('Benim')));
-  check('Sessiz maç haber üretmez (beraberlik 1-1, xG dengeli, derbi yok)',
-    buildMatchNews([rep({ id: 'q1', hg: 1, ag: 1, xgHome: 1.0, xgAway: 0.9 })], MINE, names, derby).length === 0);
+  // Sözleşme revizesi: özel hikâyesi olmayan maç da jenerik haberle basında yer alır (uydurma yok)
+  const silent = buildMatchNews([rep({ id: 'q1', hg: 1, ag: 1, xgHome: 1.0, xgAway: 0.9 })], MINE, names, derby);
+  check('Sessiz maç artık jenerik sonuç haberi üretir (1-1, dengeli xG)',
+    silent.length === 1 && silent[0].tag === 'sonuc' && silent[0].id === 'news-result-q1' && silent[0].detail.includes('1–1'));
+
+  // ——— Olay temalı etiketler yalnız sıkıştırılmış olay kanıtından türer ———
+  const comeback = buildMatchNews([rep({
+    id: 'cb1', hg: 2, ag: 1, xgHome: 1.3, xgAway: 1.1,
+    events: [[14, 0, 1], [33, 0, 0], [71, 0, 0]],
+  })], MINE, names, derby)[0];
+  check('İlk golü yiyip kazanınca geri dönüş haberi', comeback.tag === 'geri-donus' && comeback.id === 'news-comeback-cb1');
+
+  const collapse = buildMatchNews([rep({
+    id: 'co1', hg: 1, ag: 2, xgHome: 1.3, xgAway: 1.1,
+    events: [[11, 0, 0], [50, 0, 1], [80, 0, 1]],
+  })], MINE, names, derby)[0];
+  check('Öne geçip kaybedince çöküş haberi', collapse.tag === 'cokus' && collapse.id === 'news-collapse-co1');
+
+  const red = buildMatchNews([rep({ id: 'rd1', hg: 1, ag: 0, xgHome: 1.1, redsHome: 1 })], MINE, names, derby)[0];
+  check('Kırmızı kart olan maçta kırmızı etiket', red.tag === 'kirmizi' && red.detail.includes('1 kırmızı kart'));
+
+  const varNews = buildMatchNews([rep({
+    id: 'var1', hg: 1, ag: 0, xgHome: 1.1,
+    events: [[40, 5, 2], [66, 0, 0]],
+  })], MINE, names, derby)[0];
+  check('VAR olayı olan maçta VAR etiketi', varNews.tag === 'var' && varNews.detail.includes('1 VAR'));
+
+  const late = buildMatchNews([rep({
+    id: 'late1', hg: 1, ag: 0, xgHome: 1.1,
+    events: [[82, 0, 0]],
+  })], MINE, names, derby)[0];
+  check('76+ dakika galibiyet golü son dakika haberi', late.tag === 'son-dakika' && late.detail.includes('82.'));
+
+  check('Geri dönüş derbiden öncelikli (kanıt en ayırt edici hikâye)', buildMatchNews([rep({
+    id: 'cbd', homeId: MINE, awayId: RIVAL, hg: 2, ag: 1, xgHome: 1.3, xgAway: 1.1,
+    events: [[9, 0, 1], [40, 0, 0], [88, 0, 0]],
+  })], MINE, names, derby)[0].tag === 'geri-donus');
+
+  // Başlık varyantları aynı girdi için kararlı; farklı maçlar farklı varyant alabilir
+  const again = buildMatchNews([rep({ id: 'cb1', hg: 2, ag: 1, xgHome: 1.3, xgAway: 1.1, events: [[14, 0, 1], [33, 0, 0], [71, 0, 0]] })], MINE, names, derby)[0];
+  check('Varyant seçimi deterministik (aynı id → aynı başlık)', again.title === comeback.title);
+  check('Tüm haber başlık ve detayları dolu', [...news, comeback, collapse, red, varNews, late].every((n) => n.title.length > 3 && n.detail.includes('—')));
 }
 
 // ——— opponentScout ———

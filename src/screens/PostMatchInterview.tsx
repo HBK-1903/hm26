@@ -5,7 +5,10 @@ import { DemoFixture } from '../types';
 import { useGame, DemoMatchResult } from '../store/game';
 import { Crest } from '../components/assets/Crest';
 import { clubById } from '../data/clubs';
-import { buildPostMatchInterview, outcomeOfResult, INTERVIEW_DECLINE_ID, type InterviewOption } from '../data/interview';
+import { buildPostMatchInterviewWithContext, outcomeOfResult, INTERVIEW_DECLINE_ID, type InterviewOption } from '../data/interview';
+import { detectInterviewContext } from '../engine/interviewContext';
+import { compactMatchEvents } from '../engine/matchEvents';
+import { normalizeMyMatches } from '../engine/teamInsights';
 
 export const PostMatchInterview: React.FC<{
   result: DemoMatchResult;
@@ -18,7 +21,25 @@ export const PostMatchInterview: React.FC<{
   const mine = result.homeId === g.myClub.id ? 'home' : 'away';
   const opponent = mine === 'home' ? away : home;
   const outcome = outcomeOfResult(g.myClub.id, result.homeId, result.awayId, result.hg, result.ag);
-  const interview = buildPostMatchInterview(outcome, opponent.short ?? opponent.name);
+  // Bağlam sezimi: olay akışı, kırmızı kart, xG sapması, derbi ve önceki sonuçlardan tema seçilir
+  const priorOutcomes = normalizeMyMatches(g.matchReports ?? [], g.myClub.id, g.seasonNo).map((m) =>
+    m.result === 'W' ? 'win' : m.result === 'D' ? 'draw' : 'loss');
+  const isDerby = (g.myClub.rivalIds ?? []).includes(opponent.id) || g.myClub.derby === opponent.id;
+  const ctx = detectInterviewContext({
+    myClubId: g.myClub.id,
+    homeId: result.homeId,
+    awayId: result.awayId,
+    hg: result.hg,
+    ag: result.ag,
+    xgHome: result.xgHome,
+    xgAway: result.xgAway,
+    redsHome: result.redH,
+    redsAway: result.redA,
+    isDerby,
+    events: compactMatchEvents(result.events ?? []),
+    priorOutcomes,
+  });
+  const interview = buildPostMatchInterviewWithContext(ctx, opponent.short ?? opponent.name);
   const resTxt = outcome === 'win' ? 'Galibiyet' : outcome === 'draw' ? 'Beraberlik' : 'Mağlubiyet';
   const resColor = outcome === 'win' ? 'var(--c-ok)' : outcome === 'draw' ? 'var(--c-warn)' : 'var(--c-danger)';
 
