@@ -94,38 +94,48 @@ async function playLiveMatch(mode: 'answer' | 'decline') {
   ok(await click([/Maça Başla/]), 'Canlı maç başlatıldı');
   await tick(120);
 
-  // YENİ KURAL: canlı maç sırasında "Maçtan çık" yok; bilgilendirme şeridi var
+  // YENİ KURAL: canlı maç sırasında "Maçtan çık" yok; manuel röportaj geçişini anlatan şerit var
   ok(!findBtn([/Maçtan çık/], true), 'Canlı maçta "Maçtan çık" butonu YOK');
-  ok(/bitince otomatik olarak maç sonu ekranına geçilecek/.test(body()), 'Otomatik geçiş bilgilendirme şeridi görünüyor');
+  ok(/düdükten sonra özeti inceleyebilir/.test(body()), 'Manuel röportaj geçişi bilgilendirme şeridi görünüyor');
 
   ok(await click([/^4×$/]), '4× hız açıldı');
-  let skipSeen = false;
-  let manualSkipWorked = false;
-  let interviewOpened = false;
+  let ctaSeen = false;
+  let autoJumped = false;
   for (let i = 0; i < 400; i++) {
     await click([/Sessiz kal/, /Dönüşünü bekle/, /Devam Et/, /Kapat$/]);
     await tick(150);
-    if (/Maç Sonu Röportajına Geç/.test(body())) {
-      skipSeen = true;
-      // decline modunda otomatik geçişi beklemeden elle atla (manuel yol testi)
-      if (mode === 'decline' && !manualSkipWorked) {
-        manualSkipWorked = await click([/Maç Sonu Röportajına Geç/]);
-      }
-    }
-    if (/Flash Röportaj/.test(body())) { interviewOpened = true; break; }
+    if (/Maç Sonu Röportajına Geç/.test(body())) { ctaSeen = true; break; }
+    if (/Flash Röportaj/.test(body())) { autoJumped = true; break; }
     if (/Maç akışı beklenmedik/.test(body())) { ok(false, 'Maç akışı kurtarma paneline düştü'); return; }
   }
-  ok(skipSeen, 'Maç bitince elle atlama butonu belirdi');
+  ok(ctaSeen, 'Maç bitince röportaja geçiş butonu belirdi');
+  ok(!autoJumped, 'Röportaj kendiliğinden açılmadı (kullanıcı tıklaması bekleniyor)');
+
+  // Düdük sonrası bekleyince de otomatik geçiş olmamalı; canlı ekran incelemeye açık kalmalı
+  await tick(450);
+  ok(!/Flash Röportaj/.test(body()) && /Maç Sonu Röportajına Geç/.test(body()), 'Bekleyince de otomatik geçiş olmadı; canlı ekran açık kaldı');
+
+  // Maç sonrası canlı sekmeler hâlâ incelenebiliyor mu?
+  ok(await click([/^Analiz$/]), 'Maç sonrası canlı Analiz sekmesi açıldı');
+  await tick(60);
+  ok(/Analiz & Şut Haritası/.test(body()), 'Analiz sekmesi içeriği (şut haritası) görüntüleniyor');
+  ok(await click([/^Spiker$/]), 'Maç sonrası Spiker sekmesi açıldı');
+  await tick(60);
+  ok(!!dom.window.document.querySelector('[role="log"]'), 'Spiker maç günlüğü görüntüleniyor');
+  ok(await click([/^Saha$/]), 'Saha sekmesine geri dönüldü');
+
+  // Manuel geçiş: butona basınca röportaj açılır
+  ok(await click([/Maç Sonu Röportajına Geç/]), 'Röportaja geçiş butonuna basıldı');
+  await tick(100);
+  ok(/Flash Röportaj/.test(body()), 'Röportaj ekranı buton tıklaması sonrası açıldı');
+
   if (mode === 'answer') {
-    ok(interviewOpened, 'Röportaj ekranı OTOMATİK açıldı (kullanıcı tıklaması gerekmedi)');
     // 3 röportaj seçeneği ve reddetme kontrolü
     const optButtons = [0, 1, 2].map((i) => dom.window.document.querySelector(`[data-testid="interview-option-${i}"]`));
     ok(optButtons.every(Boolean), 'Üç röportaj seçeneği render oldu');
     ok(!!dom.window.document.querySelector(`[data-testid="${INTERVIEW_DECLINE_ID}"]`), 'Röportajı reddetme seçeneği var');
     ok(await clickTestId('interview-option-0'), 'İlk röportaj seçeneği işaretlendi');
   } else {
-    ok(manualSkipWorked, 'Elle atlama butonu röportajı açtı (otomatik geçiş beklemeden)');
-    ok(interviewOpened, 'Röportaj ekranı açıldı');
     ok(await clickTestId(INTERVIEW_DECLINE_ID), 'Röportaj reddedildi');
   }
   await tick(100);

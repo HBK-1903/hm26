@@ -134,7 +134,7 @@ function Harness({ done }: { done: (report: string[]) => void }) {
           const timer = dom.window.document.querySelector('[role="timer"]')?.textContent ?? '';
           if (timer && timer !== lastClock) { lastClock = timer; log.push('akış: ' + timer.replace(/\s+/g, ' ')); }
           // Dalga 5: antrenör notları (45/75/90) canlı maç akışına düşüyor mu?
-          // Maç bitimi otomatik röportaja geçtiği için kontrol maç sürerken, Spiker sekmesinde yapılır.
+          // Kontrol maç sürerken, Spiker sekmesinde yapılır (maç sonrası canlı ekran da incelemeye açık kalır).
           if (!coachChecked) {
             const minute = Number((timer ?? '').trim().split(/[:\n]/)[0]);
             if (Number.isFinite(minute) && minute >= 46) {
@@ -148,11 +148,22 @@ function Harness({ done }: { done: (report: string[]) => void }) {
               await tick(80);
             }
           }
-          if (/Flash Röportaj/.test(body)) { finished = true; break; }
+          if (/Maç Sonu Röportajına Geç/.test(body)) { finished = true; break; }
           await tick(200);
         }
-        log.push(finished ? '✅ Maç tamamlandı, maç sonu röportajı otomatik açıldı' : '❌ 60sn içinde maç tamamlanmadı (donmuş olabilir)');
+        log.push(finished ? '✅ Maç tamamlandı, röportaja geçiş butonu belirdi (otomatik geçiş yok)' : '❌ 60sn içinde maç tamamlanmadı (donmuş olabilir)');
         if (!finished) { done(log); return; }
+
+        // Düdük sonrası otomatik geçiş olmamalı: kısa bekleyişte hâlâ canlı ekrandayız
+        await tick(400);
+        const stayedLive = !/Flash Röportaj/.test(dom.window.document.body.textContent ?? '');
+        log.push(stayedLive ? '✅ Bekleyince röportaj kendiliğinden açılmadı, canlı ekran incelemeye açık kaldı' : '❌ Röportaj otomatik açıldı');
+
+        // Manuel geçiş: butona basınca röportaj ekranı açılmalı
+        await clickByText([/Maç Sonu Röportajına Geç/]);
+        await tick(150);
+        const interviewOpen = /Flash Röportaj/.test(dom.window.document.body.textContent ?? '');
+        log.push(interviewOpen ? '✅ Buton sonrası maç sonu röportajı açıldı' : '❌ Röportaj ekranı açılmadı');
 
         // Röportaj ekranı: ilk seçeneği işaretle, ardından maç sonu analizi açılmalı
         const interviewOption = dom.window.document.querySelector('[data-testid="interview-option-0"]') as HTMLButtonElement | null;
