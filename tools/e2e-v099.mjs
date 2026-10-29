@@ -68,6 +68,8 @@ await page.getByRole('button', { name: /Maç Merkezine Git/ }).first().click({ f
 await page.waitForTimeout(800);
 await page.getByRole('button', { name: /Maça Başla/ }).first().click({ force: true });
 await page.waitForTimeout(700); // ilk frame
+// Güncel maç konsolunda akış ayrı bir sekmede; saha varsayılan olarak açılır.
+await page.getByRole('tab', { name: 'Spiker ve Maç Günlüğü' }).click({ force: true });
 const feedBox = page.locator('[role="log"][aria-label="Maç olay akışı"]');
 ok('B5 Akış: rol/log bölgesi mevcut', await feedBox.count() === 1);
 const firstText = await feedBox.textContent();
@@ -75,17 +77,19 @@ ok('B6 Akış: ilk olay ("Maç başladı") ilk saniyede görünür — akış bo
 await page.waitForTimeout(6500); // x2 → ~25-30 dk ilerleme
 const lineCount = await feedBox.locator(':scope > div > div.flex').count();
 ok('B7 Akış: ilk 30 dk dolayında en az 4 olay satırı', lineCount >= 4, `satir=${lineCount}`);
-// Geometri: akış kutusu hız-butonsu satırıyla çakışmamalı
+// Geometri: akış, üstteki skorbord ve alttaki sekmelerle çakışmamalı.
 const fb = await feedBox.boundingBox();
-const ctrl = page.locator('button', { hasText: '1×' }).first();
-const cb = await ctrl.boundingBox();
-ok('B8 Akış: liste, kontrol şeridine taşmıyor (layout onarımı)', !!fb && !!cb && fb.y + fb.height <= cb.y + 2, `akis-taban=${fb && Math.round(fb.y + fb.height)} kontrol-tavan=${cb && Math.round(cb.y)}`);
+const score = await page.locator('header[aria-label="Sabit maç skorbordu"]').boundingBox();
+const tabs = await page.getByRole('tablist', { name: 'Maç konsolu sekmeleri' }).boundingBox();
+ok('B8 Akış: liste skorbord ve sekmelere taşmıyor', !!fb && !!score && !!tabs && score.y + score.height <= fb.y + 2 && fb.y + fb.height <= tabs.y + 2, `akis=${fb && Math.round(fb.y)}–${fb && Math.round(fb.y + fb.height)}, sekmeler=${tabs && Math.round(tabs.y)}`);
 await page.screenshot({ path: '_shots/b8-livefeed.png' });
-// Tam ekran Akış modu — canlı liste kaydığı için koordinat değil DOM tıklaması
-await page.locator('button').filter({ hasText: 'Akış' }).first().evaluate((el) => el.click());
-await page.waitForTimeout(600);
-const fb2 = await feedBox.boundingBox();
-ok('B9 Akış: tam ekran akış modunda liste gerçekten büyüyor', !!fb2 && !!fb && fb2.height > fb.height * 1.5, `yukseklik=${fb && Math.round(fb.height)}→${fb2 && Math.round(fb2.height)}`);
+// Sekmeler arasında gidip dönünce canlı günlük korunmalı.
+await page.getByRole('tab', { name: 'Canlı Saha' }).click({ force: true });
+const hiddenOnPitch = await feedBox.count() === 0;
+await page.getByRole('tab', { name: 'Spiker ve Maç Günlüğü' }).click({ force: true });
+const feedSelected = await page.getByRole('tab', { name: 'Spiker ve Maç Günlüğü' }).getAttribute('aria-selected') === 'true';
+const restoredText = await feedBox.textContent();
+ok('B9 Akış: sekmeye dönüşte canlı günlük korunuyor', hiddenOnPitch && feedSelected && /Maç başladı/.test(restoredText || '') && await feedBox.locator(':scope > div > div.flex').count() >= lineCount);
 await page.screenshot({ path: '_shots/b9-feedmode.png' });
 
 console.log(`\nE2E-V099: ${9 - fail}/9 geçti${fail ? ` — ${fail} BAŞARISIZ` : ''}`);

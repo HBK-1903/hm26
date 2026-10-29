@@ -75,14 +75,15 @@ for (const article of articles) {
 if (openedOffer) {
   await page.waitForTimeout(400);
   const b3 = (await page.locator('body').textContent()) ?? '';
-  ok('F3 Takas paneli (Takasa Oyuncu Ekle)', /Takasa Oyuncu Ekle/.test(b3));
-  const swapSel = page.locator('select').filter({ hasText: /Takas yok/ }).first();
+  ok('F3 Oyuncu + nakit takası paneli', /Oyuncu \+ nakit takası/.test(b3));
+  const swapSel = page.locator('select[aria-label="Takas oyuncusu"]').first();
   if (await swapSel.count()) {
     const swapOpts = await swapSel.locator('option').allTextContents();
     if (swapOpts.length > 1) {
       await swapSel.selectOption({ index: 1 });
       await page.waitForTimeout(250);
-      ok('F4 Takas oyuncusu seçilince etkin teklif satırı görünür', /etkin teklif/i.test((await page.locator('body').textContent()) ?? ''));
+      const currentBody = (await page.locator('body').textContent()) ?? '';
+      ok('F4 Takas oyuncusu seçilince değer ve toplam teklif görünür', /takas değeri/i.test(currentBody) && /toplam teklif değeri/i.test(currentBody));
     } else ok('⚟ F4 takas için uygun oyuncu bulunamadı', true);
   } else ok('F4 Takas oyuncu seçicisi mevcut', false);
 } else {

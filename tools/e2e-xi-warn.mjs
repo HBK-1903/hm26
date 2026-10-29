@@ -98,17 +98,15 @@ try {
   // GK yuvası (index 0) seç, kulübeden kaleci OLMAYAN birini sahaya al (yeni mevki dışı durum üret)
   await tap(slots.nth(0));
   await page.waitForTimeout(400);
-  console.log('   slot-0 aria-pressed:', await slots.nth(0).getAttribute('aria-pressed'), '— Sahaya al butonları:', await page.locator('button', { hasText: 'Sahaya al →' }).count());
-  const benchBtns = page.locator('button', { hasText: 'Sahaya al →' });
-  const n = await benchBtns.count();
-  let chosen = -1;
-  for (let bi = 0; bi < n; bi++) { const t = await benchBtns.nth(bi).innerText(); if (!t.includes('KL')) { chosen = bi; break; } }
-  // v0.9.4: ilk dokun açıklama uyarısı üretmeli (iki aşamalı onay), ikinci dokun atama yapmalı
-  if (chosen >= 0) await tap(benchBtns.nth(chosen));
+  console.log('   slot-0 aria-pressed:', await slots.nth(0).getAttribute('aria-pressed'));
+  // Uyumlu kaleciler "Sahaya al" yazar; saha oyuncuları artık erişilebilir adda açıkça mevki dışı işaretlenir.
+  const incompatible = page.locator('button[aria-label*="mevki dışı, ceza uygulanır"]');
+  const chosen = await incompatible.count();
+  if (chosen > 0) await tap(incompatible.first());
   await page.waitForTimeout(400);
   const armBanner = await page.locator('[role="alert"]').count();
-  ok('G2a uyumsuz yedek → ilk dokun açıklama uyarısı (henüz atama yok)', armBanner >= 1, `role=alert sayısı=${armBanner}`);
-  if (chosen >= 0) await tap(page.locator('button', { hasText: 'Sahaya al →' }).nth(chosen));
+  ok('G2a uyumsuz yedek → ilk dokun açıklama uyarısı (henüz atama yok)', chosen > 0 && armBanner >= 1, `aday=${chosen}, role=alert sayısı=${armBanner}`);
+  if (chosen > 0) await tap(incompatible.first());
   await page.waitForTimeout(600);
   await page.screenshot({ path: `${shots}/05-oop-slot.png` });
   const gkSlot = slots.nth(0);
@@ -118,8 +116,8 @@ try {
   // seçili (mevki dışı üçgenli) yuvaya dokun → açıklama şeridi çıkmalı
   await tap(slots.nth(0));
   await page.waitForTimeout(400);
-  const explain = await page.locator('[role="alert"]').count();
-  ok('G2b üçgenli yuvaya dokun → neden açıklaması (güç cezası %)', explain >= 0, `alert sayısı=${explain}`);
+  const explanation = await page.locator('[role="alert"]').allTextContents();
+  ok('G2b üçgenli yuvaya dokun → neden açıklaması (güç cezası %)', explanation.some((text) => /turuncu üçgen/.test(text) && /%\d+/.test(text)), `alert sayısı=${explanation.length}`);
   // v0.9.4: pendingXI ile uyumsuz yuva → iki aşamalı onay akışı
   await tap(page.locator('nav[aria-label="Ana gezinme"] button', { hasText: 'Kadro' }));
   await page.waitForTimeout(500);

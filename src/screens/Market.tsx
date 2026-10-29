@@ -1,5 +1,5 @@
 // HM26 — UI/UX §5.9 Piyasa (Aşama 2: gerçek dünya kadrolarından piyasa + gelen teklifler + sözleşmeler + transfer geçmişi)
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useGame } from '../store/game';
 import { Card, Badge, Btn, Sheet, Seg, useToast } from '../components/ui/kit';
 import { GameIcon, ICONS } from '../components/icons';
@@ -10,7 +10,12 @@ import { genFreeAgent, playerValue } from '../data/gen';
 import { resolveMarketShortlist, selectClubOpportunities } from '../data/marketOpportunities';
 import { FOREIGN_QUOTA } from '../data/market';
 import { inWindow } from '../data/calendar';
-import { counterCashAsk, respondToSellerOffer, sellOnCredit, transferLeakRisk, transferOfferLeaks } from '../data/transferNegotiation';
+import { counterCashAsk, sellOnCredit, transferLeakRisk, transferOfferLeaks } from '../data/transferNegotiation';
+import { playerToneHints, respondToPlayerWithTone, respondToSellerWithTone, sellerToneHints, transferRevealForGen, type PlayerToneResult, type TransferTone } from '../data/transferPresentation';
+import { managerTransferLine, playerTransferLine, sellerTransferLine, signedTransferLine, signingReadyLine, transferAnnouncement, transferLeakLine } from '../data/transferVoices';
+import { TransferSubtitle, TransferTheatre } from '../components/transfer/TransferTheatre';
+import { transferVoiceVolume, useTransferSpeech } from '../components/transfer/useTransferSpeech';
+import { audio } from '../audio/engine';
 import { Player, Screen } from '../types';
 
 const G_SHORT: Record<string, string> = { GK: 'Kaleci', CB: 'Stoper', FB: 'Bek', WB: 'Kanat Bek', DM: 'D.O.S', CM: 'M.O.S', AM: 'O.O.S', WG: 'Kanat', ST: 'Santrfor' };
@@ -239,7 +244,7 @@ export const MarketScreen: React.FC<{ go?: (s: Screen) => void }> = ({ go }) => 
         </div>
       </Sheet>
 
-      <Sheet open={!!offer} onClose={() => setOffer(null)} title="Transfer Görüşmesi">
+      <Sheet open={!!offer} onClose={() => setOffer(null)} title="Transfer Görüşmesi" tall>
         {offer && (
           <OfferFlow
             p={offer}
@@ -248,6 +253,7 @@ export const MarketScreen: React.FC<{ go?: (s: Screen) => void }> = ({ go }) => 
             wageHeadroom={wageHeadroomB}
             inWindow={inWin || offer.id.startsWith('fa_') || offer.clubId === 'FA'}
             onDone={(ok, msg) => { show(msg, ok ? 'ok' : 'warn'); if (ok) setOffer(null); }}
+            onCancel={() => setOffer(null)}
             onHome={go ? () => go('hub') : undefined}
             buy={g.buyPlayer}
           />
@@ -422,206 +428,284 @@ const TransferHistory: React.FC = () => {
   );
 };
 
-// ── Wave 11: yüz yüze transfer masası, sabır/şart/sızıntı ve kayıtlı imza ──
-const OfferFlow: React.FC<{
+// Hareketli transfer masası: sahne durumları yalnız bu açık görüşmenin belleğinde tutulur.
+type OfferStage = 'offer' | 'seller' | 'player' | 'review' | 'signed';
+type PlayerStatus = 'rotasyon' | 'ilk11' | 'yildiz';
+const TONES: { value: TransferTone; label: string }[] = [
+  { value: 'calm', label: 'Sakin' }, { value: 'witty', label: 'Esprili' }, { value: 'firm', label: 'Sert' },
+];
+const STATUS_MUL: Record<PlayerStatus, number> = { rotasyon: 0.95, ilk11: 1.08, yildiz: 1.22 };
+const YEAR_MUL: Record<number, number> = { 2: 1.10, 3: 1.0, 4: 0.97, 5: 0.95 };
+
+export const OfferFlow: React.FC<{
   p: Player; price: number; tb: number; wageHeadroom: number; inWindow: boolean;
   onDone: (ok: boolean, msg: string) => void;
-  buy: (p: Player, fee: number, wage: number, years?: number, status?: 'rotasyon' | 'ilk11' | 'yildiz', swapPlayerId?: string, sellOnPct?: number) => { ok: boolean; reason?: string };
+  onCancel: () => void;
+  buy: (p: Player, fee: number, wage: number, years?: number, status?: PlayerStatus, swapPlayerId?: string, sellOnPct?: number) => { ok: boolean; reason?: string };
   onHome?: () => void;
-}> = ({ p, price, tb, wageHeadroom, inWindow, onDone, buy, onHome }) => {
+}> = ({ p, price, tb, wageHeadroom, inWindow, onDone, onCancel, buy, onHome }) => {
   const g = useGame();
-  const seller = p.id.startsWith('fa_') || p.clubId === 'FA' ? null : clubByIdSafe(p.clubId);
+  const seller = p.id.startsWith('fa_') || p.clubId === 'FA' ? null : clubByIdSafe(p.clubId) ?? null;
+  const voice = useTransferSpeech();
+  const [stage, setStage] = useState<OfferStage>('offer');
   const [fee, setFee] = useState(Math.round(price * 10) / 10);
   const [swapId, setSwapId] = useState('');
-  const swapPlayer = swapId ? g.mySquad.find((x) => x.id === swapId) ?? null : null;
-  const swapVal = swapPlayer ? Math.round(playerValue(swapPlayer, g.myLeague) * 0.85 * 10) / 10 : 0;
-  const swapOptions = g.mySquad.filter((x) => !x.id.startsWith('fa_') && (x.injuredDays ?? 0) === 0)
-    .sort((a, b) => playerValue(b, g.myLeague) - playerValue(a, g.myLeague));
+  const [sellOnPct, setSellOnPct] = useState(0);
   const [years, setYears] = useState<2 | 3 | 4 | 5>(3);
-  const [status, setStatus] = useState<'rotasyon' | 'ilk11' | 'yildiz'>(p.ratings.gen >= 72 ? 'yildiz' : 'ilk11');
+  const [status, setStatus] = useState<PlayerStatus>(p.ratings.gen >= 72 ? 'yildiz' : 'ilk11');
   const [wage, setWage] = useState(() => Math.round(p.wage * (p.ratings.gen >= 72 ? 1.22 : 1.08)));
-  const [stage, setStage] = useState<0 | 1 | 2>(0);
   const [sellerAsk, setSellerAsk] = useState(Math.round(price * 1.2 * 100) / 100);
   const [patience, setPatience] = useState(3);
   const [round, setRound] = useState(0);
-  const [sellerAgreed, setSellerAgreed] = useState(!seller);
+  const [sellerAgreed, setSellerAgreed] = useState(false);
   const [sellerWalked, setSellerWalked] = useState(false);
+  const [sellerDiscount, setSellerDiscount] = useState(0);
+  const [sellerExtraPatience, setSellerExtraPatience] = useState(false);
+  const [sellerTone, setSellerTone] = useState<TransferTone | null>(null);
+  const [playerTone, setPlayerTone] = useState<TransferTone | null>(null);
+  const [triedPlayerTones, setTriedPlayerTones] = useState<TransferTone[]>([]);
+  const [playerDiscount, setPlayerDiscount] = useState(0);
+  const [playerRound, setPlayerRound] = useState(0);
+  const [playerResponse, setPlayerResponse] = useState<PlayerToneResult | null>(null);
+  const [agreedFee, setAgreedFee] = useState<number | null>(null);
   const [leaked, setLeaked] = useState(false);
-  const [sellOnPct, setSellOnPct] = useState(0);
   const [signedFee, setSignedFee] = useState(0);
-  const [busy, setBusy] = useState(false);
-  const busyRef = useRef(false);
-  const guard = <T extends unknown[]>(fn: (...a: T) => void) => (...a: T) => {
-    if (busyRef.current) return;
-    busyRef.current = true; setBusy(true);
-    try { fn(...a); } finally { setTimeout(() => { busyRef.current = false; setBusy(false); }, 700); }
-  };
+  const [signedSwap, setSignedSwap] = useState<Player | null>(null);
+  const [signedBudget, setSignedBudget] = useState(0);
+  const [signedWageRoom, setSignedWageRoom] = useState(0);
+  const sellerSubmitted = useRef(false);
+  const playerSubmitted = useRef(false);
+  const signedOnce = useRef(false);
+  const stageRef = useRef<HTMLDivElement>(null);
+  const crowdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const originalSquad = useRef(g.mySquad);
+  useEffect(() => { stageRef.current?.scrollIntoView?.({ block: 'start', behavior: 'auto' }); }, [stage]);
+  useEffect(() => () => { if (crowdTimer.current) clearTimeout(crowdTimer.current); audio.stopCrowd(); }, []);
 
-  const STATUS_MUL = { rotasyon: 0.95, ilk11: 1.08, yildiz: 1.22 };
-  const FEE_F = { rotasyon: 0.88, ilk11: 0.92, yildiz: 0.98 };
-  const YEAR_MUL: Record<number, number> = { 2: 1.10, 3: 1.0, 4: 0.97, 5: 0.95 };
-  const demandWage = Math.round(p.wage * STATUS_MUL[status] * YEAR_MUL[years] * (leaked ? 1.05 : 1));
-  const playerOk = wage >= demandWage;
-  const wageBreach = wage > wageHeadroom;
+  const swapPlayer = swapId ? g.mySquad.find((x) => x.id === swapId) ?? null : null;
+  const swapVal = swapPlayer ? Math.round(playerValue(swapPlayer, g.myLeague) * 0.85 * 10) / 10 : 0;
+  const swapOptions = g.mySquad.filter((x) => !x.id.startsWith('fa_') && (x.injuredDays ?? 0) === 0 && !g.loans?.some((loan) => loan.playerId === x.id))
+    .sort((a, b) => playerValue(b, g.myLeague) - playerValue(a, g.myLeague));
   const sellOnValue = seller ? sellOnCredit(price, sellOnPct) : 0;
   const offerValue = fee + swapVal + sellOnValue;
   const floor = Math.round(price * 0.92 * 100) / 100;
-  const fair = seller ? offerValue >= sellerAsk : fee >= price * FEE_F[status];
   const counterFee = counterCashAsk(sellerAsk, swapVal, sellOnValue);
   const leakRisk = transferLeakRisk({ playerGen: p.ratings.gen, price, offerValue, round: round + 1 });
+  const demandBase = Math.round(p.wage * STATUS_MUL[status] * YEAR_MUL[years] * (leaked ? 1.05 : 1));
+  const cappedPlayerDiscount = Math.min(playerDiscount, Math.floor(demandBase * 0.03));
+  const demandWage = demandBase - cappedPlayerDiscount;
+  const wageBreach = wage > wageHeadroom;
+  const quotaTeam = swapPlayer ? g.mySquad.filter((x) => x.id !== swapPlayer.id) : g.mySquad;
+  const foreignCount = quotaTeam.filter((x) => x.foreign).length;
+  const quota = FOREIGN_QUOTA[g.myLeague] ?? 8;
+  const quotaBreach = !!p.foreign && foreignCount >= quota;
+  const squadFull = g.mySquad.length >= 30 && !swapPlayer;
+  const playerLabel = status === 'yildiz' ? 'Yıldız' : status === 'ilk11' ? 'İlk 11' : 'Rotasyon';
+  const reveal = transferRevealForGen(p.ratings.gen);
+  const voiceKey = `${g.career.seed}|${g.career.day}|${p.id}`;
+  const sellerInput = { price, currentAsk: sellerAsk, floor, patience, offerValue, usedDiscount: sellerDiscount,
+    usedExtraPatience: sellerExtraPatience, seed: g.career.seed, day: g.career.day, playerId: p.id, round: round + 1 };
+  const subtitle = <TransferSubtitle line={voice.lastLine} muted={voice.muted} systemMuted={transferVoiceVolume() <= 0}
+    onReplay={() => { if (voice.lastLine) voice.play(voice.lastLine); }} onSkip={voice.stop}
+    onToggle={() => { if (!voice.muted) { if (crowdTimer.current) clearTimeout(crowdTimer.current); audio.stopCrowd(); } voice.toggle(); }} />;
+  const theatre = (mode: 'seller' | 'player' | 'reveal') => <TransferTheatre mode={mode} player={p} club={g.myClub} seller={seller} manager={g.career.manager} speaking={voice.speaking} />;
+  const clearPlayerResponse = () => { setPlayerResponse(null); setPlayerTone(null); playerSubmitted.current = false; voice.clear(); };
+  const goOffer = () => { sellerSubmitted.current = false; setSellerTone(null); setAgreedFee(null); voice.clear(); setStage('offer'); };
+  const goPlayer = (finalFee: number) => { setAgreedFee(finalFee); clearPlayerResponse(); setStage('player'); };
 
   const sendOffer = () => {
+    if (sellerSubmitted.current || !inWindow || fee > tb || (seller && !sellerTone)) return;
+    sellerSubmitted.current = true;
     const nextRound = round + 1;
     setRound(nextRound);
-    if (seller) {
-      const response = respondToSellerOffer({ price, currentAsk: sellerAsk, floor, patience, offerValue });
+    if (seller && sellerTone) {
+      const response = respondToSellerWithTone({ ...sellerInput, tone: sellerTone });
       setSellerAsk(response.ask);
       setPatience(response.patience);
       setSellerAgreed(response.outcome === 'accept');
       setSellerWalked(response.outcome === 'walk');
+      setSellerDiscount(response.usedDiscount);
+      setSellerExtraPatience(response.usedExtraPatience);
+      voice.play(sellerTransferLine(response.outcome, `${voiceKey}|seller|${nextRound}`));
+      setStage('seller');
     } else {
-      setSellerAgreed(true);
+      setAgreedFee(0);
+      voice.clear();
+      setStage('player');
     }
     if (!leaked && transferOfferLeaks({ seed: g.career.seed, day: g.career.day, playerId: p.id, round: nextRound, risk: leakRisk })) {
       setLeaked(true);
       const id = `transfer-leak-${p.id}-${g.career.day}`;
       g.setInbox((messages) => messages.some((item) => item.id === id) ? messages : [{
         id, kind: 'transfer', title: 'Pazarlık basına sızdı',
-        body: `Basın, ${seller?.short ?? 'kulüpler'} arasında ${p.name} için görüşme yapıldığını öğrendi. Oyuncunun ücret beklentisi güncellendi; yeni teklifinde %5 daha yüksek maaş talep ediyor.`,
+        body: seller
+          ? `Basın, ${seller.short} ile ${p.name} için görüşme yapıldığını öğrendi. Oyuncunun ücret beklentisi güncellendi; yeni teklifinde %5 daha yüksek maaş talep ediyor.`
+          : `Basın, serbest oyuncu ${p.name} ile görüşme yapıldığını öğrendi. Oyuncunun ücret beklentisi güncellendi; yeni teklifinde %5 daha yüksek maaş talep ediyor.`,
         day: g.career.day, read: false,
       }, ...messages]);
     }
-    setStage(1);
   };
-
-  const signDeal = (finalFee: number) => {
-    const result = buy(p, finalFee, wage, years, status, swapPlayer?.id, seller ? sellOnPct : 0);
-    if (!result.ok) { onDone(false, result.reason ?? 'İmza tamamlanamadı.'); return; }
-    setSignedFee(finalFee);
-    setStage(2);
+  const sendPlayerOffer = () => {
+    if (playerSubmitted.current || !playerTone || wageBreach || agreedFee === null) return;
+    playerSubmitted.current = true;
+    const response = respondToPlayerWithTone({ baseDemand: demandBase, offeredWage: wage, usedDiscount: playerDiscount,
+      tone: playerTone, alreadyTried: triedPlayerTones.includes(playerTone), seed: g.career.seed, day: g.career.day, playerId: p.id });
+    setTriedPlayerTones((prior) => prior.includes(playerTone) ? prior : [...prior, playerTone]);
+    setPlayerDiscount(response.usedDiscount);
+    setPlayerRound((prior) => prior + 1);
+    setPlayerResponse(response);
+    setPlayerTone(null);
+    voice.play(playerTransferLine(response.accepted, `${voiceKey}|player|${playerRound + 1}`));
   };
+  const signDeal = () => {
+    if (signedOnce.current || agreedFee === null || !playerResponse?.accepted || wageBreach || quotaBreach || squadFull || !inWindow || agreedFee > tb) return;
+    signedOnce.current = true;
+    const result = buy(p, agreedFee, wage, years, status, swapPlayer?.id, seller ? sellOnPct : 0);
+    if (!result.ok) { signedOnce.current = false; onDone(false, result.reason ?? 'İmza tamamlanamadı.'); return; }
+    setSignedFee(agreedFee);
+    setSignedSwap(swapPlayer);
+    setSignedBudget(Math.round((tb - agreedFee) * 10) / 10);
+    setSignedWageRoom(wageHeadroom - wage + (swapPlayer?.wage ?? 0));
+    setStage('signed');
+    voice.play(signedTransferLine(voiceKey));
+    if (!voice.muted) {
+      audio.unlock();
+      audio.play('celebrate');
+      if (reveal !== 'press') {
+        audio.startCrowd();
+        crowdTimer.current = setTimeout(() => audio.stopCrowd(), 6000);
+      }
+    }
+  };
+  const newMeeting = () => {
+    setRound(0); setPatience(3); setSellerAsk(Math.round(price * 1.2 * 100) / 100);
+    setSellerWalked(false); setSellerAgreed(false); setSellerDiscount(0); setSellerExtraPatience(false);
+    goOffer();
+  };
+  const samePosition = originalSquad.current.filter((candidate) => candidate.group === p.group);
+  const bestPositionGen = samePosition.length ? Math.max(...samePosition.map((candidate) => candidate.ratings.gen)) : null;
+  const leakNotice = leaked && <div role="status" className="rounded-lg bg-warn/10 border border-warn/40 p-3 text-warn text-[12px]">Görüşme basına sızdı; oyuncunun temel maaş beklentisi %5 arttı. <button type="button" className="font-bold underline" onClick={() => voice.play(transferLeakLine)}>Sızıntı haberini dinle</button></div>;
+  const replyChoices = (phase: 'seller' | 'player') => {
+    const selected = phase === 'seller' ? sellerTone : playerTone;
+    return <div className="transfer-replies" role="group" aria-label={phase === 'seller' ? 'Kulüp görüşmesi cevapları' : 'Oyuncu görüşmesi cevapları'}>
+      {TONES.map(({ value, label }) => {
+        const line = managerTransferLine(value, phase, `${voiceKey}|${phase}|${phase === 'seller' ? round + 1 : playerRound + 1}`);
+        const hints = phase === 'seller' ? sellerToneHints(sellerInput, value) : playerToneHints(demandBase, cappedPlayerDiscount, value, triedPlayerTones.includes(value));
+        return <button type="button" key={value} className="transfer-reply" aria-pressed={selected === value} data-testid={`transfer-reply-${phase}-${value}`} onClick={() => {
+          if (phase === 'seller') setSellerTone(value);
+          else { setPlayerTone(value); playerSubmitted.current = false; }
+          voice.play(line);
+        }}><span className="transfer-reply__tone block">{label}</span><span className="transfer-reply__label">“{line.text}”</span><span className="transfer-reply__hint">{hints.join(' · ')}</span></button>;
+      })}
+    </div>;
+  };
+  const termsFacts = (finalFee: number) => <div className="transfer-facts">
+    <div><span>Nakit bonservis</span><strong>{!seller ? 'Bedelsiz · ₺0M' : `₺${finalFee.toFixed(2)}M`}</strong></div>
+    <div><span>Aylık maaş</span><strong>₺{wage}B / ay</strong></div>
+    <div><span>Süre / rol</span><strong>{years} yıl · {playerLabel}</strong></div>
+    <div><span>Sabit maaş toplamı</span><strong>₺{(wage * 12 * years / 1000).toFixed(2)}M</strong></div>
+  </div>;
 
-  const playerLabel = status === 'yildiz' ? 'Yıldız' : status === 'ilk11' ? 'İlk 11' : 'Rotasyon';
-  const sceneHeader = (eyebrow: string, title: string, icon: string) => (
-    <div className="flex items-center gap-3 rounded-xl border border-line bg-base p-3">
-      <span className="w-9 h-9 rounded-xl bg-amber/10 text-amber flex items-center justify-center"><GameIcon id={icon} className="w-5 h-5" /></span>
-      <div><div className="m26-overline">{eyebrow}</div><h3 className="font-display text-primary text-[17px] font-bold">{title}</h3></div>
+  return <div ref={stageRef} className="m26-in space-y-4" data-testid="transfer-flow" data-stage={stage}>
+    <div className="flex items-center gap-1 text-[10px] font-bold tracking-wide text-secondary" aria-label="Görüşme adımları">
+      <span className={stage === 'offer' || stage === 'seller' ? 'text-amber' : ''}>01 {seller ? 'KULÜP' : 'SERBEST'}</span><span>—</span>
+      <span className={stage === 'player' ? 'text-amber' : ''}>02 OYUNCU</span><span>—</span>
+      <span className={stage === 'review' || stage === 'signed' ? 'text-amber' : ''}>03 İMZA</span>
     </div>
-  );
+    {!inWindow && <div role="alert" className="bg-danger/10 border border-danger/40 rounded-xl p-3 text-[12.5px] text-danger font-semibold">Pencere kapalı — kulüplü oyuncu alınamaz.</div>}
 
-  return (
-    <div className="m26-in space-y-4">
+    {stage === 'offer' && <div className="space-y-4">
+      {theatre(seller ? 'seller' : 'player')}
+      {subtitle}
       <div className="bg-base rounded-xl p-3 flex items-center gap-3">
-        <PlayerPortrait player={p} size={48} />
-        <div className="flex-1 min-w-0">
-          <div className="text-primary font-bold truncate">{p.name}</div>
-          <div className="text-secondary text-[12px] mt-0.5 flex items-center gap-1">
-            {seller && <Crest club={seller} size={14} />}{seller?.name ?? 'Serbest oyuncu'} · {p.ratings.gen} GEN · {p.age} yaş
-          </div>
-        </div>
+        <PlayerPortrait player={p} size={44} /><div className="flex-1 min-w-0"><div className="text-primary font-bold truncate">{p.name}</div><div className="text-secondary text-[12px]">{seller?.name ?? 'Serbest oyuncu'} · {p.ratings.gen} GEN · {p.age} yaş</div></div>
         <div className="text-right"><div className="m26-overline">Piyasa</div><div className="num text-amber font-bold">₺{price.toFixed(1)}M</div></div>
       </div>
-      {!inWindow && <div role="alert" className="bg-danger/10 border border-danger/40 rounded-xl p-3 text-[12.5px] text-danger font-semibold">Pencere kapalı — kulüplü oyuncu alınamaz.</div>}
-
-      {stage === 0 && (
-        <div className="space-y-4">
-          {sceneHeader('Transfer masası', seller ? `${seller.short} ile şartları belirle` : 'Serbest oyuncu', 'market')}
-          <div className="grid grid-cols-2 gap-2">
-            <div className="rounded-xl border border-line bg-surface p-3"><div className="m26-overline">Satıcı beklentisi</div><div className="num text-primary font-bold mt-1">₺{sellerAsk.toFixed(1)}M</div></div>
-            <div className="rounded-xl border border-line bg-surface p-3"><div className="m26-overline">Senin toplam teklifin</div><div className="num text-primary font-bold mt-1">₺{offerValue.toFixed(1)}M</div></div>
-          </div>
-          <div>
-            <div className="flex justify-between text-[13px] mb-1.5"><span className="text-primary font-semibold">Nakit bonservis</span><span className={`num font-bold ${fee > tb ? 'text-danger' : 'text-amber'}`}>₺{fee.toFixed(1)}M</span></div>
-            <input aria-label="Nakit bonservis teklifi" type="range" min={Math.min(Math.max(0.3, price * 0.65), Math.max(tb, 1))} max={Math.max(Math.min(Math.max(tb, 1), price * 1.6), Math.min(Math.max(0.3, price * 0.65), Math.max(tb, 1)))} step={0.1} value={fee} onChange={(e) => setFee(+e.target.value)} className="w-full accent-amber h-6" />
-            <div className="text-secondary text-[12px] leading-relaxed">Değer ₺{price.toFixed(1)}M · {fee > tb ? 'Bütçe aşılıyor' : fair ? 'Teklif masada kabul edilebilir' : 'Satıcıdan karşı teklif gelebilir'} · TB ₺{tb.toFixed(1)}M</div>
-            <div className={`text-[12px] mt-1 font-semibold ${tb - fee >= 0 ? 'text-ok' : 'text-danger'}`}>Teklif sonrası bütçe: ₺{(tb - fee).toFixed(1)}M</div>
-          </div>
-
-          {!!seller && (
-            <div className="space-y-3 rounded-xl border border-line bg-surface p-3">
-              <div className="m26-overline">Oyuncu + nakit takası</div>
-              <select aria-label="Takas oyuncusu" value={swapId} onChange={(e) => setSwapId(e.target.value)} className="w-full min-h-touch bg-base border border-line rounded-lg px-2.5 text-[12.5px] text-primary">
-                <option value="">Oyuncu ekleme — yalnız nakit</option>
-                {swapOptions.map((x) => <option key={x.id} value={x.id}>{x.name} · {x.group} · takas değeri ₺{(playerValue(x, g.myLeague) * 0.85).toFixed(1)}M</option>)}
-              </select>
-              {swapPlayer && <p className="text-secondary text-[12px] leading-relaxed">{swapPlayer.name}, {seller.short} kadrosuna geçer; %85 takas değeri ₺{swapVal.toFixed(1)}M sayılır.</p>}
-              <div>
-                <div className="m26-overline mb-2">Sonraki satış payı</div>
-                <div className="grid grid-cols-5 gap-1.5">
-                  {([0, 10, 15, 20, 25] as const).map((pct) => <button type="button" key={pct} aria-pressed={sellOnPct === pct} onClick={() => setSellOnPct(pct)} className={`min-h-touch rounded-lg border text-[12px] font-bold ${sellOnPct === pct ? 'bg-amber text-base border-amber' : 'bg-base text-secondary border-line'}`}>{pct}%</button>)}
-                </div>
-                <p className="text-secondary text-[12px] mt-1.5 leading-relaxed">{sellOnPct ? `İlerideki satış bedelinin %${sellOnPct}’i satıcı kulübe gider; bu şarta karşılık satıcı bugünkü pazarlıkta yaklaşık ₺${sellOnValue.toFixed(2)}M kredi sayar.` : 'Satış payı yok. Bu madde yalnızca oyunculu kulüp transferinde sunulur.'}</p>
-              </div>
-            </div>
-          )}
-
-          <div>
-            <div className="flex justify-between text-[13px] mb-1.5"><span className="text-primary font-semibold">Aylık maaş</span><span className="num text-amber font-bold">₺{wage}B</span></div>
-            <input aria-label="Aylık maaş teklifi" type="range" min={p.wage} max={p.wage * 2.5} step={1} value={wage} onChange={(e) => setWage(+e.target.value)} className="w-full accent-amber h-6" />
-            <div className="text-secondary text-[12px]">Oyuncu taban talebi ₺{p.wage}B/ay · bütçe tavanı ₺{wageHeadroom}B/ay</div>
-          </div>
-
-          <div>
-            <div className="m26-overline mb-2">Sözleşme süresi</div>
-            <div className="grid grid-cols-4 gap-1.5">{([2, 3, 4, 5] as const).map((year) => <button type="button" key={year} aria-pressed={years === year} onClick={() => { setYears(year); setWage(Math.max(p.wage, Math.round(p.wage * STATUS_MUL[status] * YEAR_MUL[year] * (leaked ? 1.05 : 1)))); }} className={`min-h-touch rounded-lg text-[12px] font-bold border ${years === year ? 'bg-amber text-base border-amber' : 'bg-base text-secondary border-line'}`}>{year} yıl</button>)}</div>
-          </div>
-
-          <div>
-            <div className="m26-overline mb-2">Oyuncu rolü</div>
-            <div className="grid grid-cols-3 gap-1.5">{([['rotasyon', 'Rotasyon'], ['ilk11', 'İlk 11'], ['yildiz', 'Yıldız']] as const).map(([value, label]) => <button type="button" key={value} aria-pressed={status === value} onClick={() => { setStatus(value); setWage(Math.max(p.wage, Math.round(p.wage * STATUS_MUL[value] * YEAR_MUL[years] * (leaked ? 1.05 : 1)))); }} className={`min-h-touch rounded-lg text-[12px] font-bold border ${status === value ? 'bg-amber text-base border-amber' : 'bg-base text-secondary border-line'}`}>{label}</button>)}</div>
-            <p className="text-secondary text-[12px] mt-1.5 leading-relaxed">Yıldız rolü ilk 11 süresi sözüyle kaydedilir. Maaş talebi role ve süreye göre değişir.</p>
-          </div>
-
-          <div className={`rounded-xl p-3 text-[12.5px] border ${playerOk ? 'bg-ok/10 border-ok/40 text-ok' : 'bg-warn/10 border-warn/40 text-warn'}`}>
-            {playerOk ? `Oyuncu tarafı uygun · beklenen en az ₺${demandWage}B/ay` : `Oyuncu en az ₺${demandWage}B/ay bekliyor; şu an ₺${wage}B sunuluyor.`}
-          </div>
-          {wageBreach && <p role="alert" className="text-danger text-[12px] text-center">Maaş bütçesi aşılıyor — Kulüp → Finans bölümünden tavanı yükselt.</p>}
-          <div className="flex items-center justify-between rounded-lg bg-surface px-3 py-2 text-[12px] text-secondary"><span>Basına sızma riski</span><b className={leakRisk >= 30 ? 'text-warn' : 'text-ok'}>%{leakRisk}</b></div>
-          <Btn variant="amber" className="w-full" disabled={busy || fee > tb || !inWindow || wageBreach} onClick={guard(sendOffer)}>Teklifi Masaya Koy</Btn>
+      {seller ? <>
+        <div className="transfer-facts"><div><span>Satıcı beklentisi</span><strong>₺{sellerAsk.toFixed(2)}M</strong></div><div><span>Toplam teklif değeri</span><strong>₺{offerValue.toFixed(2)}M</strong></div></div>
+        <div>
+          <div className="flex justify-between text-[13px] mb-1.5"><span className="text-primary font-semibold">Nakit bonservis</span><span className={`num font-bold ${fee > tb ? 'text-danger' : 'text-amber'}`}>₺{fee.toFixed(2)}M</span></div>
+          <input aria-label="Nakit bonservis teklifi" type="range" min={0} max={Math.max(1, price * 1.6, tb)} step={0.1} value={fee} onChange={(e) => { setFee(+e.target.value); setSellerTone(null); voice.clear(); }} className="w-full accent-amber h-6" />
+          <div className="text-secondary text-[12px] leading-relaxed">{fee > tb ? 'Bütçe aşılıyor' : offerValue >= sellerAsk ? 'Toplam teklif satıcı beklentisine ulaşıyor' : 'Satıcıdan karşı teklif gelebilir'} · Transfer bütçesi ₺{tb.toFixed(1)}M</div>
+          <div className={`text-[12px] mt-1 font-semibold ${tb - fee >= 0 ? 'text-ok' : 'text-danger'}`}>Teklif sonrası bütçe: ₺{(Math.round((tb - fee) * 10) / 10).toFixed(1)}M</div>
         </div>
-      )}
-
-      {stage === 1 && (
-        <div className="space-y-4">
-          {sceneHeader('Yüz yüze görüşme', sellerWalked ? 'Temsilci masadan kalktı' : sellerAgreed ? 'Kulüpler el sıkıştı' : 'Karşı teklif geldi', sellerWalked ? 'info' : sellerAgreed ? 'check' : 'market')}
-          {seller && <div className="flex items-center gap-3 rounded-xl bg-surface p-3"><Crest club={seller} size={36} /><div className="flex-1"><div className="text-primary font-bold">{seller.name} temsilcisi</div><div className="text-secondary text-[12px]">Pazarlık turu {round} · sabır {patience}/3</div></div><div className="flex gap-1" aria-label={`Satıcı sabrı ${patience} / 3`}>{[0, 1, 2].map((index) => <span key={index} className={`w-2.5 h-2.5 rounded-full ${index < patience ? 'bg-ok' : 'bg-line'}`} />)}</div></div>}
-          <div className="rounded-xl border border-line bg-base p-3 space-y-2 text-[12.5px]">
-            <div className="flex justify-between"><span className="text-secondary">Nakit teklif</span><b className="num text-primary">₺{fee.toFixed(1)}M</b></div>
-            {swapPlayer && <div className="flex justify-between"><span className="text-secondary">Oyuncu takası</span><b className="text-primary truncate ml-2">{swapPlayer.name} · ₺{swapVal.toFixed(1)}M</b></div>}
-            {sellOnPct > 0 && <div className="flex justify-between"><span className="text-secondary">Gelecek satış payı</span><b className="text-primary">%{sellOnPct}</b></div>}
-            <div className="h-px bg-line" />
-            <div className="flex justify-between"><span className="text-secondary">Masadaki toplam değer</span><b className="num text-amber">₺{offerValue.toFixed(1)}M</b></div>
+        <div className="space-y-3 rounded-xl border border-line bg-surface p-3">
+          <div className="m26-overline">Oyuncu + nakit takası</div>
+          <select aria-label="Takas oyuncusu" value={swapId} onChange={(e) => { setSwapId(e.target.value); setSellerTone(null); voice.clear(); }} className="w-full min-h-touch bg-base border border-line rounded-lg px-2.5 text-[12.5px] text-primary">
+            <option value="">Oyuncu ekleme — yalnız nakit</option>
+            {swapOptions.map((x) => <option key={x.id} value={x.id}>{x.name} · {x.group} · takas değeri ₺{(playerValue(x, g.myLeague) * 0.85).toFixed(1)}M</option>)}
+          </select>
+          {swapPlayer && <p className="text-secondary text-[12px] leading-relaxed">{swapPlayer.name}, {seller.short} kadrosuna geçer; ₺{swapVal.toFixed(1)}M takas değeri sayılır.</p>}
+          <div><div className="m26-overline mb-2">Sonraki satış payı</div><div className="grid grid-cols-5 gap-1.5">{([0, 10, 15, 20, 25] as const).map((pct) => <button type="button" key={pct} aria-pressed={sellOnPct === pct} onClick={() => { setSellOnPct(pct); setSellerTone(null); voice.clear(); }} className={`min-h-touch rounded-lg border text-[12px] font-bold ${sellOnPct === pct ? 'bg-amber text-base border-amber' : 'bg-base text-secondary border-line'}`}>{pct}%</button>)}</div>
+            <p className="text-secondary text-[12px] mt-1.5 leading-relaxed">{sellOnPct ? `İlerideki satış bedelinin %${sellOnPct}’i satıcıya gider; bugün yaklaşık ₺${sellOnValue.toFixed(2)}M pazarlık kredisi sayılır.` : 'Satış payı yok. Bu madde yalnızca kulüplü oyuncu transferinde sunulur.'}</p>
           </div>
-          {leaked && <div role="status" className="rounded-lg bg-warn/10 border border-warn/40 p-3 text-warn text-[12px]">Görüşme basına sızdı. Oyuncunun maaş talebi %5 yükseldi; haber gelen kutuna düştü.</div>}
-          {sellerWalked ? (
-            <div className="space-y-3"><p className="text-secondary text-[13px] leading-relaxed">Teklif, kulübün son rezervasyon değerinin altında kaldı. Bu görüşme kapandı; yeni bir deneme için masayı yeniden aç.</p><div className="grid grid-cols-2 gap-2"><Btn variant="secondary" onClick={() => onDone(false, 'Görüşme sonlandırıldı.')}>Vazgeç</Btn><Btn variant="amber" onClick={() => { setRound(0); setPatience(3); setSellerAsk(Math.round(price * 1.2 * 100) / 100); setSellerWalked(false); setSellerAgreed(false); setStage(0); }}>Yeni Görüşme</Btn></div></div>
-          ) : sellerAgreed ? (
-            <div className="space-y-3"><div className="rounded-lg bg-ok/10 border border-ok/40 p-3 text-ok text-[13px]">Kulüp şartları kabul etti. {playerOk ? 'Oyuncu da maaş ve rolü kabul ediyor.' : `Oyuncu en az ₺${demandWage}B/ay istiyor; sözleşme şartlarını düzenle.`}</div><Btn variant="amber" className="w-full" disabled={busy || !playerOk || wageBreach || fee > tb} onClick={guard(() => signDeal(fee))}>Sözleşmeyi İmzala</Btn><Btn variant="secondary" className="w-full" onClick={() => setStage(0)}>Şartları Gözden Geçir</Btn></div>
-          ) : (
-            <div className="space-y-3"><div className="rounded-lg bg-warn/10 border border-warn/40 p-3"><div className="text-warn font-bold text-[13px]">Satıcının karşı teklifi: ₺{sellerAsk.toFixed(1)}M toplam değer</div><p className="text-secondary text-[12px] mt-1">Bu tutar takas oyuncusu ve satış payı düşüldükten sonra ₺{counterFee.toFixed(1)}M nakde karşılık gelir. Sabır göstergesi: {patience}/3.</p></div><Btn variant="amber" className="w-full" disabled={busy || counterFee > tb || !playerOk || wageBreach} onClick={guard(() => signDeal(counterFee))}>Karşı Teklifi Kabul Et · Sözleşmeyi İmzala</Btn><Btn variant="secondary" className="w-full" onClick={() => setStage(0)}>Şartları Yeniden Düzenle</Btn></div>
-          )}
         </div>
-      )}
+        <div><h3 className="text-primary text-[14px] font-bold mb-2">Masada ne söyleyeceksin?</h3>{replyChoices('seller')}<p className="text-muted text-[11px] mt-2">İndirimler görüşme boyunca oyuncu değerinin toplam %3’üyle sınırlı; en fazla bir ek sabır kaybı olabilir.</p></div>
+      </> : <div className="rounded-xl bg-ok/10 border border-ok/40 p-3 text-ok text-[13px] font-semibold">Serbest oyuncu: kulüp bonservisi veya takas yok. Doğrudan sözleşme görüşmesine geç.</div>}
+      <div className="flex items-center justify-between rounded-lg bg-surface px-3 py-2 text-[12px] text-secondary"><span>Basına sızma riski</span><b className={leakRisk >= 30 ? 'text-warn' : 'text-ok'}>%{leakRisk}</b></div>
+      <Btn variant="amber" testId="transfer-send-seller" className="w-full" disabled={fee > tb || !inWindow || (!!seller && !sellerTone)} onClick={sendOffer}>{seller ? 'Teklifi Masaya Koy' : 'Oyuncuyla Görüşmeye Başla'}</Btn>
+    </div>}
 
-      {stage === 2 && (
-        <div className="space-y-4 text-center">
-          {sceneHeader('Transfer tamamlandı', 'İmza atıldı', 'check')}
-          <div className="rounded-2xl border border-ok/40 bg-ok/10 p-4">
-            <div className="flex items-center justify-center gap-3"><PlayerPortrait player={{ ...p, clubId: g.myClub.id }} size={58} /><div className="text-left"><div className="text-ok font-display text-[18px] font-bold">{p.name}</div><div className="text-secondary text-[12px]">{seller?.name ?? 'Serbest statü'} → {g.myClub.name}</div></div></div>
-            <div className="grid grid-cols-2 gap-2 mt-4 text-left">
-              <div className="rounded-lg bg-base/70 p-2"><div className="m26-overline">Nakit</div><div className="num text-primary font-bold">₺{signedFee.toFixed(1)}M</div></div>
-              <div className="rounded-lg bg-base/70 p-2"><div className="m26-overline">Maaş / süre</div><div className="num text-primary font-bold">₺{wage}B · {years} yıl</div></div>
-              <div className="rounded-lg bg-base/70 p-2"><div className="m26-overline">Oyuncu rolü</div><div className="text-primary font-bold">{playerLabel}</div></div>
-              <div className="rounded-lg bg-base/70 p-2"><div className="m26-overline">Geri alım</div><div className="text-primary font-bold">Yok</div></div>
-            </div>
-            {swapPlayer && <p className="text-secondary text-[12px] mt-3">Takas: {swapPlayer.name} → {seller?.short ?? 'satıcı kulüp'}.</p>}
-            {sellOnPct > 0 && <p className="text-secondary text-[12px] mt-2">Sonraki satışta % {sellOnPct} pay, {seller?.short ?? 'satıcı kulüp'} lehine kaydedildi.</p>}
-            <p className="text-muted text-[11px] mt-2">Şartlar transfer geçmişine işlendi ve kariyer kaydına eklendi.</p>
-          </div>
-          <Btn variant="amber" className="w-full min-h-touch" onClick={() => { onDone(true, `${p.name} kadroya katıldı.`); onHome?.(); }}>Ana Merkeze Dön</Btn>
-          <Btn variant="secondary" className="w-full" onClick={() => onDone(true, `${p.name} kadroya katıldı.`)}>Piyasada Kal</Btn>
-        </div>
-      )}
-    </div>
-  );
+    {stage === 'seller' && <div className="space-y-4">
+      {theatre('seller')}{subtitle}
+      {seller && <div className="flex items-center gap-3 rounded-xl bg-surface p-3"><Crest club={seller} size={36} /><div className="flex-1"><div className="text-primary font-bold">{seller.name} temsilcisi</div><div className="text-secondary text-[12px]">Pazarlık turu {round} · sabır {patience}/3</div></div><div className="flex gap-1" aria-label={`Satıcı sabrı ${patience} / 3`}>{[0, 1, 2].map((index) => <span key={index} className={`w-2.5 h-2.5 rounded-full ${index < patience ? 'bg-ok' : 'bg-line'}`} />)}</div></div>}
+      <div className="transfer-facts"><div><span>Nakit teklif</span><strong>₺{fee.toFixed(2)}M</strong></div><div><span>Masadaki toplam değer</span><strong>₺{offerValue.toFixed(2)}M</strong></div></div>
+      {swapPlayer && <p className="text-secondary text-[12px]">Takas: {swapPlayer.name} · ₺{swapVal.toFixed(1)}M. {sellOnPct > 0 ? `Satış payı: %${sellOnPct}.` : ''}</p>}
+      {!swapPlayer && sellOnPct > 0 && <p className="text-secondary text-[12px]">Sonraki satış payı: %{sellOnPct}.</p>}
+      {leakNotice}
+      {sellerWalked ? <div className="space-y-3"><p className="text-secondary text-[13px] leading-relaxed">Kulüp bu şartlarda masadan kalktı. Yeni bir görüşme açabilir veya vazgeçebilirsin.</p><div className="grid grid-cols-2 gap-2"><Btn variant="secondary" onClick={onCancel}>Vazgeç</Btn><Btn variant="amber" onClick={newMeeting}>Yeni Görüşme</Btn></div></div>
+        : sellerAgreed ? <div className="space-y-3"><div className="rounded-lg bg-ok/10 border border-ok/40 p-3 text-ok text-[13px]">Kulüp şartları kabul etti. Transfer henüz tamamlanmadı; sırada oyuncunun sözleşmesi var.</div><Btn variant="amber" testId="transfer-meet-player" className="w-full" onClick={() => goPlayer(fee)}>Oyuncuyla Görüş</Btn><Btn variant="secondary" className="w-full" onClick={goOffer}>Kulüp Şartlarını Düzenle</Btn></div>
+        : <div className="space-y-3"><div className="rounded-lg bg-warn/10 border border-warn/40 p-3"><div className="text-warn font-bold text-[13px]">Satıcının karşı teklifi: ₺{sellerAsk.toFixed(2)}M toplam değer</div><p className="text-secondary text-[12px] mt-1">Takas ve satış payı düşüldüğünde nakit ₺{counterFee.toFixed(2)}M. Sabır: {patience}/3.</p>{counterFee > tb && <p role="alert" className="text-danger text-[12px] mt-1">Karşı teklif transfer bütçesini aşıyor.</p>}</div><Btn variant="amber" testId="transfer-accept-counter" className="w-full" disabled={counterFee > tb || !inWindow} onClick={() => goPlayer(counterFee)}>Karşı Teklifi Kabul Et · Oyuncuyla Görüş</Btn><Btn variant="secondary" className="w-full" onClick={goOffer}>Şartları Yeniden Düzenle</Btn></div>}
+    </div>}
+
+    {stage === 'player' && <div className="space-y-4">
+      {theatre('player')}{subtitle}{leakNotice}
+      <div className="rounded-xl border border-line bg-surface p-3 text-[12px] text-secondary">{seller ? `${seller.name} ile nakit ₺${(agreedFee ?? 0).toFixed(2)}M üzerinde anlaşıldı.` : 'Serbest oyuncu ile sözleşme görüşmesi · bonservis ₺0M.'} İmza henüz atılmadı.</div>
+      <div><div className="flex justify-between text-[13px] mb-1.5"><span className="text-primary font-semibold">Aylık maaş teklifi</span><span className="num text-amber font-bold">₺{wage}B</span></div>
+        <input aria-label="Aylık maaş teklifi" type="range" min={p.wage} max={Math.max(p.wage, Math.ceil(p.wage * 2.5))} step={1} value={wage} onChange={(e) => { setWage(+e.target.value); clearPlayerResponse(); }} className="w-full accent-amber h-6" />
+        <div className="text-secondary text-[12px]">Oyuncunun güncel beklentisi ₺{demandWage}B/ay · bütçe tavanı ₺{wageHeadroom}B/ay</div>
+      </div>
+      <div><div className="m26-overline mb-2">Sözleşme süresi</div><div className="grid grid-cols-4 gap-1.5">{([2, 3, 4, 5] as const).map((year) => <button type="button" key={year} aria-pressed={years === year} onClick={() => { setYears(year); setWage(Math.max(p.wage, Math.round(p.wage * STATUS_MUL[status] * YEAR_MUL[year] * (leaked ? 1.05 : 1)))); clearPlayerResponse(); }} className={`min-h-touch rounded-lg text-[12px] font-bold border ${years === year ? 'bg-amber text-base border-amber' : 'bg-base text-secondary border-line'}`}>{year} yıl</button>)}</div></div>
+      <div><div className="m26-overline mb-2">Oyuncu rolü</div><div className="grid grid-cols-3 gap-1.5">{([['rotasyon', 'Rotasyon'], ['ilk11', 'İlk 11'], ['yildiz', 'Yıldız']] as const).map(([value, label]) => <button type="button" key={value} aria-pressed={status === value} onClick={() => { setStatus(value); setWage(Math.max(p.wage, Math.round(p.wage * STATUS_MUL[value] * YEAR_MUL[years] * (leaked ? 1.05 : 1)))); clearPlayerResponse(); }} className={`min-h-touch rounded-lg text-[12px] font-bold border ${status === value ? 'bg-amber text-base border-amber' : 'bg-base text-secondary border-line'}`}>{label}</button>)}</div><p className="text-secondary text-[12px] mt-1.5 leading-relaxed">Yıldız rolü 10 maçlık süre sözüyle kaydedilir. Maaş talebi role ve süreye göre değişir.</p></div>
+      {wageBreach && <p role="alert" className="text-danger text-[12px]">Maaş bütçesi aşılıyor — Kulüp → Finans bölümünden tavanı yükselt.</p>}
+      {playerResponse && <div role="status" className={`rounded-xl p-3 text-[12.5px] border ${playerResponse.accepted ? 'bg-ok/10 border-ok/40 text-ok' : 'bg-warn/10 border-warn/40 text-warn'}`}>{playerResponse.accepted ? `Oyuncu ₺${wage}B/ay teklifini kabul etti. İmzadan önce sözleşmeyi inceleyebilirsin.` : `Oyuncu şu anda en az ₺${playerResponse.demand}B/ay bekliyor; teklifini veya rolü gözden geçir.`}</div>}
+      {playerResponse?.accepted ? <Btn variant="amber" testId="transfer-review" className="w-full" onClick={() => { voice.play(signingReadyLine); setStage('review'); }}>Sözleşmeyi Gözden Geçir</Btn> : <>
+        <div><h3 className="text-primary text-[14px] font-bold mb-2">Oyuncuya ne söyleyeceksin?</h3>{replyChoices('player')}<p className="text-muted text-[11px] mt-2">Her üslup bir kez etkili olabilir; toplam ücret indirimi beklentinin en fazla %3’üdür.</p></div>
+        <Btn variant="amber" testId="transfer-send-player" className="w-full" disabled={!playerTone || wageBreach} onClick={sendPlayerOffer}>Sözleşme Teklifini Sun</Btn>
+      </>}
+      {seller && <Btn variant="secondary" className="w-full" onClick={goOffer}>Kulüp Şartlarına Dön</Btn>}
+    </div>}
+
+    {stage === 'review' && agreedFee !== null && <div className="space-y-4">
+      {theatre('player')}{subtitle}
+      <div className="rounded-xl border border-line bg-surface p-3 space-y-3"><h3 className="font-display text-primary text-[17px] font-bold">İmza öncesi son kontrol</h3><p className="text-secondary text-[12px]">{p.name} · {seller?.name ?? 'Serbest statü'} → {g.myClub.name}</p>{termsFacts(agreedFee)}
+        {swapPlayer && <p className="text-secondary text-[12px]">Takas: {swapPlayer.name} → {seller?.name}.</p>}{sellOnPct > 0 && <p className="text-secondary text-[12px]">Sonraki satıştan %{sellOnPct} satıcı kulübe.</p>}
+        <p className="text-secondary text-[12px]">İmzadan sonra transfer bütçesi: ₺{(Math.round((tb - agreedFee) * 10) / 10).toFixed(1)}M · Yabancı kadrosu (takas sonrası): {foreignCount}/{quota}.</p>
+        <p className="text-muted text-[11px]">İmzaya basmadan oyuncu kadroya eklenmez ve transfer bütçesi düşmez.</p>
+      </div>
+      {quotaBreach && <p role="alert" className="text-danger text-[12px]">Yabancı kotası dolu ({foreignCount}/{quota}). Bir yabancıyla yolları ayır veya yabancı oyuncu takas et.</p>}
+      {squadFull && <p role="alert" className="text-danger text-[12px]">Kadro üst sınırı 30. Önce satış yap veya takasla yer aç.</p>}
+      {wageBreach && <p role="alert" className="text-danger text-[12px]">Maaş bütçesi aşılıyor.</p>}
+      <Btn variant="amber" testId="transfer-sign" className="w-full" disabled={quotaBreach || squadFull || wageBreach || agreedFee > tb || !inWindow} onClick={signDeal}>Sözleşmeyi İmzala</Btn>
+      <Btn variant="secondary" className="w-full" onClick={() => { clearPlayerResponse(); setStage('player'); }}>Oyuncu Şartlarını Düzenle</Btn>
+      {seller && <Btn variant="secondary" className="w-full" onClick={goOffer}>Kulüp Şartlarını Düzenle</Btn>}
+    </div>}
+
+    {stage === 'signed' && <div className="space-y-4" data-testid="transfer-complete" data-reveal-tier={reveal}>
+      {theatre('reveal')}{subtitle}
+      <div className="rounded-2xl border border-ok/40 bg-ok/10 p-4 space-y-3">
+        <div className="flex items-center gap-3"><PlayerPortrait player={{ ...p, clubId: g.myClub.id }} size={52} /><div><div className="text-ok font-display text-[18px] font-bold">{p.name} · imza atıldı</div><div className="text-secondary text-[12px]">{seller?.name ?? 'Serbest statü'} → {g.myClub.name}</div></div></div>
+        {termsFacts(signedFee)}
+        <div className="transfer-facts"><div><span>Kalan transfer bütçesi</span><strong>₺{signedBudget.toFixed(1)}M</strong></div><div><span>Kalan maaş alanı</span><strong>₺{signedWageRoom}B / ay</strong></div></div>
+        <div className="rounded-lg bg-base/70 p-2"><div className="m26-overline">Geri alım</div><div className="text-primary font-bold">Yok</div></div>
+        {signedSwap && <p className="text-secondary text-[12px]">Takas: {signedSwap.name} → {seller?.short ?? 'satıcı kulüp'}.</p>}
+        {sellOnPct > 0 && <p className="text-secondary text-[12px]">Sonraki satışta %{sellOnPct} pay {seller?.short ?? 'satıcı kulüp'} lehine kaydedildi.</p>}
+        <p className="text-secondary text-[12px]">Görüşme öncesinde {G_SHORT[p.group] ?? p.group} bölgesinde {samePosition.length} oyuncu vardı{bestPositionGen === null ? '.' : `; en yüksek güç ${bestPositionGen} GEN idi.`}</p>
+        <p className="text-muted text-[11px]">Transfer, maaş ve sözleşme süresi kariyer kaydına işlendi.</p>
+      </div>
+      <Btn variant="secondary" testId="transfer-announcement" className="w-full" onClick={() => voice.play(transferAnnouncement(reveal, voiceKey))}>🎙 Tanıtım Anonsunu Dinle</Btn>
+      <Btn variant="amber" className="w-full min-h-touch" onClick={() => { onDone(true, `${p.name} kadroya katıldı.`); onHome?.(); }}>Ana Merkeze Dön</Btn>
+      <Btn variant="secondary" className="w-full" onClick={() => onDone(true, `${p.name} kadroya katıldı.`)}>Piyasada Kal</Btn>
+    </div>}
+  </div>;
 };

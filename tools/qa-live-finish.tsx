@@ -27,18 +27,35 @@ import { createRoot } from 'react-dom/client';
 import { GameProvider, useGame } from '../src/store/game';
 import { MatchSession } from '../src/engine/session';
 
-// Arıza enjeksiyonu: HM26_FAULT=retry|finish → 8. step çağrısında tek seferlik istisna fırlat
+// Arıza enjeksiyonu: HM26_FAULT=retry|finish → 8. step çağrısında tek seferlik istisna fırlat.
+// HM26_HALFTIME_BATCH=trailing|decision: devre düdüğünden sonra aynı adımda başka olay üret.
 const faultMode = process.env.HM26_FAULT;
-if (faultMode) {
+const halftimeBatch = process.env.HM26_HALFTIME_BATCH;
+let halftimeInjected = false;
+const successfulTalks: string[] = [];
+if (faultMode || halftimeBatch) {
   const origStep = MatchSession.prototype.step;
   let calls = 0;
   MatchSession.prototype.step = function patchedStep(...args: any[]) {
     calls += 1;
-    if (calls >= 8) {
+    if (faultMode && calls >= 8) {
       // fatal modunda bir daha hiç düzelmez; diğer modlarda tek seferlik
       if (faultMode === 'fatal' || calls === 8) throw new Error('ENJEKTE_EDİLMİŞ_ADIM_HATASI');
     }
-    return origStep.apply(this, args as any);
+    const events = origStep.apply(this, args as any);
+    if (halftimeBatch && events.some((e) => e.kind === 'half' && e.minute === 45)) {
+      halftimeInjected = true;
+      events.push({ minute: 45, kind: halftimeBatch === 'decision' ? 'card' : 'info', text: 'QA: düdükten sonraki aynı adım olayı.' });
+    }
+    return events;
+  };
+}
+if (halftimeBatch) {
+  const origTalk = MatchSession.prototype.applyTeamTalk;
+  MatchSession.prototype.applyTeamTalk = function patchedTalk(side, choice) {
+    const accepted = origTalk.call(this, side, choice);
+    if (accepted) successfulTalks.push(choice);
+    return accepted;
   };
 }
 
@@ -51,7 +68,8 @@ const clickByText = async (patterns: RegExp[]) => {
   for (const btn of buttons) {
     if (btn.disabled) continue; // jsdom'da layout yok; offsetParent kontrolü yapma
     const txt = (btn.textContent ?? '').trim();
-    if (patterns.some((p) => p.test(txt))) {
+    const ariaLabel = btn.getAttribute('aria-label') ?? '';
+    if (patterns.some((p) => p.test(txt) || p.test(ariaLabel))) {
       await act(async () => { btn.click(); });
       await tick(60);
       return true;
@@ -111,6 +129,8 @@ function Harness({ done }: { done: (report: string[]) => void }) {
         let finished = false;
         let lastClock = '';
         let coachChecked = false;
+        let halftimeDialogs = 0;
+        let batchDecisionSeen = false;
         while (Date.now() - startedAt < 60000) {
           // arıza kurtarma paneli
           if (/Maç akışı beklenmedik bir sorun/.test(dom.window.document.body.textContent ?? '')) {
@@ -128,8 +148,22 @@ function Harness({ done }: { done: (report: string[]) => void }) {
               return;
             }
           }
-          // açılan sheet/kararları otomatik kapat (sakatlıkta bekle tercihi)
-          await clickByText([/Sessiz kal/, /Dönüşünü bekle/, /Devam Et/, /Kapat$/]);
+          // Devre olayının, aynı step'te onu izleyen olaylar olsa da bir kez açıldığını
+          // gerçek bileşenle sınarken konuşma sırasında saatin durduğunu da doğrula.
+          const dialogText = Array.from(dom.window.document.querySelectorAll('[role="dialog"]')).map((el) => el.textContent ?? '').join(' ');
+          if (halftimeBatch && /QA: düdükten sonraki aynı adım olayı/.test(dialogText)) batchDecisionSeen = true;
+          if (halftimeBatch && /Devre Arası · Soyunma Odası/.test(dialogText)) {
+            halftimeDialogs++;
+            const before = dom.window.document.querySelector('[role="timer"]')?.textContent;
+            await tick(350);
+            const after = dom.window.document.querySelector('[role="timer"]')?.textContent;
+            log.push(before === after ? '✅ Devre konuşması boyunca maç saati durdu' : '❌ Devre konuşması sırasında maç saati ilerledi');
+            const selected = await clickByText([/Sakinleştir/]);
+            log.push(selected && successfulTalks.join(',') === 'calm' ? '✅ Devre tercihi motora bir kez uygulandı' : '❌ Devre tercihi uygulanmadı');
+          } else {
+            // açılan sheet/kararları otomatik kapat (sakatlıkta bekle tercihi)
+            await clickByText([/Sessiz kal/, /Dönüşünü bekle/, /Devam Et/, /Kapat$/]);
+          }
           const body = dom.window.document.body.textContent ?? '';
           const timer = dom.window.document.querySelector('[role="timer"]')?.textContent ?? '';
           if (timer && timer !== lastClock) { lastClock = timer; log.push('akış: ' + timer.replace(/\s+/g, ' ')); }
@@ -150,6 +184,12 @@ function Harness({ done }: { done: (report: string[]) => void }) {
           }
           if (/Maç Sonu Röportajına Geç/.test(body)) { finished = true; break; }
           await tick(200);
+        }
+        if (halftimeBatch) {
+          log.push(halftimeInjected && halftimeDialogs === 1 && successfulTalks.length === 1
+            ? '✅ Aynı adımdaki sonraki olay devre konuşmasını gizlemedi; konuşma yalnız bir kez açıldı'
+            : `❌ Devre kontrolü başarısız: enjekte=${halftimeInjected}, pencere=${halftimeDialogs}, tercih=${successfulTalks.length}`);
+          if (halftimeBatch === 'decision') log.push(batchDecisionSeen ? '✅ Aynı adımdaki karar da devre konuşmasından önce gösterildi' : '❌ Aynı adımdaki karar gösterilmedi');
         }
         log.push(finished ? '✅ Maç tamamlandı, röportaja geçiş butonu belirdi (otomatik geçiş yok)' : '❌ 60sn içinde maç tamamlanmadı (donmuş olabilir)');
         if (!finished) { done(log); return; }
