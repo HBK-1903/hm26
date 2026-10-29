@@ -43,6 +43,7 @@ try {
   if (!existsSync(`${root}/node_modules/.bin/tsc`)) run('Install locked dependencies', 'npm', ['ci'], 300_000);
   run('Production build + TypeScript + offline manifest', 'npm', ['run', 'build'], 300_000);
   run('PWA headers, manifest, icons and update lifecycle', 'npm', ['run', 'qa:pwa'], 120_000);
+  run('Project-local security skill installation checks (not an audit)', 'npm', ['run', 'qa:security-skill'], 60_000);
 
   const core = [
     ['Core integrity / serialization QA (11 tests)', ['tsx', 'tools/qa.ts']],
