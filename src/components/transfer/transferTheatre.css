@@ -16,12 +16,20 @@
 .transfer-theatre__actors { position:absolute; inset:33px 7% 36px; display:flex; justify-content:center; align-items:flex-end; gap:4%; z-index:1; }
 .transfer-theatre__actor { display:flex; flex-direction:column; align-items:center; justify-content:flex-end; width:32%; max-width:112px; height:100%; filter:drop-shadow(0 5px 6px rgba(0,0,0,.55)); }
 .transfer-theatre__actor > span { display:block; margin-top:-4px; padding:2px 7px; border:1px solid rgba(255,255,255,.2); border-radius:999px; background:rgba(7,16,28,.84); color:#f5ecd9; font-size:7px; font-weight:900; letter-spacing:.11em; z-index:2; }
-.transfer-puppet { width:100%; max-height:100%; transform-origin:50% 100%; animation: transfer-breathe 3.6s ease-in-out infinite; }
+.transfer-theatre__actor.is-speaking > span { color:#fff8dc; border-color:#f3c875; background:rgba(70,44,18,.94); box-shadow:0 0 12px #f3c87555; }
+.transfer-puppet { width:100%; max-height:100%; transform-origin:50% 100%; animation:transfer-breathe 5.2s ease-in-out infinite; }
+.transfer-puppet--opponent { animation-duration:4.7s; animation-delay:-2.3s; }
 .transfer-puppet svg { display:block; width:100%; max-height:155px; overflow:visible; }
-.transfer-puppet__head { transform-origin:64px 85px; animation:transfer-head 5.5s ease-in-out infinite; }
-.transfer-puppet__mouth { opacity:0; }
-.transfer-puppet.is-talking .transfer-puppet__head { animation:transfer-talking 0.68s ease-in-out infinite; }
-.transfer-puppet.is-talking .transfer-puppet__mouth { opacity:1; animation:transfer-mouth .32s ease-in-out infinite alternate; transform-origin:64px 74px; }
+.transfer-puppet__torso { transform-origin:64px 126px; }
+.transfer-puppet__head { transform-origin:64px 85px; animation:transfer-head 6s ease-in-out infinite; }
+.transfer-puppet--opponent .transfer-puppet__head { animation-duration:6.8s; animation-delay:-2.1s; }
+.transfer-puppet__expression { transform-origin:64px 85px; }
+.transfer-puppet__eyes { transform-origin:64px 54px; animation:transfer-blink 5.9s ease-in-out infinite; }
+.transfer-puppet--opponent .transfer-puppet__eyes { animation-duration:6.6s; animation-delay:-2.6s; }
+.transfer-puppet__open-mouth { opacity:0; transform-origin:64px 74px; }
+.transfer-puppet.is-talking .transfer-puppet__expression { animation:transfer-talking 1.35s ease-in-out infinite; }
+.transfer-puppet.is-talking .transfer-puppet__closed-mouth { opacity:0; }
+.transfer-puppet.is-talking .transfer-puppet__open-mouth { opacity:1; animation:transfer-mouth .72s ease-in-out infinite; }
 .transfer-theatre__shirt { width:18%; max-width:60px; margin-bottom:18px; filter:drop-shadow(0 4px 6px #0009); animation:transfer-shirt 3s ease-in-out infinite; }
 .transfer-theatre__shirt svg { width:100%; display:block; }
 .transfer-theatre__foot { position:absolute; inset:auto 0 0; height:30%; background:linear-gradient(0deg,rgba(4,10,19,.9),transparent); z-index:1; pointer-events:none; }
@@ -36,11 +44,23 @@
 .transfer-theatre__confetti i { position:absolute; width:4px; height:8px; top:-12%; left:calc((var(--i) * 7%) + 2%); background:var(--transfer-trim); opacity:.85; transform:rotate(25deg); animation:transfer-confetti 4.7s linear infinite; animation-delay:calc(var(--i) * -.31s); }
 .transfer-theatre__confetti i:nth-child(3n) { background:#efd28b; width:3px; height:6px; }
 .transfer-theatre__confetti i:nth-child(3n+1) { background:var(--transfer-club); }
+/* This overlay occupies no layout height: it never jumps the form while a voice starts. */
+.transfer-floating-cue { position:sticky; top:0; height:0; z-index:15; }
+.transfer-floating-cue + * { margin-top:0 !important; }
+.transfer-floating-cue__card { position:absolute; top:4px; left:0; right:0; display:flex; align-items:center; gap:9px; min-height:58px; padding:5px 6px; border:1px solid #ac854a; border-radius:13px; color:#fff8ed; background:rgba(19,31,36,.97); box-shadow:0 5px 16px #0006; }
+.transfer-floating-cue__portrait { width:41px; height:45px; flex:none; overflow:hidden; border-radius:9px; background:#34483b; }
+.transfer-floating-cue__portrait .transfer-puppet { width:45px; margin:-1px auto 0; }
+.transfer-floating-cue__announcer { width:41px; text-align:center; font-size:21px; flex:none; }
+.transfer-floating-cue__copy { display:flex; flex:1; min-width:0; flex-direction:column; gap:1px; }
+.transfer-floating-cue__copy b { color:#f3c875; font-size:9px; letter-spacing:.08em; text-transform:uppercase; }
+.transfer-floating-cue__copy span { font-size:11px; line-height:1.25; font-weight:700; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+.transfer-floating-cue__card button { min-width:40px; min-height:40px; flex:none; border-radius:8px; color:#fff8ed; font-size:21px; }
+.transfer-floating-cue__card button:hover { background:#ffffff18; }
 .transfer-dialogue { border-radius:14px; border:1px solid var(--c-line); background:var(--c-surface); padding:10px 12px; }
-.transfer-dialogue__top { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.transfer-dialogue__top { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:4px 8px; }
 .transfer-dialogue__top > span { font-size:10px; color:var(--c-muted); font-weight:900; letter-spacing:.08em; text-transform:uppercase; }
 .transfer-dialogue__top > div { display:flex; align-items:center; gap:7px; }
-.transfer-dialogue__top button { min-height:34px; padding:3px 5px; border-radius:7px; color:var(--c-secondary); font-weight:800; font-size:10px; }
+.transfer-dialogue__top button { min-height:40px; min-width:40px; padding:3px 6px; border-radius:7px; color:var(--c-secondary); font-weight:800; font-size:10px; }
 .transfer-dialogue__top button:hover { background:var(--c-elevated); }
 .transfer-dialogue p { color:var(--c-primary); font-size:12.5px; line-height:1.4; font-weight:650; margin:5px 0 0; }
 .transfer-replies { display:grid; gap:7px; }
@@ -53,13 +73,14 @@
 .transfer-facts > div { background:var(--c-base); border:1px solid var(--c-line); border-radius:10px; padding:9px 10px; }
 .transfer-facts span { display:block; color:var(--c-muted); font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; }
 .transfer-facts strong { display:block; color:var(--c-primary); font-size:13px; margin-top:3px; overflow-wrap:anywhere; }
-@keyframes transfer-breathe { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-2px); } }
-@keyframes transfer-head { 0%,100% { transform:rotate(-1deg); } 50% { transform:rotate(1.5deg); } }
-@keyframes transfer-talking { 0%,100% { transform:rotate(-2deg) translateY(0); } 50% { transform:rotate(2deg) translateY(-1px); } }
-@keyframes transfer-mouth { from { transform:scaleY(.3); } to { transform:scaleY(1.2); } }
+@keyframes transfer-breathe { 0%,100% { transform:scaleY(1); } 50% { transform:scaleY(1.012) translateY(-.6px); } }
+@keyframes transfer-head { 0%,100% { transform:rotate(-.7deg); } 50% { transform:rotate(1deg); } }
+@keyframes transfer-blink { 0%,44%,48%,100% { transform:scaleY(1); } 46% { transform:scaleY(.08); } }
+@keyframes transfer-talking { 0%,100% { transform:rotate(0); } 26% { transform:rotate(-1.4deg) translateY(-.5px); } 63% { transform:rotate(.8deg); } }
+@keyframes transfer-mouth { 0%,100% { transform:scaleY(.22); } 12% { transform:scaleY(.9); } 23% { transform:scaleY(.42); } 36% { transform:scaleY(1); } 49% { transform:scaleY(.3); } 62% { transform:scaleY(.78); } 78% { transform:scaleY(.35); } 90% { transform:scaleY(.85); } }
 @keyframes transfer-shirt { 0%,100% { transform:rotate(-2deg) translateY(0); } 50% { transform:rotate(2deg) translateY(-3px); } }
 @keyframes transfer-lights { 0%,100% { opacity:.7; } 50% { opacity:1; } }
 @keyframes transfer-confetti { 0% { transform:translateY(-8px) rotate(0); } 100% { transform:translateY(320px) rotate(360deg); } }
 @media (max-width:340px) { .transfer-theatre__caption { grid-template-columns:minmax(0,1fr) auto; } .transfer-theatre__caption span { display:none; } .transfer-theatre__actors { inset-inline:3%; } }
-html.m26-rm .transfer-theatre *, html.m26-rm .transfer-theatre *::before, html.m26-rm .transfer-theatre *::after { animation:none !important; }
-@media (prefers-reduced-motion:reduce) { .transfer-theatre *, .transfer-theatre *::before, .transfer-theatre *::after { animation:none !important; } }
+html.m26-rm .transfer-theatre *, html.m26-rm .transfer-theatre *::before, html.m26-rm .transfer-theatre *::after, html.m26-rm .transfer-floating-cue * { animation:none !important; }
+@media (prefers-reduced-motion:reduce) { .transfer-theatre *, .transfer-theatre *::before, .transfer-theatre *::after, .transfer-floating-cue * { animation:none !important; } }

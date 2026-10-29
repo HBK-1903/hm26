@@ -3,6 +3,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { DemoFixture, TacticPlan, TableRow } from '../types';
 import type { EngineShot, MatchStats } from '../engine/engine';
 import type { HeatPoint, PitchEvent, PitchRuntime, TeamDots } from '../components/assets/PhaserPitch';
+import { pitchTeamColors } from '../components/assets/pitchPresentation';
 import { toStadiumPoint } from '../engine/pitch-ai';
 import { useGame, DemoMatchResult, DemoMatchEvent } from '../store/game';
 import { MatchSession, TeamTalkChoice } from '../engine/session';
@@ -68,10 +69,21 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onE
   // Maç döngüsü beklenmedik bir hatayla donarsa kullanıcıyı ekranda kilitlememek için kurtarma durumu
   const [loopError, setLoopError] = useState<unknown>(null);
   const lastDecisionShown = useRef('');
+  const lastAudioEvent = useRef<DemoMatchEvent | null>(null);
   const teamTalkPromptShown = useRef(false);
   // Dalga 5: antrenör notu kontrol noktaları (45/75/90) her maçta bir kez düşer
   const coachFiredRef = useRef<Set<number>>(new Set());
-  const reducedMotion = !!g.career.settings.reduceMotion || (typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
+  const [systemReducedMotion, setSystemReducedMotion] = useState(() => typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return;
+    const media = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const update = () => setSystemReducedMotion(media.matches);
+    update();
+    if (media.addEventListener) media.addEventListener('change', update);
+    else media.addListener?.(update);
+    return () => { if (media.removeEventListener) media.removeEventListener('change', update); else media.removeListener?.(update); };
+  }, []);
+  const reducedMotion = !!g.career.settings.reduceMotion || systemReducedMotion;
   if (managerSuspendedRef.current === null) managerSuspendedRef.current = (g.career.managerSuspendedMatches ?? 0) > 0;
   const managerSuspendedAtStart = managerSuspendedRef.current;
 
@@ -261,7 +273,8 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onE
   // Ses ve haptik profilleri; sistem/oyun azaltılmış hareket ayarı titreşimi ve kamera efektlerini kapatır.
   useEffect(() => {
     const e = currentEvent;
-    if (!e) return;
+    if (!e || lastAudioEvent.current === e) return;
+    lastAudioEvent.current = e;
     const vibrate = (pattern: number | number[]) => {
       if (!hapticsEnabled || reducedMotion || typeof navigator === 'undefined' || !navigator.vibrate) return;
       try { navigator.vibrate(pattern); } catch { /* platform unsupported: silent fallback */ }
@@ -279,7 +292,7 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onE
   }, [currentEvent, hapticsEnabled, reducedMotion]);
 
 
-  useEffect(() => { feedRef.current?.scrollTo?.({ top: feedRef.current.scrollHeight, behavior: 'smooth' }); }, [eventsShown.length, activeTab]);
+  useEffect(() => { feedRef.current?.scrollTo?.({ top: feedRef.current.scrollHeight, behavior: reducedMotion ? 'auto' : 'smooth' }); }, [eventsShown.length, activeTab, reducedMotion]);
 
   // VAR/kart ve kullanıcı tarafı sakatlıklarında karar; devrede tek seferlik team talk.
   useEffect(() => {
@@ -334,6 +347,7 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onE
 
   const home = clubById(fixture.homeId);
   const away = clubById(fixture.awayId);
+  const pitchColors = pitchTeamColors(homeDots, awayDots);
   const derbyMatch = home.derby === fixture.awayId || away.derby === fixture.homeId;
   const scorerName = lastGoal?.scorerId ? g.playerOf(lastGoal.scorerId)?.name : null;
   const assisterName = lastGoal?.assisterId ? g.playerOf(lastGoal.assisterId)?.name : null;
@@ -343,14 +357,18 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onE
     side: currentEvent.side, color: currentEvent.kind === 'card' ? (/kırmızı/i.test(currentEvent.text ?? '') ? '#ef4444' : '#f3c64e') : undefined,
     actors: currentEvent.anim?.actors ?? currentEvent.visualActors ?? pitchRuntime.activeIds,
     actionType: currentEvent.anim?.eventType ?? currentEvent.visualEvent ?? (derbyMatch && currentEvent.kind === 'card' ? 'brawl' : undefined),
-    highBall: pitchRuntime.z > 0, minute: currentEvent.minute, reduceMotion: reducedMotion, brawl: derbyMatch && currentEvent.kind === 'card',
+    highBall: pitchRuntime.z > 0, minute: currentEvent.minute, sequence: eventsShown.length, reduceMotion: reducedMotion, brawl: derbyMatch && currentEvent.kind === 'card',
   } : null;
   const Pitch = (
     <div className="relative w-full mx-auto flex justify-center">
       <div className="relative w-full max-w-[330px] h-[40vh] min-h-[290px] max-h-[360px] rounded-2xl overflow-hidden border border-[#55765d] shadow-[0_12px_35px_rgba(0,0,0,.28)]">
         <Suspense fallback={<div className="w-full h-full rounded-2xl bg-[#234d32] animate-pulse" />}>
-          <PhaserPitch event={pitchEvent} homeDots={homeDots} awayDots={awayDots} runtime={pitchRuntime} momentum={momentum} heatPoints={heatSamples} heatEnabled={heatEnabled} heatTeam={heatTeam} />
+          <PhaserPitch event={pitchEvent} homeDots={homeDots} awayDots={awayDots} runtime={pitchRuntime} momentum={momentum} heatPoints={heatSamples} heatEnabled={heatEnabled} heatTeam={heatTeam}
+            paused={paused || done} completed={done} reduceMotion={reducedMotion} stepMs={presentationDelayMs(speed)} />
         </Suspense>
+        <div className="absolute top-1.5 left-2 flex gap-2 rounded-md bg-[#102219]/85 px-1.5 py-1 text-[8px] font-black text-[#fff8e5] pointer-events-none" aria-label={`Sahadaki takım renkleri: ${home.short} ve ${away.short}${pitchColors.alternateAway ? ', deplasman ikinci forması' : ''}`}>
+          {([[home.short, pitchColors.home], [away.short, pitchColors.away]] as const).map(([name, color], index) => <span key={`${name}-${index}`} className="flex items-center gap-1"><i className="w-2.5 h-2.5 rounded-full border" style={{ background: color.fill, borderColor: color.outline }} />{name}</span>)}
+        </div>
         {paused && !done && <div className="absolute inset-0 bg-black/30 flex items-center justify-center pointer-events-none"><Badge kind="warn">DURAKLATILDI</Badge></div>}
       </div>
     </div>

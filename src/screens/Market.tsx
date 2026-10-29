@@ -13,7 +13,7 @@ import { inWindow } from '../data/calendar';
 import { counterCashAsk, sellOnCredit, transferLeakRisk, transferOfferLeaks } from '../data/transferNegotiation';
 import { playerToneHints, respondToPlayerWithTone, respondToSellerWithTone, sellerToneHints, transferRevealForGen, type PlayerToneResult, type TransferTone } from '../data/transferPresentation';
 import { managerTransferLine, playerTransferLine, sellerTransferLine, signedTransferLine, signingReadyLine, transferAnnouncement, transferLeakLine } from '../data/transferVoices';
-import { TransferSubtitle, TransferTheatre } from '../components/transfer/TransferTheatre';
+import { TransferSpeechCue, TransferSubtitle, TransferTheatre } from '../components/transfer/TransferTheatre';
 import { transferVoiceVolume, useTransferSpeech } from '../components/transfer/useTransferSpeech';
 import { audio } from '../audio/engine';
 import { Player, Screen } from '../types';
@@ -477,9 +477,20 @@ export const OfferFlow: React.FC<{
   const playerSubmitted = useRef(false);
   const signedOnce = useRef(false);
   const stageRef = useRef<HTMLDivElement>(null);
+  const [sceneVisible, setSceneVisible] = useState(true);
   const crowdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const originalSquad = useRef(g.mySquad);
   useEffect(() => { stageRef.current?.scrollIntoView?.({ block: 'start', behavior: 'auto' }); }, [stage]);
+  useEffect(() => {
+    const root = stageRef.current;
+    const scene = root?.querySelector('[data-testid="transfer-theatre"]');
+    if (!root || !scene || typeof IntersectionObserver === 'undefined') { setSceneVisible(true); return; }
+    const observer = new IntersectionObserver(([entry]) => setSceneVisible(entry.isIntersecting && entry.intersectionRatio >= 0.55), {
+      root: root.closest('.overflow-y-auto'), threshold: [0, 0.55, 1],
+    });
+    observer.observe(scene);
+    return () => observer.disconnect();
+  }, [stage]);
   useEffect(() => () => { if (crowdTimer.current) clearTimeout(crowdTimer.current); audio.stopCrowd(); }, []);
 
   const swapPlayer = swapId ? g.mySquad.find((x) => x.id === swapId) ?? null : null;
@@ -607,6 +618,11 @@ export const OfferFlow: React.FC<{
   </div>;
 
   return <div ref={stageRef} className="m26-in space-y-4" data-testid="transfer-flow" data-stage={stage}>
+    <div className="transfer-floating-cue">
+      {!sceneVisible && <TransferSpeechCue player={p} club={g.myClub} seller={seller} manager={g.career.manager}
+        mode={stage === 'signed' ? 'reveal' : stage === 'seller' || (stage === 'offer' && !!seller) ? 'seller' : 'player'}
+        speaking={voice.speaking} line={voice.lastLine} onSkip={voice.stop} />}
+    </div>
     <div className="flex items-center gap-1 text-[10px] font-bold tracking-wide text-secondary" aria-label="Görüşme adımları">
       <span className={stage === 'offer' || stage === 'seller' ? 'text-amber' : ''}>01 {seller ? 'KULÜP' : 'SERBEST'}</span><span>—</span>
       <span className={stage === 'player' ? 'text-amber' : ''}>02 OYUNCU</span><span>—</span>

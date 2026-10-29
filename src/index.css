@@ -89,6 +89,7 @@ html.m26-dark.m26-hc {
 }
 html.m26-dark.m26-hc .text-muted { color: #B6BAC4; }
 html.m26-rm *, html.m26-rm *::before, html.m26-rm *::after {
+  scroll-behavior: auto !important;
   animation-duration: 0.01ms !important;
   animation-iteration-count: 1 !important;
   transition-duration: 0.01ms !important;

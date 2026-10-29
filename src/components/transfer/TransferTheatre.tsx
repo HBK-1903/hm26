@@ -8,15 +8,25 @@ import './transferTheatre.css';
 
 type TheatreMode = 'seller' | 'player' | 'reveal';
 
-const Puppet: React.FC<{ face: FaceLike; palette?: KitPalettes; talking: boolean; label: string }> = ({ face, palette, talking, label }) => {
+const Puppet: React.FC<{ face: FaceLike; palette?: KitPalettes; talking: boolean; label: string; side: 'manager' | 'opponent'; decorative?: boolean }> = ({ face, palette, talking, label, side, decorative = false }) => {
   const layers = avatarParts(face, palette ?? BASE_PALETTES);
   return (
-    <div className={`transfer-puppet${talking ? ' is-talking' : ''}`} aria-label={label}>
+    <div className={`transfer-puppet transfer-puppet--${side}${talking ? ' is-talking' : ''}`} role={decorative ? undefined : 'img'} aria-label={decorative ? undefined : label} aria-hidden={decorative || undefined} data-talking={talking}>
       <svg viewBox="18 7 92 121" aria-hidden="true" focusable="false">
-        <g dangerouslySetInnerHTML={{ __html: layers.neck + layers.outfit }} />
+        <g className="transfer-puppet__torso" dangerouslySetInnerHTML={{ __html: layers.neck + layers.outfit }} />
         <g className="transfer-puppet__head">
-          <g dangerouslySetInnerHTML={{ __html: layers.hairBack + layers.head + layers.beard + layers.eyes + layers.features + layers.hair + layers.glasses }} />
-          <ellipse className="transfer-puppet__mouth" cx="64" cy="74" rx="3.1" ry="2.0" fill="#6b302b" />
+          <g className="transfer-puppet__expression">
+            <g dangerouslySetInnerHTML={{ __html: layers.hairBack + layers.head + layers.beard }} />
+            <g className="transfer-puppet__eyes" dangerouslySetInnerHTML={{ __html: layers.eyes }} />
+            <g dangerouslySetInnerHTML={{ __html: layers.features }} />
+            <g className="transfer-puppet__closed-mouth" dangerouslySetInnerHTML={{ __html: layers.mouth }} />
+            <g className="transfer-puppet__open-mouth">
+              <ellipse cx="64" cy="73.8" rx="4.1" ry="2.65" fill="#54241f" />
+              <path d="M60.8 73.1Q64 74 67.2 73.1" fill="none" stroke="#f3ded1" strokeWidth=".8" strokeLinecap="round" />
+              <path d="M62 75.1Q64 74.2 66 75.1" fill="none" stroke="#d57b73" strokeWidth=".8" strokeLinecap="round" />
+            </g>
+            <g dangerouslySetInnerHTML={{ __html: layers.hair + layers.glasses }} />
+          </g>
         </g>
       </svg>
     </div>
@@ -58,7 +68,7 @@ export const TransferTheatre: React.FC<{
   const venue = mode !== 'reveal' ? (seller?.name ?? 'Serbest oyuncu') : reveal === 'press' ? 'Basın odası' : club.stadium;
   const style = { '--transfer-club': club.color1, '--transfer-trim': club.color2 } as React.CSSProperties;
   return (
-    <div className={`transfer-theatre transfer-theatre--${scene}`} style={style} data-testid="transfer-theatre" data-scene={scene} aria-label={`${title}: ${venue}`}>
+    <div className={`transfer-theatre transfer-theatre--${scene}`} style={style} data-testid="transfer-theatre" data-scene={scene} data-speaking={speaking ?? 'none'} aria-label={`${title}: ${venue}`}>
       <div className="transfer-theatre__veil" aria-hidden="true" />
       {(scene === 'stadium' || scene === 'star') && <div className="transfer-theatre__stadium-lights" aria-hidden="true" />}
       {scene === 'star' && <div className="transfer-theatre__confetti" aria-hidden="true">{Array.from({ length: 14 }, (_, i) => <i key={i} style={{ '--i': i } as React.CSSProperties} />)}</div>}
@@ -67,13 +77,13 @@ export const TransferTheatre: React.FC<{
         <span className="transfer-theatre__crest"><Crest club={club} size={35} /></span>
       </div>
       <div className="transfer-theatre__actors">
-        <div className="transfer-theatre__actor">
-          <Puppet face={managerFace} talking={speaking === 'manager'} label={manager.name || 'Menajer'} />
+        <div className={`transfer-theatre__actor${speaking === 'manager' ? ' is-speaking' : ''}`}>
+          <Puppet face={managerFace} talking={speaking === 'manager'} label={manager.name || 'Menajer'} side="manager" />
           <span>MENAJER</span>
         </div>
         {mode === 'reveal' && <Shirt club={club} player={player} />}
-        <div className="transfer-theatre__actor">
-          <Puppet face={opponentFace} palette={opponentPalette} talking={speaking === opponentSpeaker} label={mode === 'seller' ? 'Kulüp temsilcisi' : player.name} />
+        <div className={`transfer-theatre__actor${speaking === opponentSpeaker ? ' is-speaking' : ''}`}>
+          <Puppet face={opponentFace} palette={opponentPalette} talking={speaking === opponentSpeaker} label={mode === 'seller' ? 'Kulüp temsilcisi' : player.name} side="opponent" />
           <span>{mode === 'seller' ? 'TEMSİLCİ' : 'OYUNCU'}</span>
         </div>
       </div>
@@ -88,6 +98,28 @@ export const TransferTheatre: React.FC<{
 };
 
 const SPEAKER_LABEL: Record<TransferSpeaker, string> = { manager: 'Menajer', representative: 'Kulüp temsilcisi', player: 'Oyuncu', announcer: 'Sunucu' };
+
+/** On a long mobile form, keep the actual speaker visible without scrolling the user's choices. */
+export const TransferSpeechCue: React.FC<{
+  player: Player; club: Club; seller: Club | null;
+  manager: { name: string; portrait: number; face?: ManagerFace | null };
+  mode: TheatreMode; speaking: TransferSpeaker | null; line: TransferVoiceLine | null; onSkip: () => void;
+}> = ({ player, club, seller, manager, mode, speaking, line, onSkip }) => {
+  if (!speaking || !line || speaking !== line.speaker) return null;
+  const characterClub = mode === 'reveal' ? club : seller;
+  const palette: KitPalettes = characterClub ? { ...BASE_PALETTES, suit: [characterClub.color1], accent: [characterClub.color2] } : BASE_PALETTES;
+  const face = speaking === 'manager' ? manager.face ?? presetFace(manager.portrait)
+    : speaking === 'representative' ? presetFace(transferDialogueHash(seller?.id ?? 'representative') % 6)
+      : playerFaceFromSeed(playerFaceSeed(player.id));
+  return <div className="transfer-floating-cue__card" data-testid="transfer-speaking-cue" data-speaker={speaking}>
+    {speaking === 'announcer' ? <div className="transfer-floating-cue__announcer" aria-hidden="true">🎙</div> : <div className="transfer-floating-cue__portrait">
+      <Puppet face={face} palette={speaking === 'player' ? palette : BASE_PALETTES} talking label="" side={speaking === 'manager' ? 'manager' : 'opponent'} decorative />
+    </div>}
+    <div className="transfer-floating-cue__copy"><b>{SPEAKER_LABEL[speaking]}</b><span>{line.text}</span></div>
+    <button type="button" onClick={onSkip} aria-label="Konuşmayı atla">×</button>
+  </div>;
+};
+
 export const TransferSubtitle: React.FC<{ line: TransferVoiceLine | null; muted: boolean; systemMuted: boolean; onReplay: () => void; onSkip: () => void; onToggle: () => void }> = ({ line, muted, systemMuted, onReplay, onSkip, onToggle }) => (
   <div className="transfer-dialogue" data-testid="transfer-subtitle">
     <div className="transfer-dialogue__top">

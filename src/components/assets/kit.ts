@@ -135,11 +135,14 @@ export function avatarParts(face: FaceLike = {}, base: KitPalettes = BASE_PALETT
   let beard = '';
   if (f.beardStyle === 1) beard = path('M44 63Q48 69 53 67L60 70H68L75 67Q80 69 84 63Q81 78 64 84Q47 78 44 63Z', hair, 'opacity=".55"');
   if (f.beardStyle === 2) beard = path('M43 60L49 64 54 65 60 69H68L74 65 79 64 85 60Q85 79 64 87Q43 79 43 60Z', hair) + path('M53 72Q64 78 75 72', 'none', `stroke="${mix(hair, 0.28)}" stroke-width="1"`);
-  const features = path('M64 55L61 65Q64 68 67 65', 'none', `stroke="${mix(skin, -0.31)}" stroke-width="1.25" stroke-linecap="round"`) + path('M57 73Q64 77 71 73', 'none', `stroke="${f.beardStyle === 2 ? mix(skin, 0.3) : mix(skin, -0.44)}" stroke-width="1.65" stroke-linecap="round"`);
+  // Keep the closed mouth separate so the transfer theatre can animate speech
+  // without drawing an open mouth over an already-smiling face.
+  const features = path('M64 55L61 65Q64 68 67 65', 'none', `stroke="${mix(skin, -0.31)}" stroke-width="1.25" stroke-linecap="round"`);
+  const mouth = path('M57 73Q64 77 71 73', 'none', `stroke="${f.beardStyle === 2 ? mix(skin, 0.3) : mix(skin, -0.44)}" stroke-width="1.65" stroke-linecap="round"`);
   let glasses = '';
   if (f.glasses === 1) glasses = '<g fill="#d9edf1" fill-opacity=".09" stroke="#23313b" stroke-width="1.7"><rect x="46" y="48" width="16" height="13" rx="3"/><rect x="66" y="48" width="16" height="13" rx="3"/><path d="M62 52Q64 50 66 52M42 50L46 51M82 51L86 50" fill="none"/></g>';
   if (f.glasses === 2) glasses = '<g fill="#d9edf1" fill-opacity=".09" stroke="#25333b" stroke-width="1.6"><circle cx="54" cy="54" r="8"/><circle cx="74" cy="54" r="8"/><path d="M62 52Q64 50 66 52M42 50L46 51M82 51L86 50" fill="none"/></g>';
-  return { background, hairBack: hairLayer(f.hairStyle, hair, true), neck, outfit: outfitLayer(f.outfit, suit, accent), head, beard, eyes: eyeLayer(f.eyeStyle, EYE_COLORS[f.eyeColor], hair), features, hair: hairLayer(f.hairStyle, hair), glasses, border: `<circle cx="64" cy="64" r="62" fill="none" stroke="${accent}" stroke-width="2"/>` };
+  return { background, hairBack: hairLayer(f.hairStyle, hair, true), neck, outfit: outfitLayer(f.outfit, suit, accent), head, beard, eyes: eyeLayer(f.eyeStyle, EYE_COLORS[f.eyeColor], hair), features, mouth, hair: hairLayer(f.hairStyle, hair), glasses, border: `<circle cx="64" cy="64" r="62" fill="none" stroke="${accent}" stroke-width="2"/>` };
 }
 
 export function avatarInner(face: FaceLike = {}, base: KitPalettes = BASE_PALETTES): string {
