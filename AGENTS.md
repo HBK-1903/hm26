@@ -1,5 +1,10 @@
 # HM26 agent guidance
 
+## Development roles
+
+- For game design, interface, dialogue or test work, consult `.agents/roles/HM26.md` and the relevant project-local Agency Agents role files. Select only the roles needed for the current task.
+- These files are guidance, not independently running agents. Project and user requirements take precedence over generic examples in the role files; do not claim separate verification or automatic role discovery.
+
 ## Security review skill
 
 - For security questions or reviews, read `.agents/skills/security-audit/SKILL.md` and the applicable companion files. The skill is project-local reference material; automatic discovery depends on the agent host.

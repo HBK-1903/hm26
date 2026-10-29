@@ -11,6 +11,7 @@
     "qa:save-meta": "tsx tools/qa-save-metadata.ts",
     "qa:security-skill": "node tools/qa-security-skill.mjs",
     "qa:security-skill:validators": "node --test .agents/skills/security-audit/validate-findings.test.cjs .agents/skills/security-audit/validate-coverage-ledger.test.cjs",
+    "qa:agency-roles": "node tools/qa-agency-roles.mjs",
     "qa:wave0": "tsx tools/qa-wave0-fixes.ts",
     "qa:wave1": "tsx tools/qa-wave1-analytics.ts",
     "qa:wave2": "tsx tools/qa-wave2-tactics.ts",

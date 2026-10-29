@@ -1,63 +1,64 @@
 # HM26 — Sıralı Otomatik QA
-**Çalıştırma:** 2026-10-29T19:12:09.201Z
-**Sonuç:** 55/55 geçti · 0 başarısız
+**Çalıştırma:** 2026-10-29T19:28:36.013Z
+**Sonuç:** 56/56 geçti · 0 başarısız
 | # | Aşama | Sonuç |
 |---:|---|---|
 | 1 | Production build + TypeScript + offline manifest | ✅ PASS |
 | 2 | PWA headers, manifest, icons and update lifecycle | ✅ PASS |
 | 3 | Project-local security skill installation checks (not an audit) | ✅ PASS |
-| 4 | Core integrity / serialization QA (11 tests) | ✅ PASS |
-| 5 | Save-slot season metadata and legacy compatibility QA | ✅ PASS |
-| 6 | Stress and broad feature QA (37 tests) | ✅ PASS |
-| 7 | Goalkeeper/stat consistency QA | ✅ PASS |
-| 8 | Assets and brand manifest QA | ✅ PASS |
-| 9 | Live engine parity (300 matches) | ✅ PASS |
-| 10 | Quick-match score/event consistency (KZP patch regression) | ✅ PASS |
-| 11 | Match insight evidence QA (60 deterministic results) | ✅ PASS |
-| 12 | League/cup balance simulation (4,000 matches) | ✅ PASS |
-| 13 | Medical, protest, penalty, shout and telemetry QA | ✅ PASS |
-| 14 | Pitch Wave 1 geometry and goal-line clearance QA (6 checks) | ✅ PASS |
-| 15 | Pitch formation, team colors and motion cadence | ✅ PASS |
-| 16 | Live engine projection and speed parity | ✅ PASS |
-| 17 | Shared UI notification timing | ✅ PASS |
-| 18 | New career advanced world settings | ✅ PASS |
-| 19 | Transfer presentation rules, voices and local artwork | ✅ PASS |
-| 20 | Newsroom saved-evidence regression | ✅ PASS |
-| 21 | Market refresh, shortlist and press-room links | ✅ PASS |
-| 22 | Transfer negotiation and save integration (jsdom) | ✅ PASS |
-| 23 | Sale negotiation, settlement and save integration (jsdom) | ✅ PASS |
-| 24 | Market potential, rotation, match plan and legacy saves (jsdom) | ✅ PASS |
-| 25 | Contract renewal and recorded match highlights (jsdom) | ✅ PASS |
-| 26 | Live reactions, player comparison and weekly paper (jsdom) | ✅ PASS |
-| 27 | Match arrival, award, training and career story (jsdom) | ✅ PASS |
-| 28 | Newsroom and fan atmosphere regression (jsdom) | ✅ PASS |
-| 29 | Tactics editor regression (jsdom) | ✅ PASS |
-| 30 | Squad rotation and health regression (jsdom) | ✅ PASS |
-| 31 | Matchday preparation regression (jsdom) | ✅ PASS |
-| 32 | Batched halftime event and decision flow (jsdom) | ✅ PASS |
-| 33 | Match finish, last-whistle reaction and manual interview (jsdom) | ✅ PASS |
-| 34 | Cancelled goal live presentation, audio and match finish (jsdom) | ✅ PASS |
-| 35 | Match finish recovery after simulated engine failure (jsdom) | ✅ PASS |
-| 36 | Matchday progression and end-day regression (jsdom) | ✅ PASS |
-| 37 | Playwright Chromium launch smoke test | ✅ PASS |
-| 38 | New career advanced world settings and save E2E | ✅ PASS |
-| 39 | Embedded asset rendering E2E | ✅ PASS |
-| 40 | Icon system E2E | ✅ PASS |
-| 41 | Statistics and career history E2E | ✅ PASS |
-| 42 | Save-slot delete flow E2E | ✅ PASS |
-| 43 | Full profile → starting XI E2E | ✅ PASS |
-| 44 | Out-of-position warning E2E | ✅ PASS |
-| 45 | Bench-first tactical flow E2E | ✅ PASS |
-| 46 | Medical/mentoring/trade E2E | ✅ PASS |
-| 47 | Transfer theatre, signing and offline media E2E | ✅ PASS |
-| 48 | Market potential, rotation and sale negotiation E2E | ✅ PASS |
-| 49 | Contract renewal and recorded match highlights E2E | ✅ PASS |
-| 50 | Live reactions, player comparison and weekly paper E2E | ✅ PASS |
-| 51 | Match arrival, award, training and career story E2E | ✅ PASS |
-| 52 | Market filters and match-flow E2E | ✅ PASS |
-| 53 | Live scorebug, feed, accessible Phaser pitch and action E2E (v0.9.12) | ✅ PASS |
-| 54 | Deterministic Phaser motion and pause E2E | ✅ PASS |
-| 55 | PWA offline shell + cached bundles E2E (v0.9.12) | ✅ PASS |
+| 4 | Agency development role installation checks (not independent agents) | ✅ PASS |
+| 5 | Core integrity / serialization QA (11 tests) | ✅ PASS |
+| 6 | Save-slot season metadata and legacy compatibility QA | ✅ PASS |
+| 7 | Stress and broad feature QA (37 tests) | ✅ PASS |
+| 8 | Goalkeeper/stat consistency QA | ✅ PASS |
+| 9 | Assets and brand manifest QA | ✅ PASS |
+| 10 | Live engine parity (300 matches) | ✅ PASS |
+| 11 | Quick-match score/event consistency (KZP patch regression) | ✅ PASS |
+| 12 | Match insight evidence QA (60 deterministic results) | ✅ PASS |
+| 13 | League/cup balance simulation (4,000 matches) | ✅ PASS |
+| 14 | Medical, protest, penalty, shout and telemetry QA | ✅ PASS |
+| 15 | Pitch Wave 1 geometry and goal-line clearance QA (6 checks) | ✅ PASS |
+| 16 | Pitch formation, team colors and motion cadence | ✅ PASS |
+| 17 | Live engine projection and speed parity | ✅ PASS |
+| 18 | Shared UI notification timing | ✅ PASS |
+| 19 | New career advanced world settings | ✅ PASS |
+| 20 | Transfer presentation rules, voices and local artwork | ✅ PASS |
+| 21 | Newsroom saved-evidence regression | ✅ PASS |
+| 22 | Market refresh, shortlist and press-room links | ✅ PASS |
+| 23 | Transfer negotiation and save integration (jsdom) | ✅ PASS |
+| 24 | Sale negotiation, settlement and save integration (jsdom) | ✅ PASS |
+| 25 | Market potential, rotation, match plan and legacy saves (jsdom) | ✅ PASS |
+| 26 | Contract renewal and recorded match highlights (jsdom) | ✅ PASS |
+| 27 | Live reactions, player comparison and weekly paper (jsdom) | ✅ PASS |
+| 28 | Match arrival, award, training and career story (jsdom) | ✅ PASS |
+| 29 | Newsroom and fan atmosphere regression (jsdom) | ✅ PASS |
+| 30 | Tactics editor regression (jsdom) | ✅ PASS |
+| 31 | Squad rotation and health regression (jsdom) | ✅ PASS |
+| 32 | Matchday preparation regression (jsdom) | ✅ PASS |
+| 33 | Batched halftime event and decision flow (jsdom) | ✅ PASS |
+| 34 | Match finish, last-whistle reaction and manual interview (jsdom) | ✅ PASS |
+| 35 | Cancelled goal live presentation, audio and match finish (jsdom) | ✅ PASS |
+| 36 | Match finish recovery after simulated engine failure (jsdom) | ✅ PASS |
+| 37 | Matchday progression and end-day regression (jsdom) | ✅ PASS |
+| 38 | Playwright Chromium launch smoke test | ✅ PASS |
+| 39 | New career advanced world settings and save E2E | ✅ PASS |
+| 40 | Embedded asset rendering E2E | ✅ PASS |
+| 41 | Icon system E2E | ✅ PASS |
+| 42 | Statistics and career history E2E | ✅ PASS |
+| 43 | Save-slot delete flow E2E | ✅ PASS |
+| 44 | Full profile → starting XI E2E | ✅ PASS |
+| 45 | Out-of-position warning E2E | ✅ PASS |
+| 46 | Bench-first tactical flow E2E | ✅ PASS |
+| 47 | Medical/mentoring/trade E2E | ✅ PASS |
+| 48 | Transfer theatre, signing and offline media E2E | ✅ PASS |
+| 49 | Market potential, rotation and sale negotiation E2E | ✅ PASS |
+| 50 | Contract renewal and recorded match highlights E2E | ✅ PASS |
+| 51 | Live reactions, player comparison and weekly paper E2E | ✅ PASS |
+| 52 | Match arrival, award, training and career story E2E | ✅ PASS |
+| 53 | Market filters and match-flow E2E | ✅ PASS |
+| 54 | Live scorebug, feed, accessible Phaser pitch and action E2E (v0.9.12) | ✅ PASS |
+| 55 | Deterministic Phaser motion and pause E2E | ✅ PASS |
+| 56 | PWA offline shell + cached bundles E2E (v0.9.12) | ✅ PASS |
 ## Bulgular ve açık işler
 - **Bu koşudaki testler:** tüm aşamalar geçti; test kapsamı dışındaki kusurlar ayrıca incelenmelidir.
 - **Otomasyon düzeltmesi:** eski E2E betiklerindeki :3001 adresleri ortak `HM26_BASE_URL` ile :4173 preview adresine alındı; yeniden koşuda ilgili akışlar geçti.
@@ -81,7 +82,7 @@ dist/assets/index-CrFAnnW8.css          88.26 kB │ gzip:  18.49 kB
 dist/assets/PhaserPitch-CSOr6XGR.js     16.45 kB │ gzip:   6.12 kB
 dist/assets/index-CbrRxAOK.js          890.38 kB │ gzip: 280.55 kB
 dist/assets/phaser-BbgW2pkj.js       1,478.57 kB │ gzip: 339.69 kB
-✓ built in 10.88s
+✓ built in 11.09s
 SW precache: 211 dosya enjekte edildi
 ```
 
@@ -125,7 +126,24 @@ Exit: 0
 
 7/7 skill kurulum kontrolü geçti. Bu kontrol güvenlik denetimi değildir.
 ```
-## 4. Core integrity / serialization QA (11 tests)
+## 4. Agency development role installation checks (not independent agents)
+Exit: 0
+
+```text
+> manager26@0.1.0 qa:agency-roles
+> node tools/qa-agency-roles.mjs
+
+✅ Kaynak, sabit sürüm ve MIT lisansı doğru
+✅ Dört rol ve lisans orijinal GitHub içeriğiyle birebir
+✅ Yalnız seçilen dört rol mevcut ve doğru adları taşıyor
+✅ HM26 yönlendirmesi dört role tek tek bağlanıyor
+✅ Bağımsız ajan iddiası yok; güvenlik rehberi korunuyor
+✅ Çevrimdışı oyun ve mevcut kayıt kuralları korunuyor
+✅ Rol dosyaları oyun dağıtımına eklenmemiş
+
+7/7 rol kurulum kontrolü geçti; bu kontrol bağımsız ajan çalıştırmaz.
+```
+## 5. Core integrity / serialization QA (11 tests)
 Exit: 0
 
 ```text
@@ -145,7 +163,7 @@ Exit: 0
 
 11 test, 0 başarısız
 ```
-## 5. Save-slot season metadata and legacy compatibility QA
+## 6. Save-slot season metadata and legacy compatibility QA
 Exit: 0
 
 ```text
@@ -161,7 +179,7 @@ Exit: 0
 
 9/9 sezon metaverisi kontrolü geçti.
 ```
-## 6. Stress and broad feature QA (37 tests)
+## 7. Stress and broad feature QA (37 tests)
 Exit: 0
 
 ```text
@@ -207,7 +225,7 @@ Exit: 0
 
 37 test · 0 başarısız · 2 uyarı
 ```
-## 7. Goalkeeper/stat consistency QA
+## 8. Goalkeeper/stat consistency QA
 Exit: 0
 
 ```text
@@ -216,7 +234,7 @@ Exit: 0
 
 FAZ A doğrulama: 2 test, 0 başarısız
 ```
-## 8. Assets and brand manifest QA
+## 9. Assets and brand manifest QA
 Exit: 0
 
 ```text
@@ -228,13 +246,13 @@ Exit: 0
 
 5 test, 0 başarısız
 ```
-## 9. Live engine parity (300 matches)
+## 10. Live engine parity (300 matches)
 Exit: 0
 
 ```text
 MatchSession parity: n=300 | avgG 1.73 | ev 40.0% ber 31.3% dep 28.7%
 ```
-## 10. Quick-match score/event consistency (KZP patch regression)
+## 11. Quick-match score/event consistency (KZP patch regression)
 Exit: 0
 
 ```text
@@ -247,7 +265,7 @@ Exit: 0
 
 MATCH-CORE-CHALLENGE-SCORE: 6/6
 ```
-## 11. Match insight evidence QA (60 deterministic results)
+## 12. Match insight evidence QA (60 deterministic results)
 Exit: 0
 
 ```text
@@ -257,7 +275,7 @@ Exit: 0
 
 MATCH-CORE-EVIDENCE-INSIGHTS: 3/3
 ```
-## 12. League/cup balance simulation (4,000 matches)
+## 13. League/cup balance simulation (4,000 matches)
 Exit: 0
 
 ```text
@@ -277,7 +295,7 @@ Not: hedef davranışlar
  - Kupa sürpriz düşük ama sıfır değil
  - Kırmızı kart ~%10–20 maçta
 ```
-## 13. Medical, protest, penalty, shout and telemetry QA
+## 14. Medical, protest, penalty, shout and telemetry QA
 Exit: 0
 
 ```text
@@ -292,7 +310,7 @@ Exit: 0
 
 8 test · 0 başarısız
 ```
-## 14. Pitch Wave 1 geometry and goal-line clearance QA (6 checks)
+## 15. Pitch Wave 1 geometry and goal-line clearance QA (6 checks)
 Exit: 0
 
 ```text
@@ -305,7 +323,7 @@ Exit: 0
 
 PITCH-WAVE1: 6/6 passed
 ```
-## 15. Pitch formation, team colors and motion cadence
+## 16. Pitch formation, team colors and motion cadence
 Exit: 0
 
 ```text
@@ -332,7 +350,7 @@ Exit: 0
 
 PITCH-MOTION: 20/20
 ```
-## 16. Live engine projection and speed parity
+## 17. Live engine projection and speed parity
 Exit: 0
 
 ```text
@@ -344,7 +362,7 @@ Exit: 0
 
 LIVE-PROJECTION-WAVE10: 5/5
 ```
-## 17. Shared UI notification timing
+## 18. Shared UI notification timing
 Exit: 0
 
 ```text
@@ -355,7 +373,7 @@ Exit: 0
 
 UI-SMOOTHNESS: 4/4
 ```
-## 18. New career advanced world settings
+## 19. New career advanced world settings
 Exit: 0
 
 ```text
@@ -372,7 +390,7 @@ Exit: 0
 
 CAREER-WORLD-UI: 10/10
 ```
-## 19. Transfer presentation rules, voices and local artwork
+## 20. Transfer presentation rules, voices and local artwork
 Exit: 0
 
 ```text
@@ -388,7 +406,7 @@ Exit: 0
 
 TRANSFER-SCENE: 9/9
 ```
-## 20. Newsroom saved-evidence regression
+## 21. Newsroom saved-evidence regression
 Exit: 0
 
 ```text
@@ -399,7 +417,7 @@ Exit: 0
 
 NEWSROOM-WAVE13: 4/4
 ```
-## 21. Market refresh, shortlist and press-room links
+## 22. Market refresh, shortlist and press-room links
 Exit: 0
 
 ```text
@@ -409,7 +427,7 @@ Exit: 0
 
 MARKET-IMPROVEMENTS: 3/3
 ```
-## 22. Transfer negotiation and save integration (jsdom)
+## 23. Transfer negotiation and save integration (jsdom)
 Exit: 0
 
 ```text
@@ -471,11 +489,11 @@ TRANSFER-SCENE-UI: 49/49
 
 Stderr:
 ```text
-(node:206849) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+(node:256635) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
 --import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("./tools/qa-live-loader.mjs", pathToFileURL("./"));'
 (Use `node --trace-warnings ...` to show where the warning was created)
 ```
-## 23. Sale negotiation, settlement and save integration (jsdom)
+## 24. Sale negotiation, settlement and save integration (jsdom)
 Exit: 0
 
 ```text
@@ -519,11 +537,11 @@ SALE-FLOW: 31/31 geçti
 
 Stderr:
 ```text
-(node:207224) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+(node:257035) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
 --import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("./tools/qa-live-loader.mjs", pathToFileURL("./"));'
 (Use `node --trace-warnings ...` to show where the warning was created)
 ```
-## 24. Market potential, rotation, match plan and legacy saves (jsdom)
+## 25. Market potential, rotation, match plan and legacy saves (jsdom)
 Exit: 0
 
 ```text
@@ -576,11 +594,11 @@ MARKET-SQUAD-POLISH: 40/40 geçti
 
 Stderr:
 ```text
-(node:207491) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+(node:257308) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
 --import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("./tools/qa-live-loader.mjs", pathToFileURL("./"));'
 (Use `node --trace-warnings ...` to show where the warning was created)
 ```
-## 25. Contract renewal and recorded match highlights (jsdom)
+## 26. Contract renewal and recorded match highlights (jsdom)
 Exit: 0
 
 ```text
@@ -667,11 +685,11 @@ Exit: 0
 
 Stderr:
 ```text
-(node:207881) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+(node:257707) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
 --import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("./tools/qa-live-loader.mjs", pathToFileURL("./"));'
 (Use `node --trace-warnings ...` to show where the warning was created)
 ```
-## 26. Live reactions, player comparison and weekly paper (jsdom)
+## 27. Live reactions, player comparison and weekly paper (jsdom)
 Exit: 0
 
 ```text
@@ -736,11 +754,11 @@ Exit: 0
 
 Stderr:
 ```text
-(node:208271) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+(node:258106) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
 --import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("./tools/qa-live-loader.mjs", pathToFileURL("./"));'
 (Use `node --trace-warnings ...` to show where the warning was created)
 ```
-## 27. Match arrival, award, training and career story (jsdom)
+## 28. Match arrival, award, training and career story (jsdom)
 Exit: 0
 
 ```text
@@ -801,11 +819,11 @@ Kariyer sahneleri: 48/48 geçti.
 
 Stderr:
 ```text
-(node:208661) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+(node:258505) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
 --import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("./tools/qa-live-loader.mjs", pathToFileURL("./"));'
 (Use `node --trace-warnings ...` to show where the warning was created)
 ```
-## 28. Newsroom and fan atmosphere regression (jsdom)
+## 29. Newsroom and fan atmosphere regression (jsdom)
 Exit: 0
 
 ```text
@@ -832,11 +850,11 @@ DALGA7-ATMOSFER-UI: PASS
 
 Stderr:
 ```text
-(node:208983) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+(node:258778) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
 --import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("./tools/qa-live-loader.mjs", pathToFileURL("./"));'
 (Use `node --trace-warnings ...` to show where the warning was created)
 ```
-## 29. Tactics editor regression (jsdom)
+## 30. Tactics editor regression (jsdom)
 Exit: 0
 
 ```text
@@ -863,12 +881,12 @@ DALGA2-TAKTIK-UI: PASS
 
 Stderr:
 ```text
-(node:209195) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+(node:259051) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
 --import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("./tools/qa-live-loader.mjs", pathToFileURL("./"));'
 (Use `node --trace-warnings ...` to show where the warning was created)
 Warning: `ReactDOMTestUtils.act` is deprecated in favor of `React.act`. Import `act` from `react` instead of `react-dom/test-utils`. See https://react.dev/warnings/react-dom-test-utils for more info.
 ```
-## 30. Squad rotation and health regression (jsdom)
+## 31. Squad rotation and health regression (jsdom)
 Exit: 0
 
 ```text
@@ -893,12 +911,12 @@ DALGA3-KADRO-UI: PASS (kadro)
 
 Stderr:
 ```text
-(node:209462) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+(node:259199) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
 --import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("./tools/qa-live-loader.mjs", pathToFileURL("./"));'
 (Use `node --trace-warnings ...` to show where the warning was created)
 Warning: `ReactDOMTestUtils.act` is deprecated in favor of `React.act`. Import `act` from `react` instead of `react-dom/test-utils`. See https://react.dev/warnings/react-dom-test-utils for more info.
 ```
-## 31. Matchday preparation regression (jsdom)
+## 32. Matchday preparation regression (jsdom)
 Exit: 0
 
 ```text
@@ -922,12 +940,12 @@ DALGA5-MACGUNU-UI: PASS
 
 Stderr:
 ```text
-(node:209606) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+(node:259471) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
 --import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("./tools/qa-live-loader.mjs", pathToFileURL("./"));'
 (Use `node --trace-warnings ...` to show where the warning was created)
 Warning: `ReactDOMTestUtils.act` is deprecated in favor of `React.act`. Import `act` from `react` instead of `react-dom/test-utils`. See https://react.dev/warnings/react-dom-test-utils for more info.
 ```
-## 32. Batched halftime event and decision flow (jsdom)
+## 33. Batched halftime event and decision flow (jsdom)
 Exit: 0
 
 ```text
@@ -1199,7 +1217,7 @@ act(() => {
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
     at GameProvider (/home/user/hm26/src/store/game.tsx:213:40)
-(node:212103) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+(node:262028) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
 --import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("./tools/qa-live-loader.mjs", pathToFileURL("./"));'
 (Use `node --trace-warnings ...` to show where the warning was created)
 Warning: An update to Root inside a test was not wrapped in act(...).
@@ -1270,7 +1288,7 @@ act(() => {
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
     at GameProvider (/home/user/hm26/src/store/game.tsx:213:40)
 ```
-## 33. Match finish, last-whistle reaction and manual interview (jsdom)
+## 34. Match finish, last-whistle reaction and manual interview (jsdom)
 Exit: 0
 
 ```text
@@ -1385,7 +1403,7 @@ Maç sonrası nextFixture: gün 13 rize_yagmur vs denizli_yesilova played=false
 
 Stderr:
 ```text
-(node:214462) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+(node:264317) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
 --import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("./tools/qa-live-loader.mjs", pathToFileURL("./"));'
 (Use `node --trace-warnings ...` to show where the warning was created)
 Warning: An update to Root inside a test was not wrapped in act(...).
@@ -1456,7 +1474,7 @@ act(() => {
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
     at GameProvider (/home/user/hm26/src/store/game.tsx:213:40)
 ```
-## 34. Cancelled goal live presentation, audio and match finish (jsdom)
+## 35. Cancelled goal live presentation, audio and match finish (jsdom)
 Exit: 0
 
 ```text
@@ -1571,7 +1589,7 @@ Maç sonrası nextFixture: gün 13 rize_yagmur vs denizli_yesilova played=false
 
 Stderr:
 ```text
-(node:216697) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+(node:266732) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
 --import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("./tools/qa-live-loader.mjs", pathToFileURL("./"));'
 (Use `node --trace-warnings ...` to show where the warning was created)
 Warning: An update to Root inside a test was not wrapped in act(...).
@@ -1642,7 +1660,7 @@ act(() => {
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
     at GameProvider (/home/user/hm26/src/store/game.tsx:213:40)
 ```
-## 35. Match finish recovery after simulated engine failure (jsdom)
+## 36. Match finish recovery after simulated engine failure (jsdom)
 Exit: 0
 
 ```text
@@ -1680,7 +1698,7 @@ Maç sonrası nextFixture: gün 13 rize_yagmur vs denizli_yesilova played=false
 
 Stderr:
 ```text
-(node:219055) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+(node:269021) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
 --import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("./tools/qa-live-loader.mjs", pathToFileURL("./"));'
 (Use `node --trace-warnings ...` to show where the warning was created)
 Warning: An update to Root inside a test was not wrapped in act(...).
@@ -1756,7 +1774,7 @@ This ensures that you're testing the behavior the user would see in the browser.
     at listOnTimeout (node:internal/timers:585:17)
     at process.processTimers (node:internal/timers:521:7)
 ```
-## 36. Matchday progression and end-day regression (jsdom)
+## 37. Matchday progression and end-day regression (jsdom)
 Exit: 0
 
 ```text
@@ -2000,9 +2018,9 @@ act(() => {
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
     at GameProvider (/home/user/hm26/src/store/game.tsx:213:40)
 ```
-## 37. Playwright Chromium launch smoke test
+## 38. Playwright Chromium launch smoke test
 Exit: 0
-## 38. New career advanced world settings and save E2E
+## 39. New career advanced world settings and save E2E
 Exit: 0
 
 ```text
@@ -2028,7 +2046,7 @@ Exit: 0
 
 CAREER-WORLD-BROWSER: 19 geçti, 0 başarısız
 ```
-## 39. Embedded asset rendering E2E
+## 40. Embedded asset rendering E2E
 Exit: 0
 
 ```text
@@ -2042,13 +2060,13 @@ Exit: 0
 
 E2E-ASSETS: 7/7 geçti
 ```
-## 40. Icon system E2E
+## 41. Icon system E2E
 Exit: 0
 
 ```text
 screenshots ✓
 ```
-## 41. Statistics and career history E2E
+## 42. Statistics and career history E2E
 Exit: 0
 
 ```text
@@ -2062,7 +2080,7 @@ Exit: 0
 
 6 test, 0 başarısız
 ```
-## 42. Save-slot delete flow E2E
+## 43. Save-slot delete flow E2E
 Exit: 0
 
 ```text
@@ -2079,7 +2097,7 @@ Exit: 0
 
 SONUÇ: YUVA SİLME TAMAM
 ```
-## 43. Full profile → starting XI E2E
+## 44. Full profile → starting XI E2E
 Exit: 0
 
 ```text
@@ -2090,7 +2108,7 @@ Exit: 0
 
 4 test, 0 başarısız
 ```
-## 44. Out-of-position warning E2E
+## 45. Out-of-position warning E2E
 Exit: 0
 
 ```text
@@ -2112,7 +2130,7 @@ Exit: 0
 
 SONUÇ: TÜM GEREKSİNİMLER GEÇTİ
 ```
-## 45. Bench-first tactical flow E2E
+## 46. Bench-first tactical flow E2E
 Exit: 0
 
 ```text
@@ -2124,7 +2142,7 @@ Exit: 0
 
 5 test, 0 başarısız
 ```
-## 46. Medical/mentoring/trade E2E
+## 47. Medical/mentoring/trade E2E
 Exit: 0
 
 ```text
@@ -2135,7 +2153,7 @@ Exit: 0
 
 0 BAŞARISIZ · 0 uyarı (atlananlar ⚟)
 ```
-## 47. Transfer theatre, signing and offline media E2E
+## 48. Transfer theatre, signing and offline media E2E
 Exit: 0
 
 ```text
@@ -2165,7 +2183,7 @@ Seçilen aday: Cemal Mense Serbest · Kanat · 33 yaş Yerli oyuncu ⚑ Serbest 
 
 TRANSFER-SCENE-BROWSER: 22/22
 ```
-## 48. Market potential, rotation and sale negotiation E2E
+## 49. Market potential, rotation and sale negotiation E2E
 Exit: 0
 
 ```text
@@ -2219,7 +2237,7 @@ Exit: 0
 
 MARKET-SQUAD-BROWSER: 47 geçti, 0 başarısız
 ```
-## 49. Contract renewal and recorded match highlights E2E
+## 50. Contract renewal and recorded match highlights E2E
 Exit: 0
 
 ```text
@@ -2258,7 +2276,7 @@ Exit: 0
 
 RENEWAL-HIGHLIGHTS-BROWSER: 32 geçti, 0 başarısız
 ```
-## 50. Live reactions, player comparison and weekly paper E2E
+## 51. Live reactions, player comparison and weekly paper E2E
 Exit: 0
 
 ```text
@@ -2296,7 +2314,7 @@ Exit: 0
 ✅ Gerçek oyuncu değişikliği sonrası kulübe isimleri güncellenir
 ✅ Gerçek motor gol/kurtarış/kart ürettiğinde kulübe ve tribün tepki verir | save · celebrate
 ✅ Tepki yalnız gerçek olay türü ve metniyle gösterilir
-✅ Duraklatma maç saatini ve animasyon sahnesini dondurur | [{"state":"paused","time":83.32200000060652},{"state":"paused","time":83.32200000060652},{"state":"paused","time":83.32200000060652}]
+✅ Duraklatma maç saatini ve animasyon sahnesini dondurur | [{"state":"paused","time":83.38099999979053},{"state":"paused","time":83.38099999979053},{"state":"paused","time":83.38099999979053}]
 ✅ 320 px olay kartını kenar talimatı düğmesi örtmez | {"overlaps":false,"buttonInFooter":true}
 ✅ Kenar talimatı simgesi koyu zeminde okunaklı | kontrast=9.19
 ✅ Son tepkiler açılabilir ve gerçek maç olayını korur
@@ -2313,7 +2331,7 @@ Exit: 0
 
 48/48 geçti
 ```
-## 51. Match arrival, award, training and career story E2E
+## 52. Match arrival, award, training and career story E2E
 Exit: 0
 
 ```text
@@ -2325,8 +2343,8 @@ Exit: 0
 ✅ Fizik seçimi sahnenin gerçek çalışmasını değiştirir
 ✅ Zekâ seçimi sahnenin gerçek çalışmasını değiştirir
 ✅ Teknik seçimi sahnenin gerçek çalışmasını değiştirir
-✅ Seçili teknik çalışmasında oyuncu gerçekten hareket eder | matrix(1, 0, 0, 1, 0, 0) → matrix(1, 0, 0, 1, 27.8611, -10.7158)
-✅ Tesis duraklatılınca animasyon gerçekten durur | matrix(1, 0, 0, 1, 34.8294, -13.3959) → matrix(1, 0, 0, 1, 34.8294, -13.3959)
+✅ Seçili teknik çalışmasında oyuncu gerçekten hareket eder | matrix(1, 0, 0, 1, 0.0541125, -0.0208125) → matrix(1, 0, 0, 1, 27.8611, -10.7158)
+✅ Tesis duraklatılınca animasyon gerçekten durur | matrix(1, 0, 0, 1, 37.1508, -14.2888) → matrix(1, 0, 0, 1, 37.1508, -14.2888)
 ✅ Yoğunluk seçimi hız ve kayıtlı odağa yansır
 ✅ İşletim sisteminin azaltılmış hareket tercihi tesisi durdurur
 ✅ 390 px tesis panel dışına taşmaz | {"width":390,"scrollWidth":390,"left":20,"right":370,"elWidth":350,"dialogLeft":0,"dialogRight":390}
@@ -2340,7 +2358,7 @@ Exit: 0
 ✅ Kariyer hikâyesi koyu temada okunur ve taşmaz
 ✅ Geliş sahnesi izlenmeden de maç başlatma seçeneği korunur
 ✅ Deplasmanda takım otobüsü gerçek ev sahibi stadyumuna gelir
-✅ Otobüs sahnede gerçekten ilerler | -259.7 → -240.6
+✅ Otobüs sahnede gerçekten ilerler | -259.8 → -240.7
 ✅ Duraklatma otobüsü ve dekoru dondurur
 ✅ Sürgü otobüsü park eder, kapıyı açar ve gerçek üç oyuncuyu gösterir
 ✅ 320 px geliş sahnesi panele sığar | {"width":320,"scrollWidth":320,"left":20,"right":300,"elWidth":280,"dialogLeft":0,"dialogRight":320}
@@ -2363,7 +2381,7 @@ Exit: 0
 
 Kariyer sahneleri Chromium: 43/43 geçti.
 ```
-## 52. Market filters and match-flow E2E
+## 53. Market filters and match-flow E2E
 Exit: 0
 
 ```text
@@ -2379,7 +2397,7 @@ Exit: 0
 
 E2E-V099: 9/9 geçti
 ```
-## 53. Live scorebug, feed, accessible Phaser pitch and action E2E (v0.9.12)
+## 54. Live scorebug, feed, accessible Phaser pitch and action E2E (v0.9.12)
 Exit: 0
 
 ```text
@@ -2432,19 +2450,19 @@ Exit: 0
 
 E2E-LIVE-V0913: 24/24 geçti
 ```
-## 54. Deterministic Phaser motion and pause E2E
+## 55. Deterministic Phaser motion and pause E2E
 Exit: 0
 
 ```text
 ✅ Durdurulmuş başlangıçta 22 oyuncu köşeden gelmeden doğru yerde | oyuncu=22 duraklatıldı=true
 ✅ İlk top ve gerçek sahibi başlangıçta sahada aynı bölgede
 ✅ Asenkron React açılışı duraklatılmışken iki takımı da çizer | {"red":1051,"blue":1067}
-✅ Top tek karede takılmadan birden çok karede ilerler | 74.6 → 128.4 → 245.4
+✅ Top tek karede takılmadan birden çok karede ilerler | 74.6 → 152.8 → 244.4
 ✅ Havalanan top hedefe ulaşıp tekrar yere iner | {"x":245.44000000000003,"y":90.464}
 ✅ Top sahibi ve hareket hedefi güncel motor verisinden çizilir
 ✅ Maç duraklatılınca top ve oyuncu animasyonları gerçekten donar
 ✅ Devam edilince donmuş hareket kaldığı yerden sürer
-✅ 1× ve 4× hareket uzunlukları seçilen hıza uyumlu | 1× ilerleme=0.21 4× x=74.6
+✅ 1× ve 4× hareket uzunlukları seçilen hıza uyumlu | 1× ilerleme=0.38 4× x=74.6
 ✅ Değişiklikte yeni oyuncu (0,0) yerine kendi yuvasında belirir
 ✅ Metin olayı devam eden top yolunu kesmez; replik motor verisini değiştirmez
 ✅ Olay bitince top arada güncellenen en son oyun konumuna yetişir | {"x":245.44000000000003,"y":220}
@@ -2457,7 +2475,7 @@ Exit: 0
 
 PITCH-MOTION-BROWSER: 18/18
 ```
-## 55. PWA offline shell + cached bundles E2E (v0.9.12)
+## 56. PWA offline shell + cached bundles E2E (v0.9.12)
 Exit: 0
 
 ```text

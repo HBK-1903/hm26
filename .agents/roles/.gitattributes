@@ -1,0 +1,2 @@
+# Preserve upstream role documents byte-for-byte, including their original whitespace.
+agency-agents/**/*.md whitespace=-trailing-space
