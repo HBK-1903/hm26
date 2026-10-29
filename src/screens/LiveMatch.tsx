@@ -192,6 +192,8 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onE
     const t = setTimeout(() => {
       try {
         const fresh = session.step();
+        // Bir adım devre düdüğüyle birlikte başka olaylar da üretebilir; son satıra bakmak düdüğü kaçırır.
+        if (fresh.some((event) => event.kind === 'half' && event.minute === 45)) audio.play('whistle-half');
         const ballSample = session.getBallState();
         const heatPoint = toStadiumPoint(ballSample.owner, { x: ballSample.x, y: ballSample.y });
         setHeatSamples((previous) => [...previous, { ...heatPoint, side: ballSample.owner }].slice(-1200));
@@ -273,7 +275,6 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onE
     if (e.anim?.eventType === 'woodwork') { audio.play('woodwork'); vibrate(60); }
     if (e.anim?.eventType === 'volley') { audio.play('nudge'); if (e.kind !== 'goal') vibrate(25); }
     if (e.anim?.eventType === 'shot' && e.kind !== 'goal' && e.kind !== 'save') { audio.play('nudge'); vibrate(25); }
-    if (e.kind === 'half' && e.minute === 45) audio.play('whistle-half');
     if (e.kind === 'half' && e.minute >= 90) { audio.play('whistle-end'); audio.stopCrowd(); }
   }, [currentEvent, hapticsEnabled, reducedMotion]);
 
@@ -282,18 +283,22 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onE
 
   // VAR/kart ve kullanıcı tarafı sakatlıklarında karar; devrede tek seferlik team talk.
   useEffect(() => {
+    if (paused || done || decision) return;
     const last = currentEvent;
-    if (!last || paused || done || decision) return;
-    if (last.kind === 'half' && last.minute === 45 && !teamTalkPromptShown.current) {
-      teamTalkPromptShown.current = true; setPaused(true); setShowTeamTalk(true); return;
+    if (last) {
+      const needsDecision = last.kind === 'card' || last.kind === 'var' || (last.kind === 'injury' && last.side === mySide);
+      const key = `${last.minute}:${last.kind}:${last.text}`;
+      if (needsDecision && lastDecisionShown.current !== key) {
+        lastDecisionShown.current = key;
+        setPaused(true); setDecision(last); return;
+      }
     }
-    const needsDecision = last.kind === 'card' || last.kind === 'var' || (last.kind === 'injury' && last.side === mySide);
-    if (!needsDecision) return;
-    const key = `${last.minute}:${last.kind}:${last.text}`;
-    if (lastDecisionShown.current === key) return;
-    lastDecisionShown.current = key;
-    setPaused(true); setDecision(last);
-  }, [currentEvent, paused, done, decision, mySide]);
+    // Devre düdüğü bir step() partisinin ortasında kalabilir. Önceki karar varsa
+    // kapandıktan sonra da 45' düdüğünü bulup konuşmayı tam bir kez aç.
+    if (!teamTalkPromptShown.current && eventsShown.some((event) => event.kind === 'half' && event.minute === 45)) {
+      teamTalkPromptShown.current = true; setPaused(true); setShowTeamTalk(true);
+    }
+  }, [eventsShown, currentEvent, paused, done, decision, mySide]);
 
   // Not: düdükten sonra otomatik geçiş YOK. Maç bittiğinde canlı ekran (sekmeler, istatistik,
   // analiz, tablo ve spiker akışı) incelemeye açık kalır; kullanıcı footer'daki butonla röportaja geçer.

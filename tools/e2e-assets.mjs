@@ -65,7 +65,7 @@ await tap(page.locator('nav[aria-label="Ana gezinme"] button', { hasText: 'Daha'
 await page.waitForTimeout(400);
 await tap(page.locator('button', { hasText: 'Ayarlar' }));
 await page.waitForTimeout(400);
-await tap(page.locator('button', { hasText: 'Koyu 🌙' }));
+await tap(page.getByRole('group', { name: 'Tema seçimi' }).getByRole('button', { name: 'Koyu', exact: true }));
 await page.waitForTimeout(400);
 const darkState = await page.evaluate(() => {
   const htmlDark = document.documentElement.classList.contains('m26-dark');
@@ -77,7 +77,7 @@ const darkState = await page.evaluate(() => {
 ok('A6 koyu tema: krem ikonlar görünür, koyu ikonlar gizli', darkState.htmlDark && darkState.ivShown === 4 && darkState.dkShown === 0,
   `m26-dark=${darkState.htmlDark} ivory=${darkState.ivShown}/4 dark=${darkState.dkShown}/0`);
 await page.screenshot({ path: path.join(shotsDir, 'a3-dark-theme.png') });
-await tap(page.locator('button', { hasText: 'Açık ☀️' }));
+await tap(page.getByRole('group', { name: 'Tema seçimi' }).getByRole('button', { name: 'Açık', exact: true }));
 await page.waitForTimeout(400);
 const lightState = await page.evaluate(() => {
   const iv = [...document.querySelectorAll('nav img.gi-ivory')];

@@ -55,8 +55,11 @@ try {
     ['League/cup balance simulation (4,000 matches)', ['tsx', 'tools/masssim.ts']],
     ['Medical, protest, penalty, shout and telemetry QA', ['tsx', 'tools/qa-features-v099.ts']],
     ['Pitch Wave 1 geometry and goal-line clearance QA (6 checks)', ['tsx', 'tools/qa-pitch-v0912.ts']],
+    ['Transfer presentation rules, voices and local artwork', ['tsx', 'tools/qa-transfer-scene.ts']],
   ];
   for (const [name, args] of core) run(name, 'npx', ['--yes', ...args], name.includes('simulation') ? 300_000 : 180_000);
+  run('Transfer negotiation and save integration (jsdom)', 'npm', ['run', 'qa:transfer:scene:ui'], 180_000);
+  run('Batched halftime event and decision flow (jsdom)', 'npm', ['run', 'qa:live:halftime'], 180_000);
 
   const browserProbe = spawnSync(process.execPath, ['-e', "import('playwright').then(({ chromium }) => console.log(chromium.executablePath()))"], { cwd: root, encoding: 'utf8' });
   const chromiumExecutable = clean(browserProbe.stdout ?? '').split('\n').filter(Boolean).at(-1) ?? '';
@@ -86,6 +89,7 @@ try {
       ['Out-of-position warning E2E', 'tools/e2e-xi-warn.mjs'],
       ['Bench-first tactical flow E2E', 'tools/e2e-benchfirst.mjs'],
       ['Medical/mentoring/trade E2E', 'tools/e2e-features-v099.mjs'],
+      ['Transfer theatre, signing and offline media E2E', 'tools/e2e-transfer-scene.mjs'],
       ['Market filters and match-flow E2E', 'tools/e2e-v099.mjs'],
       ['Live scorebug, feed, accessible Phaser pitch and action E2E (v0.9.12)', 'tools/e2e-live-v0911.mjs'],
       ['PWA offline shell + cached bundles E2E (v0.9.12)', 'tools/e2e-offline-v0911.mjs'],

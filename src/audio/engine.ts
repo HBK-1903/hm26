@@ -31,6 +31,9 @@ class AudioEngine {
     if (this.masterGain && this.ctx) this.masterGain.gain.setValueAtTime(this.prefs.master, this.ctx.currentTime);
   }
 
+  /** Etkin kanal ayarları: localStorage kullanılamasa da geçerli kullanıcı tercihini döndürür. */
+  getPrefs(): AudioPrefs { return { ...this.prefs }; }
+
   /** iOS unlock: ilk dokunuşta çağrılmalı */
   unlock() {
     if (this.unlocked) return;

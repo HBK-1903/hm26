@@ -1,0 +1,65 @@
+/* HM26 · Transfer masası: veriyle boyanan, hareketi azaltılabilir 2.5D sahne. */
+.transfer-theatre {
+  position: relative; isolation: isolate; overflow: hidden; aspect-ratio: 16 / 10;
+  width: 100%; min-width: 0; max-height: 265px; border-radius: 18px;
+  border: 1px solid rgba(226, 188, 113, .36); color: #fff8ed;
+  background: #111e2c url('/assets/transfer/negotiation-room.webp') center / cover no-repeat;
+  box-shadow: 0 10px 24px rgba(9, 18, 29, .22), inset 0 1px rgba(255,255,255,.1);
+}
+.transfer-theatre--press { background-image: url('/assets/transfer/press-room.webp'); }
+.transfer-theatre--stadium, .transfer-theatre--star { background-image: url('/assets/transfer/stadium.webp'); }
+.transfer-theatre__veil { position:absolute; inset:0; z-index:-1; background:linear-gradient(180deg,rgba(5,12,22,.68),rgba(7,15,24,.12) 38%,rgba(4,10,19,.84)); }
+.transfer-theatre__heading { position:absolute; top:11px; left:13px; right:12px; display:flex; align-items:flex-start; justify-content:space-between; gap:10px; z-index:3; }
+.transfer-theatre__eyebrow { font-size:9px; letter-spacing:.16em; font-weight:900; color:#f3c875; text-shadow:0 1px 4px #000; }
+.transfer-theatre__venue { font-size:12px; font-weight:750; line-height:1.2; margin-top:3px; text-shadow:0 2px 5px #000; }
+.transfer-theatre__crest { display:flex; align-items:center; justify-content:center; padding:4px; border-radius:50%; background:rgba(6,17,30,.82); border:1px solid rgba(255,255,255,.25); box-shadow:0 2px 10px #0007; }
+.transfer-theatre__actors { position:absolute; inset:33px 7% 36px; display:flex; justify-content:center; align-items:flex-end; gap:4%; z-index:1; }
+.transfer-theatre__actor { display:flex; flex-direction:column; align-items:center; justify-content:flex-end; width:32%; max-width:112px; height:100%; filter:drop-shadow(0 5px 6px rgba(0,0,0,.55)); }
+.transfer-theatre__actor > span { display:block; margin-top:-4px; padding:2px 7px; border:1px solid rgba(255,255,255,.2); border-radius:999px; background:rgba(7,16,28,.84); color:#f5ecd9; font-size:7px; font-weight:900; letter-spacing:.11em; z-index:2; }
+.transfer-puppet { width:100%; max-height:100%; transform-origin:50% 100%; animation: transfer-breathe 3.6s ease-in-out infinite; }
+.transfer-puppet svg { display:block; width:100%; max-height:155px; overflow:visible; }
+.transfer-puppet__head { transform-origin:64px 85px; animation:transfer-head 5.5s ease-in-out infinite; }
+.transfer-puppet__mouth { opacity:0; }
+.transfer-puppet.is-talking .transfer-puppet__head { animation:transfer-talking 0.68s ease-in-out infinite; }
+.transfer-puppet.is-talking .transfer-puppet__mouth { opacity:1; animation:transfer-mouth .32s ease-in-out infinite alternate; transform-origin:64px 74px; }
+.transfer-theatre__shirt { width:18%; max-width:60px; margin-bottom:18px; filter:drop-shadow(0 4px 6px #0009); animation:transfer-shirt 3s ease-in-out infinite; }
+.transfer-theatre__shirt svg { width:100%; display:block; }
+.transfer-theatre__foot { position:absolute; inset:auto 0 0; height:30%; background:linear-gradient(0deg,rgba(4,10,19,.9),transparent); z-index:1; pointer-events:none; }
+.transfer-theatre__caption { position:absolute; bottom:11px; left:14px; right:14px; display:grid; grid-template-columns:auto 1fr auto; gap:7px; align-items:baseline; z-index:2; text-shadow:0 2px 5px #000; }
+.transfer-theatre__caption span { color:#f0c775; font-size:8px; font-weight:900; letter-spacing:.11em; }
+.transfer-theatre__caption strong { font-size:13px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+.transfer-theatre__caption small { color:#e5e8e7; font-size:9px; font-weight:700; }
+.transfer-theatre__stadium-lights { position:absolute; inset:0; z-index:0; pointer-events:none; background:radial-gradient(ellipse at 17% 3%,rgba(255,231,170,.25),transparent 29%),radial-gradient(ellipse at 83% 4%,rgba(255,231,170,.23),transparent 30%); animation:transfer-lights 4.5s ease-in-out infinite; }
+.transfer-theatre--star { border-color:rgba(251,211,116,.8); box-shadow:0 0 0 1px #d4aa4e55,0 9px 25px #8a601e55; }
+.transfer-theatre--star .transfer-theatre__stadium-lights { background:radial-gradient(ellipse at 17% 3%,rgba(255,231,170,.42),transparent 31%),radial-gradient(ellipse at 83% 4%,rgba(255,231,170,.38),transparent 32%); }
+.transfer-theatre__confetti { position:absolute; inset:0; overflow:hidden; pointer-events:none; z-index:2; }
+.transfer-theatre__confetti i { position:absolute; width:4px; height:8px; top:-12%; left:calc((var(--i) * 7%) + 2%); background:var(--transfer-trim); opacity:.85; transform:rotate(25deg); animation:transfer-confetti 4.7s linear infinite; animation-delay:calc(var(--i) * -.31s); }
+.transfer-theatre__confetti i:nth-child(3n) { background:#efd28b; width:3px; height:6px; }
+.transfer-theatre__confetti i:nth-child(3n+1) { background:var(--transfer-club); }
+.transfer-dialogue { border-radius:14px; border:1px solid var(--c-line); background:var(--c-surface); padding:10px 12px; }
+.transfer-dialogue__top { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.transfer-dialogue__top > span { font-size:10px; color:var(--c-muted); font-weight:900; letter-spacing:.08em; text-transform:uppercase; }
+.transfer-dialogue__top > div { display:flex; align-items:center; gap:7px; }
+.transfer-dialogue__top button { min-height:34px; padding:3px 5px; border-radius:7px; color:var(--c-secondary); font-weight:800; font-size:10px; }
+.transfer-dialogue__top button:hover { background:var(--c-elevated); }
+.transfer-dialogue p { color:var(--c-primary); font-size:12.5px; line-height:1.4; font-weight:650; margin:5px 0 0; }
+.transfer-replies { display:grid; gap:7px; }
+.transfer-reply { width:100%; text-align:left; border:1px solid var(--c-line); background:var(--c-surface); border-radius:12px; padding:10px 12px; min-height:60px; }
+.transfer-reply[aria-pressed="true"] { border-color:var(--c-accent); box-shadow:inset 3px 0 0 var(--c-accent); background:var(--c-elevated); }
+.transfer-reply__label { color:var(--c-primary); font-size:12.5px; font-weight:800; line-height:1.3; }
+.transfer-reply__hint { display:block; color:var(--c-secondary); font-size:10.5px; line-height:1.3; margin-top:4px; }
+.transfer-reply__tone { color:var(--c-accent); font-size:10px; font-weight:900; text-transform:uppercase; letter-spacing:.07em; margin-bottom:3px; }
+.transfer-facts { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; text-align:left; }
+.transfer-facts > div { background:var(--c-base); border:1px solid var(--c-line); border-radius:10px; padding:9px 10px; }
+.transfer-facts span { display:block; color:var(--c-muted); font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; }
+.transfer-facts strong { display:block; color:var(--c-primary); font-size:13px; margin-top:3px; overflow-wrap:anywhere; }
+@keyframes transfer-breathe { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-2px); } }
+@keyframes transfer-head { 0%,100% { transform:rotate(-1deg); } 50% { transform:rotate(1.5deg); } }
+@keyframes transfer-talking { 0%,100% { transform:rotate(-2deg) translateY(0); } 50% { transform:rotate(2deg) translateY(-1px); } }
+@keyframes transfer-mouth { from { transform:scaleY(.3); } to { transform:scaleY(1.2); } }
+@keyframes transfer-shirt { 0%,100% { transform:rotate(-2deg) translateY(0); } 50% { transform:rotate(2deg) translateY(-3px); } }
+@keyframes transfer-lights { 0%,100% { opacity:.7; } 50% { opacity:1; } }
+@keyframes transfer-confetti { 0% { transform:translateY(-8px) rotate(0); } 100% { transform:translateY(320px) rotate(360deg); } }
+@media (max-width:340px) { .transfer-theatre__caption { grid-template-columns:minmax(0,1fr) auto; } .transfer-theatre__caption span { display:none; } .transfer-theatre__actors { inset-inline:3%; } }
+html.m26-rm .transfer-theatre *, html.m26-rm .transfer-theatre *::before, html.m26-rm .transfer-theatre *::after { animation:none !important; }
+@media (prefers-reduced-motion:reduce) { .transfer-theatre *, .transfer-theatre *::before, .transfer-theatre *::after { animation:none !important; } }

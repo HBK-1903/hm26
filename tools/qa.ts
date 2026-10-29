@@ -131,8 +131,8 @@ function makeSampleBlob(): { blob: SaveBlob; meta: SaveMeta } {
   const raw = JSON.stringify({ format: 'manager26-save', version: 1, exportedAt: Date.now(), meta, blob: v1Blob });
   const out = parseImportFile(raw);
   const car = out.blob.career as unknown as Record<string, unknown>;
-  const pass = out.blob.version === 2 && car.boardConfidence === 70 && !!car.clubFacilities && Array.isArray(car.trophyCabinet);
-  ok('v1→v2 kayıt göçü', pass, `version=${out.blob.version}, boardConfidence=${car.boardConfidence}`);
+  const pass = out.blob.version === SAVE_VERSION && car.boardConfidence === 70 && !!car.clubFacilities && Array.isArray(car.trophyCabinet);
+  ok('v1→güncel sürüm kayıt göçü', pass, `version=${out.blob.version}, boardConfidence=${car.boardConfidence}`);
 }
 
 // 9) Gelecek-sürüm reddı (§3.4: ileriden gelen kayıt açılmaz)
