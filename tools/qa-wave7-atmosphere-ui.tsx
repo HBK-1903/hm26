@@ -19,8 +19,7 @@ Object.defineProperty(globalThis, 'matchMedia', { value: dom.window.matchMedia, 
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 (globalThis as any).Image = dom.window.Image;
 
-import React from 'react';
-import { act } from 'react-dom/test-utils';
+import React, { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { GameProvider } from '../src/store/game';
 import { MatchPrep } from '../src/screens/MatchPrep';
@@ -50,7 +49,7 @@ const ok = (name: string, cond: boolean, detail = '') => { console.log(`${cond ?
   ok('TRIBÜN ve BEKLENTİ satırları geçerli tonlarda', atmRows.length >= 2 && atmRows.every((r) => ['ok', 'info', 'warn', 'danger'].includes(r.dataset.atmTone ?? '')), `adet=${atmRows.length}`);
   ok('Kültür değerleri sayı olarak metne yansıdı (0-100 /100 biçimi)', /\d{1,3}\/100/.test(bodyText()));
   ok('TD Notu kartı korunuyor (Dalga 5 regresyonu)', /Teknik Direktör Notu/.test(bodyText()));
-  root.unmount();
+  await act(async () => root.unmount());
 }
 
 // ——— Bölüm 2: Newsroom Taraftar sekmesi ———
@@ -72,13 +71,11 @@ const ok = (name: string, cond: boolean, detail = '') => { console.log(`${cond ?
   ok('Ezeli rekabet kartı var (nemesis yoksa dürüst metin)', /Ezeli rekabet/.test(bodyText()));
   ok('Sonuç şeridi boş durumda', /şerit ilk maçla birlikte dolacak/.test(bodyText()));
   ok('Sahte sonuç noktası üretilmedi', !dom.window.document.querySelector('[data-result-strip]'));
-  ok('Mevcut Manşet sekmesi geri dönüyor', (() => {
-    const m = (Array.from(dom.window.document.querySelectorAll('button')) as HTMLButtonElement[]).find((b) => b.textContent === 'Manşet');
-    m?.click();
-    return /Kulüp Basın Odası|Manşet/.test(bodyText());
-  })());
+  const headlineTab = (Array.from(dom.window.document.querySelectorAll('button')) as HTMLButtonElement[]).find((b) => b.textContent === 'Manşet');
+  await act(async () => headlineTab?.click());
+  ok('Mevcut Manşet sekmesi geri dönüyor', !!headlineTab && /Kulüp Basın Odası|Manşet/.test(bodyText()));
 
-  root.unmount();
+  await act(async () => root.unmount());
 }
 
 console.log(`\nDALGA7-ATMOSFER-UI: ${fail.length === 0 ? 'PASS' : `FAIL (${fail.length})`}`);

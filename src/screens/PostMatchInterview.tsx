@@ -1,4 +1,4 @@
-// HM26 — Maç sonu flash röportaj ekranı. Canlı maç biter bitmez otomatik açılır;
+// HM26 — Maç sonu flash röportaj ekranı. Son düdükten sonra kullanıcı düğmeyle açar;
 // seçim maç kaydıyla birlikte store'a iletilir (yeni kalıcı alan yok).
 import React from 'react';
 import { DemoFixture } from '../types';

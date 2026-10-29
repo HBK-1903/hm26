@@ -10,20 +10,28 @@ const check = (name, condition, detail = '') => {
 };
 
 try {
-  await page.goto('http://localhost:4173', { waitUntil: 'networkidle', timeout: 30_000 });
-  await page.waitForFunction(async () => {
-    const reg = await navigator.serviceWorker?.getRegistration();
-    return reg?.active?.state === 'activated';
-  }, null, { timeout: 30_000 });
+  await page.goto(process.env.HM26_BASE_URL ?? 'http://localhost:4173', { waitUntil: 'networkidle', timeout: 30_000 });
   const registration = await page.evaluate(async () => {
     if (!('serviceWorker' in navigator)) return { supported: false, active: false };
     const reg = await navigator.serviceWorker.ready;
-    return { supported: true, active: reg.active?.state === 'activated' };
+    const worker = reg.active;
+    // ready may resolve while the worker is still activating; wait for the actual
+    // state transition instead of treating an async waitForFunction Promise as truthy.
+    if (worker && worker.state !== 'activated') await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => { worker.removeEventListener('statechange', checkState); reject(new Error('Service worker activation timed out')); }, 20_000);
+      const checkState = () => {
+        if (worker.state === 'activated') { clearTimeout(timer); worker.removeEventListener('statechange', checkState); resolve(); }
+        else if (worker.state === 'redundant') { clearTimeout(timer); worker.removeEventListener('statechange', checkState); reject(new Error('Service worker became redundant')); }
+      };
+      worker.addEventListener('statechange', checkState);
+      checkState();
+    });
+    return { supported: true, active: worker?.state === 'activated' };
   });
   check('O1 Service Worker registers and activates', registration.supported && registration.active, JSON.stringify(registration));
 
   await page.reload({ waitUntil: 'networkidle', timeout: 30_000 });
-  await page.waitForFunction(() => !!navigator.serviceWorker?.controller, { timeout: 15_000 });
+  await page.waitForFunction(() => !!navigator.serviceWorker?.controller, null, { timeout: 15_000 });
   check('O2 First reload is controlled by the service worker', await page.evaluate(() => !!navigator.serviceWorker.controller));
 
   const onlineShell = (await page.locator('body').innerText()).trim();

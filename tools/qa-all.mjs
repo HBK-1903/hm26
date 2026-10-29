@@ -10,9 +10,9 @@ let previewProcess = null;
 const clean = (s = '') => s.replace(/\u001b\[[0-9;]*m/g, '').trim();
 const stamp = new Date().toISOString();
 
-function run(name, command, args, timeout = 300_000) {
+function run(name, command, args, timeout = 300_000, extraEnv = {}) {
   console.log(`\n${'='.repeat(74)}\n[QA ${rows.length + 1}] ${name}\n$ ${command} ${args.join(' ')}\n${'='.repeat(74)}`);
-  const res = spawnSync(command, args, { cwd: root, encoding: 'utf8', timeout, maxBuffer: 32 * 1024 * 1024, env: { ...process.env, HM26_BASE_URL: 'http://localhost:4173' } });
+  const res = spawnSync(command, args, { cwd: root, encoding: 'utf8', timeout, maxBuffer: 32 * 1024 * 1024, env: { ...process.env, HM26_BASE_URL: 'http://localhost:4173', ...extraEnv } });
   const stdout = clean(res.stdout ?? '');
   const stderr = clean(res.stderr ?? '');
   if (stdout) console.log(stdout);
@@ -43,9 +43,14 @@ try {
   if (!existsSync(`${root}/node_modules/.bin/tsc`)) run('Install locked dependencies', 'npm', ['ci'], 300_000);
   run('Production build + TypeScript + offline manifest', 'npm', ['run', 'build'], 300_000);
   run('PWA headers, manifest, icons and update lifecycle', 'npm', ['run', 'qa:pwa'], 120_000);
+  run('Content-derived service-worker build identity', 'npm', ['run', 'qa:sw-manifest'], 60_000);
+  run('Save integrity, legacy migration and transaction conflicts (jsdom)', 'npm', ['run', 'qa:save-integrity'], 120_000);
+  run('Project-local security skill installation checks (not an audit)', 'npm', ['run', 'qa:security-skill'], 60_000);
+  run('Agency development role installation checks (not independent agents)', 'npm', ['run', 'qa:agency-roles'], 60_000);
 
   const core = [
     ['Core integrity / serialization QA (11 tests)', ['tsx', 'tools/qa.ts']],
+    ['Save-slot season metadata and legacy compatibility QA', ['tsx', 'tools/qa-save-metadata.ts']],
     ['Stress and broad feature QA (37 tests)', ['tsx', 'tools/qa-extended.ts']],
     ['Goalkeeper/stat consistency QA', ['tsx', 'tools/qa8-faza.ts']],
     ['Assets and brand manifest QA', ['tsx', 'tools/qa9-logopack.ts']],
@@ -60,11 +65,24 @@ try {
     ['Shared UI notification timing', ['tsx', 'tools/qa-ui-smoothness.tsx']],
     ['New career advanced world settings', ['tsx', 'tools/qa-career-world.tsx']],
     ['Transfer presentation rules, voices and local artwork', ['tsx', 'tools/qa-transfer-scene.ts']],
+    ['Newsroom saved-evidence regression', ['tsx', 'tools/qa-newsroom-wave13.ts']],
+    ['Market refresh, shortlist and press-room links', ['tsx', 'tools/qa-market-improvements.ts']],
   ];
   for (const [name, args] of core) run(name, 'npx', ['--yes', ...args], name.includes('simulation') ? 300_000 : 180_000);
   run('Transfer negotiation and save integration (jsdom)', 'npm', ['run', 'qa:transfer:scene:ui'], 180_000);
+  run('Sale negotiation, settlement and save integration (jsdom)', 'npm', ['run', 'qa:sale:ui'], 180_000);
+  run('Market potential, rotation, match plan and legacy saves (jsdom)', 'npm', ['run', 'qa:market-squad:ui'], 180_000);
+  run('Contract renewal and recorded match highlights (jsdom)', 'npm', ['run', 'qa:renewal-highlights:ui'], 180_000);
+  run('Live reactions, player comparison and weekly paper (jsdom)', 'npm', ['run', 'qa:atmosphere-paper:ui'], 180_000);
+  run('Match arrival, award, training and career story (jsdom)', 'npm', ['run', 'qa:career-scenes:ui'], 180_000);
+  run('Newsroom and fan atmosphere regression (jsdom)', 'npm', ['run', 'qa:wave7:ui'], 180_000);
+  run('Tactics editor regression (jsdom)', 'npm', ['run', 'qa:wave2:ui'], 180_000);
+  run('Squad rotation and health regression (jsdom)', 'npm', ['run', 'qa:wave3:ui'], 180_000);
+  run('Matchday preparation regression (jsdom)', 'npm', ['run', 'qa:wave5:ui'], 180_000);
   run('Batched halftime event and decision flow (jsdom)', 'npm', ['run', 'qa:live:halftime'], 180_000);
-  run('Match finish and manual interview flow (jsdom)', 'npm', ['run', 'qa:match-finish'], 180_000);
+  run('Match finish, last-whistle reaction and manual interview (jsdom)', 'npm', ['run', 'qa:match-finish'], 180_000, { HM26_FINAL_BATCH: 'card' });
+  run('Cancelled goal live presentation, audio and match finish (jsdom)', 'npm', ['run', 'qa:match-finish'], 180_000, { HM26_CANCELLED_GOAL: '1' });
+  run('Match finish recovery after simulated engine failure (jsdom)', 'npm', ['run', 'qa:match-finish'], 180_000, { HM26_FAULT: 'finish' });
   run('Matchday progression and end-day regression (jsdom)', 'npm', ['run', 'qa:dayflow'], 180_000);
 
   const browserProbe = spawnSync(process.execPath, ['-e', "import('playwright').then(({ chromium }) => console.log(chromium.executablePath()))"], { cwd: root, encoding: 'utf8' });
@@ -92,11 +110,18 @@ try {
       ['Icon system E2E', 'tools/e2e-icons.mjs'],
       ['Statistics and career history E2E', 'tools/e2e-stats.mjs'],
       ['Save-slot delete flow E2E', 'tools/e2e-slots.mjs'],
+      ['Backup, storage failure, legacy migration and stale-tab E2E', 'tools/e2e-save-integrity.mjs'],
+      ['Service-worker two-release and offline isolation E2E', 'tools/e2e-sw-update.mjs'],
+      ['Save-before-update and multi-tab game update E2E', 'tools/e2e-update-game.mjs'],
       ['Full profile → starting XI E2E', 'tools/e2e-xi-full.mjs'],
       ['Out-of-position warning E2E', 'tools/e2e-xi-warn.mjs'],
       ['Bench-first tactical flow E2E', 'tools/e2e-benchfirst.mjs'],
       ['Medical/mentoring/trade E2E', 'tools/e2e-features-v099.mjs'],
       ['Transfer theatre, signing and offline media E2E', 'tools/e2e-transfer-scene.mjs'],
+      ['Market potential, rotation and sale negotiation E2E', 'tools/e2e-market-squad-polish.mjs'],
+      ['Contract renewal and recorded match highlights E2E', 'tools/e2e-renewal-highlights.mjs'],
+      ['Live reactions, player comparison and weekly paper E2E', 'tools/e2e-atmosphere-comparison-paper.mjs'],
+      ['Match arrival, award, training and career story E2E', 'tools/e2e-career-scenes.mjs'],
       ['Market filters and match-flow E2E', 'tools/e2e-v099.mjs'],
       ['Live scorebug, feed, accessible Phaser pitch and action E2E (v0.9.12)', 'tools/e2e-live-v0911.mjs'],
       ['Deterministic Phaser motion and pause E2E', 'tools/e2e-pitch-motion.mjs'],
@@ -121,7 +146,7 @@ try {
     ...rows.map((row, i) => `| ${i + 1} | ${row.name.replaceAll('|', '\\|')} | ${row.code === 0 ? '✅ PASS' : '❌ FAIL'} |`),
     '',
     '## Bulgular ve açık işler',
-    `- **Bu koşuda ürün/test kusuru:** ${fail === 0 ? 'bulunmadı; tüm aşamalar geçti.' : `açık başarısız aşamalar: ${failingStages.join(', ')}.`}`,
+    `- **Bu koşudaki testler:** ${fail === 0 ? 'tüm aşamalar geçti; test kapsamı dışındaki kusurlar ayrıca incelenmelidir.' : `başarısız aşamalar: ${failingStages.join(', ')}.`}`,
     '- **Otomasyon düzeltmesi:** eski E2E betiklerindeki :3001 adresleri ortak `HM26_BASE_URL` ile :4173 preview adresine alındı; yeniden koşuda ilgili akışlar geçti.',
     '- **Tarayıcı ortamı:** Chromium indirme ve paylaşımlı sistem kütüphanelerini kontrol etme/kurma adımları ile launch smoke testi otomasyona eklendi.',
     '- **Uyarılar:** `qa-extended` 37/37 testte sıfır başarısızlıkla iki istatistiksel uyarı üretir (100 maçlık skor dağılımı örneklemi ve farklı skor çeşitliliği). Build ayrıca kabul edilmiş Phaser lazy-chunk boyut uyarısını verir; Phaser maç ekranında lazy-load edilir.',

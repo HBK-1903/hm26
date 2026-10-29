@@ -88,7 +88,8 @@ const check = (name: string, pass: boolean, detail: string) => checks.push({ nam
   const builder = start >= 0 && end > start ? store.slice(start, end) : '';
   const noPostResultPatch = builder.includes('buildQuickMatchResult(input, homeId, awayId)')
     && !/res\.stats\.(?:hg|ag)\s*[+\-]?=/.test(builder);
-  const quickUsesProductionPath = prep.includes('g.playLeagueMatch({ ...next })');
+  // Quick results use the same production match path, with the selected tactical plan.
+  const quickUsesProductionPath = /g\.playLeagueMatch\(\{\s*\.\.\.next\s*\},\s*undefined,\s*activeTacticIdx\)/.test(prep);
   const difficultyIsPreMatch = builder.includes('challengeClubId: career.clubId') && builder.includes('challengePoints: career.manager.challengePoints')
     && live.includes('challengeClubId: g.career.clubId') && live.includes('challengePoints: g.career.manager.challengePoints')
     && session.includes('const opponentChallengePoints = this.input.challengeClubId && club.id !== this.input.challengeClubId');

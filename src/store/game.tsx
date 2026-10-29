@@ -10,16 +10,20 @@ import { computeSeasonAwards, SeasonAwards } from '../data/awards';
 import { minuteGrievance, grievanceLabel, evalPromise, newPromise, MinutePromise, minuteRole } from '../data/minutes';
 import type { MatchStateEvent } from '../engine/engine';
 import { buildEngineInput } from '../engine/adapter';
+import { aiDefaultTactic } from '../engine/tactics';
 import { buildQuickMatchResult } from '../engine/quickMatchResult';
 import { fixtureXgPair, xgConfig, hash32 } from '../engine/leagueXg';
 import { compactMatchEvents } from '../engine/matchEvents';
 import { seasonSummary } from '../engine/teamInsights';
 import { CLINIC_COST_M, clinicRemainingDays, needleOutcome } from '../engine/medical';
 import { Cup, CupTie, buildCup, buildFriendlies, buildLeagueFixtures, cupGroupTable, dayToDate, inWindow, weekdayOf, ACADEMY_INTAKE_DAY } from '../data/calendar';
-import { writeSave, writeSaveRetry, SaveBlob, SAVE_VERSION } from './persist';
+import { writeSave, writeSaveRetry, SaveBlob, SaveConflictError, SAVE_VERSION } from './persist';
 import { applyComfortSettings } from '../utils/comfort';
 import { consumeManagerBan, registerManagerYellow as registerManagerYellowRule } from '../engine/discipline';
-import { normalizeSellOnClauses, withSellOnClause, calculateSellOnSettlement } from '../data/transferNegotiation';
+import { normalizeSellOnClauses, withSellOnClause, calculateSellOnSettlement, type SellOnSettlement } from '../data/transferNegotiation';
+import { evaluateIncomingCounter } from '../data/saleNegotiation';
+import { evaluateRenewalOffer, renewalBonus, renewalDemand, RENEWAL_YEARS, type RenewalTerms } from '../data/contractNegotiation';
+import type { TransferTone } from '../data/transferPresentation';
 import { academyIntakeExpired, evaluateAcademySigning, normalizeAcademyIntake } from '../data/academy';
 import { addSeasonCultureHonors, assessFfp, normalizeClubCulture, resolveCultureChoice, type CultureChoice } from '../data/culture';
 import { applyInterviewEffect, INTERVIEW_INBOX_TITLE, type InterviewOption } from '../data/interview';
@@ -28,6 +32,26 @@ import { advanceInternationalSeason, archiveInternationalSeason, buildInternatio
 
 export const SEED_BASE = 20260803;
 export { dayToDate };
+
+export interface IncomingOfferResponse {
+  ok: boolean;
+  outcome?: 'accepted' | 'counter-accepted' | 'rejected';
+  reason?: string;
+  fee?: number;
+  settlement?: SellOnSettlement;
+  budgetAfter?: number;
+}
+
+export interface RenewalQuote {
+  ok: boolean;
+  reason?: string;
+  accepted?: boolean;
+  years?: number;
+  wage?: number;
+  demand?: number;
+  bonus?: number;
+  budgetAfter?: number;
+}
 
 export interface DemoMatchEvent { minute: number; text: string; kind: 'info' | 'goal' | 'card' | 'chance' | 'save' | 'var' | 'sub' | 'half' | 'injury' | 'coach'; side?: 'home' | 'away'; path?: string[]; anim?: MatchStateEvent['anim']; playerId?: string; scorerId?: string; assisterId?: string; visualEvent?: 'free_kick' | 'brawl' | 'woodwork' | 'volley'; visualActors?: string[]; }
 // Dalga 2 (§5-D): vuruş haritası noktası — dikey saha yüzde koordinatı (ev üst yarı, dep alt yarı)
@@ -109,13 +133,16 @@ interface GameState extends PersistedState {
   nextFixture: DemoFixture | null;
   unread: number;
   effectiveStrength: (clubId: string) => number;
-  saveNow: (silent?: boolean) => Promise<void>;
+  saveNow: (silent?: boolean) => Promise<boolean>;
+  saveError: string | null;
+  snapshotForBackup: () => SaveBlob;
+  restoreBackup: (blob: SaveBlob) => Promise<boolean>;
 }
 
 interface GameActions {
   clearSeasonFinale: () => void;
   advanceDay: () => AdvanceResult;
-  buildDemoMatch: (homeId: string, awayId: string, tacticName: string) => DemoMatchResult;
+  buildDemoMatch: (homeId: string, awayId: string, tacticName: string, tacticIdx?: number) => DemoMatchResult;
   playLeagueMatch: (fx: DemoFixture, overrideResult?: DemoMatchResult, tacticIdx?: number, interview?: InterviewOption) => DemoMatchResult;
   updateTactic: (idx: number, t: TacticPlan) => void;
   setInbox: (fn: (m: InboxMsg[]) => InboxMsg[]) => void;
@@ -135,8 +162,10 @@ interface GameActions {
   applyRiskOutcome: (playedIds: string[]) => string[];
   /** v0.9.9 — ağabeylik: 29+ oyuncu ≤21 gence atanır (gelişim desteği) */
   setMentor: (youngId: string, seniorId: string | null) => { ok: boolean; reason?: string };
-  renewContract: (playerId: string, years: number) => { ok: boolean; reason?: string };
-  respondOffer: (offerId: string, accept: boolean, counterFee?: number) => void;
+  quoteRenewal: (playerId: string, years: number, terms: RenewalTerms) => RenewalQuote;
+  renewContract: (playerId: string, years: number, terms?: RenewalTerms) => RenewalQuote;
+  /** previewCounter: kabulde satış yapmaz; gerçek ret ise teklifi kapatır. */
+  respondOffer: (offerId: string, accept: boolean, counterFee?: number, options?: { tone?: TransferTone; previewCounter?: boolean }) => IncomingOfferResponse;
   resolveCultureIssue: (issueId: string, choice: CultureChoice) => { ok: boolean; reason?: string };
   toggleTransferList: (playerId: string) => void;
   playerOf: (playerId: string) => Player | null;
@@ -184,9 +213,10 @@ const INJURY_TYPES: { type: PlayerInjury['type']; name: string; sev: 'hafif' | '
   { type: 'kirik', name: 'Taraksız Kemiği Kırığı', sev: 'ciddi', days: [30, 60], risk: false },
 ];
 
-export function GameProvider({ career: initialCareer, snapshot, children }: {
+export function GameProvider({ career: initialCareer, snapshot, initialUpdatedAt, children }: {
   career: Career;
   snapshot?: SaveBlob | null;
+  initialUpdatedAt?: number;
   onExitToMenu?: () => void;
   children: React.ReactNode;
 }) {
@@ -202,6 +232,8 @@ export function GameProvider({ career: initialCareer, snapshot, children }: {
       return {
         ...px,
         leagueOf: fallbackLeagueOf, table: fallbackTable, cup: fallbackCup,
+        seasonNo: Number.isSafeInteger(px.seasonNo) && px.seasonNo >= 1 ? px.seasonNo : 1,
+        seasonHistory: Array.isArray(px.seasonHistory) ? px.seasonHistory : [],
         international: normalizeInternationalSeason(pxAny.international, fallbackIntl),
         internationalArchive: Array.isArray(pxAny.internationalArchive) ? pxAny.internationalArchive as InternationalArchiveEntry[] : [],
         playerClub: (pxAny.playerClub as Record<string, string>) ?? {},
@@ -275,6 +307,15 @@ export function GameProvider({ career: initialCareer, snapshot, children }: {
 
   const stateRef = useRef(st);
   const clinicInFlightRef = useRef(new Set<string>()); // klinik çift tıklama kilidi
+  // Serialise writes within this session; an import locks and drains the queue before replacing a slot.
+  const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const deferredSaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // null = new empty slot; undefined = legacy caller with no metadata revision available.
+  const saveRevisionRef = useRef<number | null | undefined>(snapshot ? initialUpdatedAt : null);
+  const restoreLockRef = useRef(false);
+  const mountedRef = useRef(true);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
   stateRef.current = st;
   useEffect(() => { applyComfortSettings(st.career.settings); }, []); // girişte konfor ayarları uygulanır
 
@@ -329,7 +370,9 @@ export function GameProvider({ career: initialCareer, snapshot, children }: {
         if (st.removedPlayers.includes(p0.id)) return;
         const patch = st.playerPatch[p0.id];
         const p = patch ? { ...p0, ...patch } : p0;
-        (merged[cid] ??= []).push({ ...p, clubId: cid });
+        // Migrated / academy players must follow the same transfer override as base squads.
+        const targetClub = st.playerClub[p.id] ?? cid;
+        (merged[targetClub] ??= []).push({ ...p, clubId: targetClub });
       });
     });
     return merged;
@@ -373,26 +416,65 @@ export function GameProvider({ career: initialCareer, snapshot, children }: {
   const unread = st.inbox.filter((m) => !m.read).length;
 
   // ── Kaydetme (§3.3: gün sonu / maç sonu / transfer / sezon / çıkış) ──
-  const saveNow = useCallback(async () => {
+  const snapshotForBackup = useCallback((): SaveBlob => {
     const s = stateRef.current;
-    const { career: _omitCareer, ...rest } = s;
-    void _omitCareer;
-    const full = {
-      ...rest,
-      career: s.career,
-      version: SAVE_VERSION,
-      day: s.career.day,
-    } as unknown as SaveBlob;
-    // FIX P1/3: ilk kayıt day-1'da retry'li; sonrası sessiz ama aerobik. Böylece soğuk profil ilk kurulumu kaybolmaz.
+    return JSON.parse(JSON.stringify({ ...s, version: SAVE_VERSION, day: s.career.day })) as SaveBlob;
+  }, []);
+
+  const saveNow = useCallback(async (): Promise<boolean> => {
+    if (!mountedRef.current || restoreLockRef.current) return false;
+    const s = stateRef.current;
+    let full: SaveBlob;
+    try {
+      // Capture the state at request time so delayed writes cannot observe later mutations.
+      full = snapshotForBackup();
+    } catch {
+      if (mountedRef.current) setSaveError('Kariyer kaydedilemedi. Sayfayı kapatmadan yeniden dene.');
+      return false;
+    }
     const isFirstWrite = s.career.day === 1 && s.fixtures.every((f) => !f.played);
-    if (isFirstWrite) {
-      const res = await writeSaveRetry(full, 3);
-      if (!res) {
-        // retry da tükendiyse kullanıcıya haber ver — global unhandled yerine toast yerine console+a11y göstergesinde
-        console.error('[save] İlk kariyer kaydı 3 denemede de yazılamadı — sayfa yenilenebilir.');
+    const task = saveQueueRef.current.then(async () => {
+      // A restore supersedes saves that had not started yet.
+      if (!mountedRef.current || restoreLockRef.current) return false;
+      try {
+        const options = { expectedUpdatedAt: saveRevisionRef.current };
+        const saved = isFirstWrite ? await writeSaveRetry(full, 3, options) : await writeSave(full, options);
+        if (!saved) throw new Error('save-retries-exhausted');
+        saveRevisionRef.current = saved.updatedAt;
+        if (mountedRef.current) setSaveError(null);
+        return true;
+      } catch (error) {
+        console.error('[save] Kariyer kaydedilemedi:', error);
+        if (mountedRef.current) setSaveError(error instanceof SaveConflictError ? error.message : 'Kariyer kaydedilemedi. Cihazın depolama alanını ve izinlerini kontrol et; sayfayı kapatmadan yeniden dene.');
+        return false;
       }
-    } else {
-      await writeSave(full).catch(() => {});
+    });
+    saveQueueRef.current = task.then(() => undefined);
+    return task;
+  }, [snapshotForBackup]);
+
+  // Group related settings/budget/inbox changes from the same interaction into one save.
+  const scheduleSave = useCallback(() => {
+    if (deferredSaveRef.current) clearTimeout(deferredSaveRef.current);
+    deferredSaveRef.current = setTimeout(() => { deferredSaveRef.current = null; void saveNow(); }, 200);
+  }, [saveNow]);
+  useEffect(() => () => { if (deferredSaveRef.current) clearTimeout(deferredSaveRef.current); }, []);
+
+  const restoreBackup = useCallback(async (blob: SaveBlob): Promise<boolean> => {
+    if (restoreLockRef.current) return false;
+    restoreLockRef.current = true;
+    // Any already-started write finishes before the replacement. Later autosaves/pagehide stay locked.
+    await saveQueueRef.current;
+    try {
+      await writeSave({ ...blob, career: { ...blob.career, slot: stateRef.current.career.slot } }, { expectedUpdatedAt: saveRevisionRef.current });
+      if (mountedRef.current) setSaveError(null);
+      // Keep locked until reload so the old in-memory career cannot overwrite the imported save.
+      return true;
+    } catch (error) {
+      console.error('[save] Yedek içe aktarılamadı:', error);
+      restoreLockRef.current = false;
+      if (mountedRef.current) setSaveError(error instanceof SaveConflictError ? error.message : 'Yedek kaydedilemedi; mevcut kariyer değiştirilmedi. Depolama alanını ve izinlerini kontrol et.');
+      return false;
     }
   }, []);
 
@@ -408,9 +490,10 @@ export function GameProvider({ career: initialCareer, snapshot, children }: {
   // Çıkışta kaydet
   useEffect(() => {
     const h = () => { void saveNow(); };
+    const onVisibility = () => { if (document.visibilityState === 'hidden') h(); };
     window.addEventListener('pagehide', h);
-    window.addEventListener('visibilitychange', () => document.visibilityState === 'hidden' && h());
-    return () => { window.removeEventListener('pagehide', h); };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => { window.removeEventListener('pagehide', h); document.removeEventListener('visibilitychange', onVisibility); };
   }, [saveNow]);
 
   // ── Örnek gol dağılımı + dünya/zorluk ayarları (§8.4, §10.9) ──
@@ -1135,7 +1218,9 @@ export function GameProvider({ career: initialCareer, snapshot, children }: {
     if (next.career.day % 30 === 0 && next.career.day > 1) {
       const cObj = clubById(next.career.clubId);
       const facs = next.career.clubFacilities ?? cObj.facilities;
-      const totalWageM = (squads[next.career.clubId] ?? []).concat(next.extraSquads[next.career.clubId] ?? []).reduce((sum, p) => sum + (p.wage ?? 0), 0) / 1000;
+      // squads already includes academy/legacy players and respects playerClub transfers.
+      // Appending extraSquads again double-counted wages and kept charging sold players.
+      const totalWageM = (squads[next.career.clubId] ?? []).reduce((sum, p) => sum + (p.wage ?? 0), 0) / 1000;
       const facCostM = Object.values(facs).reduce((sum, l) => sum + (l ?? 1) * 0.05, 0);
       const expenses = totalWageM + facCostM;
       const sponsorM = cObj.strength * 0.02;
@@ -1173,11 +1258,14 @@ export function GameProvider({ career: initialCareer, snapshot, children }: {
   }, [allMyFixtures, simulateDayFixtures, buildKnockouts, advanceKnockouts, startNewSeason, saveNow, evolvePlayers, maybeSpawnOffer, squads]);
 
   // ── Hızlı maç sonucu üretici: MatchSession sonucu, post-score müdahalesi olmadan ──
-  const buildDemoMatch = useCallback((homeId: string, awayId: string, tacticName: string): DemoMatchResult => {
+  const buildDemoMatch = useCallback((homeId: string, awayId: string, tacticName: string, tacticIdx?: number): DemoMatchResult => {
     const homeClub0 = clubById(homeId), awayClub0 = clubById(awayId);
     const career = stateRef.current.career;
-    const tacNameHome = homeId === career.clubId ? tacticName : undefined;
-    const homeTactic = stateRef.current.tactics.find((t) => t.name === tacNameHome) ?? stateRef.current.tactics[0];
+    const chosen = (tacticIdx === undefined ? undefined : stateRef.current.tactics[tacticIdx])
+      ?? stateRef.current.tactics.find((t) => t.name === tacticName) ?? stateRef.current.tactics[0];
+    // The user's plan belongs to their actual side, including on away fixtures.
+    const homeTactic = homeId === career.clubId ? chosen : aiDefaultTactic(homeClub0, awayClub0);
+    const awayTactic = awayId === career.clubId ? chosen : undefined;
     // Dayanıklı maç seed'i: her gün + her rakip çifti deterministic
     const seed = worldSeed + homeId.length * 13 + awayId.length * 17 + career.day * 101;
     const input = buildEngineInput({
@@ -1186,11 +1274,13 @@ export function GameProvider({ career: initialCareer, snapshot, children }: {
       homeSquad: squads[homeId] ?? [],
       awaySquad: squads[awayId] ?? [],
       homeTactic,
+      awayTactic,
       seed,
       settings: career.settings,
       derby: homeClub0.derby === awayId || awayClub0.derby === homeId,
       challengeClubId: career.clubId,
       challengePoints: career.manager.challengePoints,
+      riskIds: stateRef.current.riskPlayIds ?? [],
     });
     // challengePoints are not allowed to alter a completed score. All quick-result fields
     // come from the same deterministic engine result and its event-derived statistics.
@@ -1199,7 +1289,7 @@ export function GameProvider({ career: initialCareer, snapshot, children }: {
 
   const playLeagueMatch = useCallback((fx: DemoFixture, overrideResult?: DemoMatchResult, tacticIdx = 0, interview?: InterviewOption): DemoMatchResult => {
     // P0 (SPEC Böl.I/1): canlı maçtan gelen sonuç varsa DIRECT kullan — aksi halde bağımsız re-simülasyon skoru çöpe atardı
-    const res = overrideResult ?? buildDemoMatch(fx.homeId, fx.awayId, stateRef.current.tactics[0]?.name ?? 'Ana Plan');
+    const res = overrideResult ?? buildDemoMatch(fx.homeId, fx.awayId, stateRef.current.tactics[tacticIdx]?.name ?? stateRef.current.tactics[0]?.name ?? 'Ana Plan', tacticIdx);
     setSt((s) => {
       let next = finishUserFixture(s, fx, res.hg, res.ag, res.xgHome, res.xgAway);
       // Wave 13: exact engine/player-row evidence is now read from the adapter's public projection (legacy nested result remains supported).
@@ -1347,11 +1437,13 @@ export function GameProvider({ career: initialCareer, snapshot, children }: {
 
   const setInbox = useCallback((fn: (m: InboxMsg[]) => InboxMsg[]) => {
     setSt((s) => ({ ...s, inbox: fn(s.inbox) }));
-  }, []);
+    scheduleSave();
+  }, [scheduleSave]);
 
   const setCareer = useCallback((fn: (c: Career) => Career) => {
     setSt((s) => ({ ...s, career: fn(s.career) }));
-  }, []);
+    scheduleSave();
+  }, [scheduleSave]);
 
   const updateMarketShortlist = useCallback((playerIds: string[], players: Player[]) => {
     const s = stateRef.current;
@@ -1384,7 +1476,8 @@ export function GameProvider({ career: initialCareer, snapshot, children }: {
 
   const setBudget = useCallback((fn: (b: { tb: number; wbExtra?: number }) => { tb: number; wbExtra?: number }) => {
     setSt((s) => ({ ...s, budget: fn(s.budget) }));
-  }, []);
+    scheduleSave();
+  }, [scheduleSave]);
 
   const resolveCultureIssue = useCallback((issueId: string, choice: CultureChoice): { ok: boolean; reason?: string } => {
     const s = stateRef.current;
@@ -1636,61 +1729,78 @@ export function GameProvider({ career: initialCareer, snapshot, children }: {
     return { ok: true };
   }, [playerOf, squads, saveNow]);
 
-  const respondOffer = useCallback((offerId: string, accept: boolean, counterFee?: number) => {
+  const respondOffer = useCallback((offerId: string, accept: boolean, counterFee?: number, options?: { tone?: TransferTone; previewCounter?: boolean }): IncomingOfferResponse => {
     const s = stateRef.current;
-    const of = s.incomingOffers.find((o) => o.id === offerId);
-    if (!of || of.state !== 'open') return;
-    // Dalga 3: kiralık oyuncu satış masasına çıkamaz
-    if (onLoan(s.loans ?? [], of.playerId)) return;
-    const p = playerOf(of.playerId);
-    const buyer = clubById(of.fromClubId);
-    if (accept || (counterFee !== undefined)) {
-      const rng = mulberry32(worldSeed + of.day * 7 + of.fee * 100);
-      if (accept) {
-        setSt((cur) => {
-          const settlement = calculateSellOnSettlement(of.fee, normalizeSellOnClauses(cur.sellOnClauses)[of.playerId] ?? []);
-          const clauses = normalizeSellOnClauses(cur.sellOnClauses); delete clauses[of.playerId];
-          const nextBudget = Math.round((cur.budget.tb + settlement.retainedFee) * 100) / 100;
-          const entry: TransferLogEntry = { id: `to-${offerId}`, day: cur.career.day, seasonNo: cur.seasonNo, playerName: p!.name, age: p!.age, group: p!.group, fromClubId: cur.career.clubId, toClubId: of.fromClubId, fee: of.fee, kind: 'out', sellOnPaid: settlement.totalPaid };
-          const paidTo = settlement.payouts.map((row) => `${clubByIdSafe(row.clubId)?.short ?? row.clubId} ₺${row.amount.toFixed(2)}M`).join(', ');
-          return {
-            ...cur,
-            incomingOffers: cur.incomingOffers.map((o) => (o.id === offerId ? { ...o, state: 'accepted' as const } : o)),
-            playerClub: { ...cur.playerClub, [of.playerId]: of.fromClubId },
-            budget: { ...cur.budget, tb: nextBudget },
-            sellOnClauses: clauses,
-            transferLog: [entry, ...cur.transferLog],
-            transferListed: cur.transferListed.filter((x) => x !== of.playerId),
-            inbox: [{ id: `ts-${offerId}`, kind: 'transfer', title: `Satış: ${p!.name}`, body: `${p!.name}, ₺${of.fee.toFixed(1)}M brüt bedelle ${buyer.name} kulübüne satıldı.${settlement.totalPaid > 0 ? ` Önceki satış payı: ₺${settlement.totalPaid.toFixed(2)}M (${paidTo}); bütçeye net ₺${settlement.retainedFee.toFixed(2)}M eklendi.` : ''} Transfer bütçen ₺${nextBudget.toFixed(1)}M oldu.`, day: cur.career.day, read: false }, ...cur.inbox],
-          };
-        });
-      } else {
-        // Karşı teklif: alıcı değerlendirir (fee oranına göre deterministik)
-        const acc = counterFee! <= of.fee * 1.25 || (of.negotiable && counterFee! <= of.fee * 1.6 && rng() < 0.5);
-        setSt((cur) => {
-          if (!acc) return { ...cur, incomingOffers: cur.incomingOffers.map((o) => (o.id === offerId ? { ...o, state: 'rejected' as const } : o)), inbox: [{ id: `trn-${offerId}`, kind: 'transfer', title: 'Karşı teklif reddedildi', body: `${buyer.name}, ${p!.name} için önerdiğin ₺${counterFee!.toFixed(1)}M bedeli çok yüksek buldu ve masadan kalktı.`, day: cur.career.day, read: false }, ...cur.inbox] };
-          const settlement = calculateSellOnSettlement(counterFee!, normalizeSellOnClauses(cur.sellOnClauses)[of.playerId] ?? []);
-          const clauses = normalizeSellOnClauses(cur.sellOnClauses); delete clauses[of.playerId];
-          const nextBudget = Math.round((cur.budget.tb + settlement.retainedFee) * 100) / 100;
-          const entry: TransferLogEntry = { id: `to-${offerId}-c`, day: cur.career.day, seasonNo: cur.seasonNo, playerName: p!.name, age: p!.age, group: p!.group, fromClubId: cur.career.clubId, toClubId: of.fromClubId, fee: counterFee!, kind: 'out', sellOnPaid: settlement.totalPaid };
-          const paidTo = settlement.payouts.map((row) => `${clubByIdSafe(row.clubId)?.short ?? row.clubId} ₺${row.amount.toFixed(2)}M`).join(', ');
-          return {
-            ...cur,
-            incomingOffers: cur.incomingOffers.map((o) => (o.id === offerId ? { ...o, state: 'accepted' as const, fee: counterFee! } : o)),
-            playerClub: { ...cur.playerClub, [of.playerId]: of.fromClubId },
-            budget: { ...cur.budget, tb: nextBudget },
-            sellOnClauses: clauses,
-            transferLog: [entry, ...cur.transferLog],
-            transferListed: cur.transferListed.filter((x) => x !== of.playerId),
-            inbox: [{ id: `trn-ok-${offerId}`, kind: 'transfer', title: 'Karşı teklif kabul!', body: `${buyer.name}, yükseltilmiş bedel ₺${counterFee!.toFixed(1)}M'yi kabul etti. ${p!.name} satıldı.${settlement.totalPaid > 0 ? ` Önceki satış payı: ₺${settlement.totalPaid.toFixed(2)}M (${paidTo}); bütçeye net ₺${settlement.retainedFee.toFixed(2)}M eklendi.` : ''}`, day: cur.career.day, read: false }, ...cur.inbox],
-          };
-        });
-      }
-    } else {
-      setSt((cur) => ({ ...cur, incomingOffers: cur.incomingOffers.map((o) => (o.id === offerId ? { ...o, state: 'rejected' as const } : o)) }));
+    const offer = s.incomingOffers.find((item) => item.id === offerId);
+    if (!offer || offer.state !== 'open') return { ok: false, reason: 'Bu teklif artık açık değil.' };
+    if (options?.previewCounter && (accept || counterFee === undefined)) return { ok: false, reason: 'Karşı teklif bedeli gerekli.' };
+
+    // An explicit refusal is always possible, including for a now-invalid player.
+    if (!accept && counterFee === undefined) {
+      const next: PersistedState = { ...s, incomingOffers: s.incomingOffers.map((item) => item.id === offerId ? { ...item, state: 'rejected' as const } : item) };
+      stateRef.current = next; setSt(next);
+      setTimeout(() => { void saveNow(); }, 150);
+      return { ok: true, outcome: 'rejected' };
     }
+    if (offer.expiresDay < s.career.day) return { ok: false, reason: 'Teklifin süresi doldu.' };
+    if (!Number.isFinite(offer.fee) || offer.fee <= 0) return { ok: false, reason: 'Teklif bedeli geçersiz.' };
+    if (onLoan(s.loans ?? [], offer.playerId)) return { ok: false, reason: 'Kiralık oyuncu satılamaz.' };
+    const player = playerOf(offer.playerId);
+    const currentClub = player ? s.playerClub[player.id] ?? player.clubId : null;
+    if (!player || currentClub !== s.career.clubId || s.removedPlayers.includes(offer.playerId)) {
+      return { ok: false, reason: 'Oyuncu artık kadronuzda değil.' };
+    }
+    const buyer = clubByIdSafe(offer.fromClubId);
+    if (!buyer || buyer.id === s.career.clubId) return { ok: false, reason: 'Alıcı kulüp bulunamadı.' };
+
+    const isCounter = !accept && counterFee !== undefined;
+    let fee = offer.fee;
+    if (isCounter) {
+      if (!Number.isFinite(counterFee) || counterFee! < 0) return { ok: false, reason: 'Karşı teklif bedeli geçersiz.' };
+      // Keep legacy callers' exact value for the acceptance boundary; the UI itself sends hundredths.
+      fee = counterFee!;
+      const result = evaluateIncomingCounter({ seed: s.career.seed, offer, fee, tone: options?.tone });
+      if (!result.accepted) {
+        const next: PersistedState = {
+          ...s,
+          incomingOffers: s.incomingOffers.map((item) => item.id === offerId ? { ...item, state: 'rejected' as const } : item),
+          inbox: [{ id: `trn-${offerId}`, kind: 'transfer', title: 'Karşı teklif reddedildi', body: `${buyer.name}, ${player.name} için önerdiğin ₺${fee.toFixed(2)}M bedeli yüksek buldu ve masadan kalktı.`, day: s.career.day, read: false }, ...s.inbox],
+        };
+        stateRef.current = next; setSt(next);
+        setTimeout(() => { void saveNow(); }, 150);
+        return { ok: true, outcome: 'rejected', fee };
+      }
+      // The buyer agreed, but the manager has not yet authorized a sale.
+      if (options?.previewCounter) return { ok: true, outcome: 'counter-accepted', fee };
+    }
+
+    const clauses = normalizeSellOnClauses(s.sellOnClauses);
+    const settlement = calculateSellOnSettlement(fee, clauses[offer.playerId] ?? []);
+    delete clauses[offer.playerId];
+    const nextBudget = Math.round((s.budget.tb + settlement.retainedFee) * 100) / 100;
+    const entry: TransferLogEntry = { id: `to-${offerId}${isCounter ? '-c' : ''}`, day: s.career.day, seasonNo: s.seasonNo,
+      playerName: player.name, age: player.age, group: player.group, fromClubId: s.career.clubId, toClubId: buyer.id,
+      fee, kind: 'out', sellOnPaid: settlement.totalPaid };
+    const paidTo = settlement.payouts.map((row) => `${clubByIdSafe(row.clubId)?.short ?? row.clubId} ₺${row.amount.toFixed(2)}M`).join(', ');
+    const next: PersistedState = {
+      ...s,
+      // Other offers for a transferred player are no longer actionable.
+      incomingOffers: s.incomingOffers.map((item) => item.id === offerId ? { ...item, state: 'accepted' as const, fee }
+        : item.playerId === offer.playerId && item.state === 'open' ? { ...item, state: 'expired' as const } : item),
+      playerClub: { ...s.playerClub, [offer.playerId]: buyer.id },
+      budget: { ...s.budget, tb: nextBudget },
+      sellOnClauses: clauses,
+      transferLog: [entry, ...s.transferLog],
+      transferListed: s.transferListed.filter((id) => id !== offer.playerId),
+      inbox: [{ id: `ts-${offerId}`, kind: 'transfer', title: `Satış: ${player.name}`,
+        body: `${player.name}, ₺${fee.toFixed(2)}M brüt bedelle ${buyer.name} kulübüne satıldı.${settlement.totalPaid > 0 ? ` Önceki satış payı: ₺${settlement.totalPaid.toFixed(2)}M (${paidTo}); bütçeye net ₺${settlement.retainedFee.toFixed(2)}M eklendi.` : ''} Transfer bütçen ₺${nextBudget.toFixed(2)}M oldu.`,
+        day: s.career.day, read: false }, ...s.inbox],
+    };
+    // Synchronous ref update prevents two clicks or another stale offer selling twice.
+    stateRef.current = next; setSt(next);
     setTimeout(() => { void saveNow(); }, 150);
-  }, [worldSeed, playerOf, saveNow]);
+    return { ok: true, outcome: 'accepted', fee, settlement, budgetAfter: nextBudget };
+  }, [playerOf, saveNow]);
 
   const toggleTransferList = useCallback((playerId: string) => {
     setSt((cur) => {
@@ -1704,34 +1814,57 @@ export function GameProvider({ career: initialCareer, snapshot, children }: {
     });
   }, [playerOf]);
 
-  const renewContract = useCallback((playerId: string, years: number): { ok: boolean; reason?: string } => {
+  // Quote and signature share every eligibility, financial and player-response rule.
+  // The quote is ephemeral; only the existing wage/contract fields are saved on signature.
+  const quoteRenewal = useCallback((playerId: string, years: number, terms?: RenewalTerms): RenewalQuote => {
     const s = stateRef.current;
-    const p = playerOf(playerId);
-    if (!p) return { ok: false, reason: 'Oyuncu bulunamadı.' };
+    const found = playerOf(playerId);
+    if (!found || s.removedPlayers.includes(playerId)) return { ok: false, reason: 'Oyuncu bulunamadı.' };
+    // A previous action in this same event can have changed the ref before React rerenders.
+    const p = { ...found, ...(s.playerPatch[playerId] ?? {}), clubId: s.playerClub[playerId] ?? found.clubId };
     if (p.clubId !== s.career.clubId) return { ok: false, reason: 'Oyuncu kadronuzda değil.' };
+    if (onLoan(s.loans ?? [], playerId)) return { ok: false, reason: 'Kiralık oyuncunun sözleşmesi kendi kulübüne aittir.' };
     if ((p.contractYears ?? 3) > 2) return { ok: false, reason: 'Sözleşme yenileme son 2 yılda açılır.' };
-    // Dalga 6: kırgın oyuncu süre sözü olmadan masaya oturmaz
-    {
-      const myId2 = s.career.clubId;
-      const byGen = [...(squads[myId2] ?? [])].sort((a, b) => b.ratings.gen - a.ratings.gen);
-      const rank = byGen.findIndex((x) => x.id === playerId);
-      const playedLeague = s.fixtures.filter((f) => f.played && f.comp === 'lig' && (f.homeId === myId2 || f.awayId === myId2)).length;
-      const apps = (s.playerStats ?? {})[playerId]?.apps ?? 0;
-      const gv = minuteGrievance(rank < 0 ? 20 : rank, p.age, apps, playedLeague);
-      if (grievanceLabel(gv) === 'kırgın' && !(s.promises ?? {})[playerId])
-        return { ok: false, reason: `${p.name} kırgın: süre garantisi olmadan yeni sözleşme konuşmuyor. Profilinde "Süre Sözü Ver" (önümüzdeki 10 maçta ≥%55) ya da düzenli oynat.` };
+    if (!RENEWAL_YEARS.some((value) => value === years)) return { ok: false, reason: 'Süre 3, 4 veya 5 yıl olmalı.' };
+    if (!Number.isFinite(p.wage) || p.wage < 0) return { ok: false, reason: 'Oyuncunun mevcut maaşı geçersiz.' };
+    const offer = terms ?? { wage: renewalDemand(p.wage), tone: 'calm' as const };
+    const maxWage = Math.max(1, Math.ceil(renewalDemand(p.wage) * 2));
+    if (!Number.isSafeInteger(offer.wage) || offer.wage < 0 || offer.wage > maxWage || !['calm', 'witty', 'firm'].includes(offer.tone)) {
+      return { ok: false, reason: 'Maaş veya görüşme üslubu geçersiz.' };
     }
-    const cost = Math.round(p.wage * 6) / 1000; // imza bonusu ≈ 6 maaş (₺M)
-    if (s.budget.tb < cost) return { ok: false, reason: `İmza bonusu için bütçe yetersiz (₺${cost.toFixed(1)}M gerekli).` };
-    setSt((cur) => ({
-      ...cur,
-      playerPatch: { ...cur.playerPatch, [playerId]: { ...(cur.playerPatch[playerId] ?? {}), contractYears: Math.max(years, 3), wage: Math.round(p.wage * 1.15) } },
-      budget: { ...cur.budget, tb: Math.round((cur.budget.tb - cost) * 10) / 10 },
-      inbox: [{ id: `rw-${playerId}-${cur.career.day}`, kind: 'transfer', title: 'Sözleşme yenilendi', body: `${p.name} ile ${years} yıllık yeni sözleşme imzalandı. İmza bonusu: ₺${cost.toFixed(1)}M. Yeni maaş ₺${Math.round(p.wage * 1.15)}B/ay (+%15).`, day: cur.career.day, read: false }, ...cur.inbox],
-    }));
+    const byGen = (squads[s.career.clubId] ?? [])
+      .filter((player) => (s.playerClub[player.id] ?? player.clubId) === s.career.clubId && !s.removedPlayers.includes(player.id))
+      .map((player) => ({ ...player, ...(s.playerPatch[player.id] ?? {}) }))
+      .sort((a, b) => b.ratings.gen - a.ratings.gen);
+    const rank = byGen.findIndex((player) => player.id === playerId);
+    const playedLeague = s.fixtures.filter((f) => f.played && f.comp === 'lig' && (f.homeId === s.career.clubId || f.awayId === s.career.clubId)).length;
+    const apps = (s.playerStats ?? {})[playerId]?.apps ?? 0;
+    if (grievanceLabel(minuteGrievance(rank < 0 ? 20 : rank, p.age, apps, playedLeague)) === 'kırgın' && !(s.promises ?? {})[playerId]) {
+      return { ok: false, reason: `${p.name} kırgın: süre garantisi olmadan yeni sözleşme konuşmuyor. Profilinde "Süre Sözü Ver" (önümüzdeki 10 maçta ≥%55) ya da düzenli oynat.` };
+    }
+    const bonus = renewalBonus(p.wage); // ₺M, mevcut maaşın altı ayı
+    if (s.budget.tb < bonus) return { ok: false, reason: `İmza bonusu için bütçe yetersiz (₺${bonus.toFixed(3)}M gerekli).` };
+    const response = evaluateRenewalOffer({ currentWage: p.wage, offeredWage: offer.wage, tone: offer.tone, seed: s.career.seed, day: s.career.day, playerId });
+    return { ok: true, accepted: response.accepted, demand: response.demand, wage: offer.wage, years, bonus, budgetAfter: Math.round((s.budget.tb - bonus) * 1000) / 1000 };
+  }, [playerOf, squads]);
+
+  const renewContract = useCallback((playerId: string, years: number, terms?: RenewalTerms): RenewalQuote => {
+    const quote = quoteRenewal(playerId, years, terms);
+    if (!quote.ok) return quote;
+    if (!quote.accepted) return { ...quote, ok: false, reason: `Oyuncu en az ₺${quote.demand}B/ay bekliyor.` };
+    const s = stateRef.current;
+    const p = playerOf(playerId)!;
+    const next: PersistedState = {
+      ...s,
+      playerPatch: { ...s.playerPatch, [playerId]: { ...(s.playerPatch[playerId] ?? {}), contractYears: years, wage: quote.wage! } },
+      budget: { ...s.budget, tb: quote.budgetAfter! },
+      inbox: [{ id: `rw-${playerId}-${s.career.day}`, kind: 'transfer', title: 'Sözleşme yenilendi', body: `${p.name} ile ${years} yıllık yeni sözleşme imzalandı. İmza bonusu: ₺${quote.bonus!.toFixed(3)}M. Yeni maaş ₺${quote.wage}B/ay.`, day: s.career.day, read: false }, ...s.inbox],
+    };
+    // A second click sees the newly extended contract before React renders again.
+    stateRef.current = next; setSt(next);
     setTimeout(() => { void saveNow(); }, 100);
-    return { ok: true };
-  }, [worldSeed, playerOf, saveNow]);
+    return quote;
+  }, [quoteRenewal, playerOf, saveNow]);
 
   // ── Dalga 3: Kiralık alma (AI kulübünden, pencere içinde, kapı ücreti yok, maaş yarı yarıya) ──
   const loanIn = useCallback((p: Player): { ok: boolean; reason?: string } => {
@@ -1820,10 +1953,10 @@ export function GameProvider({ career: initialCareer, snapshot, children }: {
   const value: GameState & GameActions = {
     ...st,
     myClub, myLeague, mySquad, squads, nextFixture, unread,
-    effectiveStrength, saveNow,
+    effectiveStrength, saveNow, saveError, snapshotForBackup, restoreBackup,
     advanceDay, buildDemoMatch, playLeagueMatch, updateTactic, setInbox, setCareer, updateMarketShortlist, recordManagerYellow, consumeManagerSuspension, setBudget, addSquadPlayer, clearSeasonFinale,
     setTrainingFocus, signAcademyCandidate, passAcademyCandidate, acceptJob,
-    buyPlayer, clinicTreat, setRiskPlay, applyRiskOutcome, setMentor, respondOffer, toggleTransferList, playerOf, clubOfPlayer, renewContract,
+    buyPlayer, clinicTreat, setRiskPlay, applyRiskOutcome, setMentor, respondOffer, toggleTransferList, playerOf, clubOfPlayer, quoteRenewal, renewContract,
     loanIn, loanOut, promiseMinutes, minuteState, resolveCultureIssue,
   };
   return <GameCtx.Provider value={value}>{children}</GameCtx.Provider>;

@@ -1,5 +1,5 @@
 // HM26 v0.9.11 — TV yayın skorbug, Phaser saha motoru, canlı telemetri ve kenar yönetimi.
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { DemoFixture, TacticPlan, TableRow } from '../types';
 import type { EngineShot, MatchStats } from '../engine/engine';
 import type { HeatPoint, PitchEvent, PitchRuntime, TeamDots } from '../components/assets/PhaserPitch';
@@ -7,7 +7,8 @@ import { pitchTeamColors } from '../components/assets/pitchPresentation';
 import { toStadiumPoint } from '../engine/pitch-ai';
 import { useGame, DemoMatchResult, DemoMatchEvent } from '../store/game';
 import { MatchSession, TeamTalkChoice } from '../engine/session';
-import { buildEngineInput } from '../engine/adapter';
+import { buildEngineInput, matchEventsToDemo } from '../engine/adapter';
+import { aiDefaultTactic } from '../engine/tactics';
 import { PresentationSpeed, presentationDelayMs, projectLiveMatch } from '../engine/adapters/liveProjection';
 import { buildXgTimeline } from '../engine/analytics';
 import { coachNoteAt, nextCoachCheckpoint } from '../engine/matchDay';
@@ -17,7 +18,7 @@ import type { ConsoleTab } from './liveMatchConsole';
 import { clubById as clubByIdLive } from '../data/clubs';
 import { Btn, Badge, Sheet } from '../components/ui/kit';
 import { Crest } from '../components/assets/Crest';
-import { GameIcon } from '../components/icons';
+import { GameIcon, ICONS } from '../components/icons';
 import { clubById } from '../data/clubs';
 import { MatchReport } from './MatchReport';
 import { PostMatchInterview } from './PostMatchInterview';
@@ -26,6 +27,9 @@ import { Suspense } from 'react';
 import { lazyWithRecovery } from '../utils/lazyWithRecovery';
 import { PitchFallback } from '../components/assets/PitchFallback';
 import { audio } from '../audio/engine';
+import { reactionFromBatch, recentLiveReactions, type LiveReaction } from '../engine/liveReaction';
+import { isRedCard } from '../engine/matchPresentation';
+import { LiveAtmosphere } from '../components/match/LiveAtmosphere';
 // Phaser 1MB+ — yalnızca maçta yüklenir (§1.3 Hafif prensibi: ana pakette tutmaz)
 const PhaserPitch = lazyWithRecovery(
   () => import('../components/assets/PhaserPitch').then((m) => ({ default: m.PhaserPitch })),
@@ -50,6 +54,10 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onE
   const [speed, setSpeed] = useState<PresentationSpeed>('x2');
   const [paused, setPaused] = useState(false);
   const [activeTab, setActiveTab] = useState<ConsoleTab>('pitch');
+  const [pitchView, setPitchView] = useState<'pitch' | 'atmosphere'>('pitch');
+  const [reaction, setReaction] = useState<{ cue: LiveReaction; sequence: number } | null>(null);
+  const reactionSeen = useRef(0);
+  const reactionSequence = useRef(0);
   const [heatEnabled, setHeatEnabled] = useState(false);
   const [heatTeam, setHeatTeam] = useState<'all' | 'home' | 'away'>('all');
   const [heatSamples, setHeatSamples] = useState<HeatPoint[]>([]);
@@ -60,7 +68,7 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onE
   const [decision, setDecision] = useState<DemoMatchEvent | null>(null);
   const [showSubPicker, setShowSubPicker] = useState(false);
   const [showTacticPicker, setShowTacticPicker] = useState(false);
-  // Akış: canlı maç → (otomatik) röportaj → maç sonu analizi. Maçtan erken çıkış yok; kullanıcı akışı sonuna kadar kalır.
+  // Akış: canlı maç → kullanıcı isteğiyle röportaj → maç sonu analizi.
   const [phase, setPhase] = useState<'live' | 'interview' | 'report'>('live');
   const interviewChoiceRef = useRef<InterviewOption | null>(null);
   const feedRef = useRef<HTMLDivElement>(null);
@@ -91,12 +99,13 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onE
   if (!sessionRef.current) {
     const homeId = fixture.homeId, awayId = fixture.awayId;
     const seed = 20260803 + fixture.day * 101 + homeId.length * 13;
-    const myTactic = g.tactics[tacticIdx] ?? g.tactics[0] ?? defaultTactic();
+    const homeClub = clubByIdLive(homeId), awayClub = clubByIdLive(awayId);
+    const myTactic = g.tactics[tacticIdx] ?? g.tactics[0] ?? aiDefaultTactic(mySide === 'home' ? homeClub : awayClub, mySide === 'home' ? awayClub : homeClub);
     sessionRef.current = new MatchSession(buildEngineInput({
-      homeClub: clubByIdLive(homeId), awayClub: clubByIdLive(awayId),
+      homeClub, awayClub,
       homeSquad: g.squads[homeId] ?? [], awaySquad: g.squads[awayId] ?? [],
-      // Kullanıcının taktik planını doğru tarafa ver: içerideyse home, deplasmandaysa away
-      homeTactic: mySide === 'home' ? myTactic : defaultTactic(),
+      // Kullanıcının planı deplasmanda rakibe değil kendi takımına uygulanır.
+      homeTactic: mySide === 'home' ? myTactic : aiDefaultTactic(homeClub, awayClub),
       awayTactic: mySide === 'away' ? myTactic : undefined,
       seed,
       settings: g.career.settings,
@@ -108,9 +117,6 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onE
     }));
   }
   const session = sessionRef.current;
-  function defaultTactic() {
-    return g.tactics[tacticIdx] ?? g.tactics[0] ?? { id: 't', name: 'Ana Plan', formation: '4-3-3' as const, plan: 'dengeli' as const, press: 'mid' as const, tempo: 'mid' as const, direction: 'balanced' as const, defLine: 'normal' as const, passRisk: 'mid' as const, width: 50, fbAdvanced: false, midLine: 'mid' as const, strikerSupport: 'mid' as const, setPieces: { captain: null, penalty: null, cornerL: null, cornerR: null, fkShort: null, fkLong: null } };
-  }
 
   const projection = projectLiveMatch(session);
   const done = projection.status === 'complete';
@@ -145,6 +151,24 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onE
   const momentum = projection.momentum;
   const currentEvent = eventsShown[eventsShown.length - 1];
   const lastGoal = [...eventsShown].reverse().find((e) => e.kind === 'goal');
+  // Keep several recent real cues visible even when one simulation step contains
+  // more than one notable event or playback is too fast for every animation.
+  const recentReactions = useMemo(() => recentLiveReactions(eventsShown, mySide, fixture.homeId, fixture.awayId),
+    [eventsShown, mySide, fixture.homeId, fixture.awayId]);
+  // Read only newly displayed real events, including a final batch that also
+  // contains the whistle. The scene freezes at full time but retains that cue.
+  useEffect(() => {
+    if (eventsShown.length < reactionSeen.current) reactionSeen.current = 0;
+    const fresh = eventsShown.slice(reactionSeen.current);
+    reactionSeen.current = eventsShown.length;
+    const cue = reactionFromBatch(fresh, mySide, fixture.homeId, fixture.awayId);
+    if (cue) setReaction({ cue, sequence: ++reactionSequence.current });
+  }, [eventsShown, mySide, fixture.homeId, fixture.awayId]);
+  useEffect(() => {
+    if (!reaction || paused || done) return;
+    const timeout = window.setTimeout(() => setReaction(null), 4000);
+    return () => window.clearTimeout(timeout);
+  }, [reaction, paused, done]);
   const pitchRuntime: PitchRuntime = projection.ball;
   const playerRating = (slot: any) => {
     const row = liveStats.playerRows?.[slot.player.id];
@@ -183,7 +207,7 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onE
   // Maç sonucu rapor formatına çevirir — normal bitiş ve kurtarma yolu aynı eşlemi kullanır
   const buildFinResult = (rr: ReturnType<typeof session.toResult>): DemoMatchResult => ({
     homeId: fixture.homeId, awayId: fixture.awayId, hg: rr.stats.hg, ag: rr.stats.ag,
-    events: [], // arşiv; rapor sürümü ayrı
+    events: matchEventsToDemo(rr.events), // son düdük ve kurtarma dahil oturumun gerçek olayları
     xgHome: rr.stats.xgH, xgAway: rr.stats.xgA, posHome: rr.stats.posH,
     shotsH: rr.stats.shotsH, shotsA: rr.stats.shotsA, shotsOnH: rr.stats.onH, shotsOnA: rr.stats.onA,
     insights: rr.insights,
@@ -209,25 +233,7 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onE
         const ballSample = session.getBallState();
         const heatPoint = toStadiumPoint(ballSample.owner, { x: ballSample.x, y: ballSample.y });
         setHeatSamples((previous) => [...previous, { ...heatPoint, side: ballSample.owner }].slice(-1200));
-        if (fresh.length) {
-          const kindMap: Record<string, DemoMatchEvent['kind']> = { danger: 'chance', corner: 'chance' };
-          setEventsShown((ev) => [
-            ...ev,
-            ...fresh.map((e): DemoMatchEvent => ({
-              minute: e.minute,
-              text: e.text,
-              kind: kindMap[e.kind] ?? (e.kind as DemoMatchEvent['kind']),
-              side: e.side,
-              path: e.path as string[],
-              anim: e.anim,
-              playerId: e.playerId,
-              scorerId: e.scorerId,
-              assisterId: e.assisterId,
-              visualEvent: e.visualEvent,
-              visualActors: e.visualActors,
-            })),
-          ]);
-        }
+        if (fresh.length) setEventsShown((ev) => [...ev, ...matchEventsToDemo(fresh)]);
         // React state is only a render trigger; score, clock and stats are read from the engine projection.
         setTick((prev) => prev + 1);
         if (session.done) finalizeFromSession();
@@ -245,7 +251,11 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onE
   // Kurtarma: motoru kalan dakikaları simüle ederek güvenle bitir ve rapora geç
   const recoverMatch = () => {
     try {
+      const seenEngineEvents = session.getEvents().length;
       session.finishNow();
+      // Recovery can simulate most of a match in one go; keep the visible feed in sync too.
+      const remainingEvents = session.getEvents().slice(seenEngineEvents);
+      if (remainingEvents.length) setEventsShown((shown) => [...shown, ...matchEventsToDemo(remainingEvents)]);
       finalizeFromSession();
       setLoopError(null);
     } catch (err) {
@@ -266,7 +276,7 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onE
   // v0.9.9: akış açılış satırı — 'Maç başladı' kurucuya itilir ama step() onu hiç döndürmezdi (akış bomboş başlıyordu)
   useEffect(() => {
     const start = session.getEvents();
-    if (start.length) setEventsShown((ev) => ev.length ? ev : start.map((e) => ({ minute: e.minute, text: e.text, kind: (e.kind as DemoMatchEvent['kind']), side: e.side, path: e.path as string[], anim: e.anim, playerId: e.playerId, scorerId: e.scorerId, assisterId: e.assisterId, visualEvent: e.visualEvent, visualActors: e.visualActors })));
+    if (start.length) setEventsShown((ev) => ev.length ? ev : matchEventsToDemo(start));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -340,8 +350,8 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onE
     g.playLeagueMatch(fixture, finResult ?? undefined, tacticIdx, interviewChoiceRef.current ?? undefined);
     g.consumeManagerSuspension(managerSuspendedAtStart);
     // v0.9.9: iğneyle oynatma kumarı maç sonunda çözülür (%25 nüks — oynayan onaylılar)
-    const rows = (finResult as unknown as { engine?: { playerRows: Record<string, { min: number }> } })?.engine?.playerRows ?? {};
-    const playedIds = Object.entries(rows).filter(([, row]) => row.min > 0).map(([id]) => id);
+    // Canlı sonuçta dakikalar doğrudan playerRows içinde; engine.playerRows yoktur.
+    const playedIds = Object.entries(finResult?.playerRows ?? {}).filter(([, row]) => row.min > 0).map(([id]) => id);
     g.applyRiskOutcome(playedIds);
   }
 
@@ -354,7 +364,7 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onE
 
   const pitchEvent: PitchEvent | null = currentEvent ? {
     path: currentEvent.path as any, kind: (['goal', 'save', 'card', 'var'].includes(currentEvent.kind) ? currentEvent.kind : 'chance') as PitchEvent['kind'],
-    side: currentEvent.side, color: currentEvent.kind === 'card' ? (/kırmızı/i.test(currentEvent.text ?? '') ? '#ef4444' : '#f3c64e') : undefined,
+    side: currentEvent.side, color: currentEvent.kind === 'card' ? (isRedCard(currentEvent) ? '#ef4444' : '#f3c64e') : undefined,
     actors: currentEvent.anim?.actors ?? currentEvent.visualActors ?? pitchRuntime.activeIds,
     actionType: currentEvent.anim?.eventType ?? currentEvent.visualEvent ?? (derbyMatch && currentEvent.kind === 'card' ? 'brawl' : undefined),
     highBall: pitchRuntime.z > 0, minute: currentEvent.minute, sequence: eventsShown.length, reduceMotion: reducedMotion, brawl: derbyMatch && currentEvent.kind === 'card',
@@ -402,7 +412,7 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onE
   );
 
   const quickMentality = (kind: 'protect' | 'balanced' | 'attack' | 'allin') => {
-    const base = g.tactics[tacticIdx] ?? g.tactics[0] ?? defaultTactic();
+    const base = g.tactics[tacticIdx] ?? g.tactics[0] ?? aiDefaultTactic(clubByIdLive(g.myClub.id), clubByIdLive(mySide === 'home' ? fixture.awayId : fixture.homeId));
     const patch: Partial<TacticPlan> = kind === 'protect'
       ? { name: 'Skoru Koru', plan: 'dusukBlok', press: 'low', tempo: 'low', defLine: 'deep', passRisk: 'safe', fbAdvanced: false }
       : kind === 'balanced' ? { name: 'Dengeli', plan: 'dengeli', press: 'mid', tempo: 'mid', defLine: 'normal', passRisk: 'mid' }
@@ -549,16 +559,21 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onE
       <main className="flex-1 min-h-0 overflow-hidden">
         <section id={`match-panel-${activeTab}`} role="tabpanel" aria-label={LIVE_CONSOLE_TABS.find((tab) => tab.id === activeTab)?.label} className="h-full min-h-0 overflow-y-auto no-scrollbar">
           {activeTab === 'pitch' && <div className="relative min-h-full px-3 pt-2 pb-3 flex flex-col items-center gap-2">
-            {Pitch}
-            {currentEvent && <div className="w-full max-w-[330px] rounded-lg border border-[#53665a] bg-[#1a2720] px-2.5 py-1.5 text-[10.5px] leading-snug text-[#f4f2e8]"><span className="num font-black text-[#f2cf70] mr-1.5">{currentEvent.minute}′</span>{currentEvent.text}</div>}
-            <div className="w-full max-w-[330px] flex gap-2 items-center">
+            <div className="w-full max-w-[330px] grid grid-cols-2 gap-1 rounded-xl border border-line bg-[#17251d] p-1" role="group" aria-label="Saha görünümü">
+              <button type="button" onClick={() => setPitchView('pitch')} aria-pressed={pitchView === 'pitch'} className={`min-h-[40px] flex items-center justify-center gap-1.5 rounded-lg text-[10.5px] font-bold ${pitchView === 'pitch' ? 'bg-[#354a39] text-[#f6dfaa]' : 'text-[#c2d0c2]'}`}><span className="w-3.5 h-3.5"><ICONS.ball /></span>Saha</button>
+              <button type="button" onClick={() => setPitchView('atmosphere')} aria-pressed={pitchView === 'atmosphere'} className={`min-h-[40px] flex items-center justify-center gap-1.5 rounded-lg text-[10.5px] font-bold ${pitchView === 'atmosphere' ? 'bg-[#354a39] text-[#f6dfaa]' : 'text-[#c2d0c2]'}`}><span className="w-3.5 h-3.5"><ICONS.squad /></span>Kulübe & Tribün{reaction && <span className="text-[#f6cf78]" aria-label="Yeni tepki">●</span>}</button>
+            </div>
+            {pitchView === 'pitch' ? Pitch : <LiveAtmosphere club={g.myClub} manager={g.career.manager} bench={session.getBench(mySide)} managerSuspended={managerSuspendedAtStart}
+              reaction={reaction?.cue ?? null} recentReactions={recentReactions} reactionSequence={reaction?.sequence ?? reactionSequence.current} paused={paused} done={done} reducedMotion={reducedMotion} />}
+            {pitchView === 'pitch' && currentEvent && <div className="w-full max-w-[330px] rounded-lg border border-[#53665a] bg-[#1a2720] px-2.5 py-1.5 text-[10.5px] leading-snug text-[#f4f2e8]"><span className="num font-black text-[#f2cf70] mr-1.5">{currentEvent.minute}′</span>{currentEvent.text}</div>}
+            {pitchView === 'pitch' && <div className="w-full max-w-[330px] flex gap-2 items-center">
               <button onClick={() => setHeatEnabled((value) => !value)} aria-pressed={heatEnabled} className={`min-h-[44px] flex-1 rounded-xl border px-3 text-[11px] font-bold ${heatEnabled ? 'border-[#d18d51] bg-[#46351f] text-[#ffe0a0]' : 'border-line bg-surface text-primary'}`}>🔥 {heatEnabled ? 'Isı Haritası Açık' : 'Isı Haritası'}</button>
               <label className="min-h-[44px] flex items-center gap-1 rounded-xl border border-line bg-surface px-2 text-[9px] text-secondary">Takım
                 <select value={heatTeam} onChange={(event) => setHeatTeam(event.target.value as 'all' | 'home' | 'away')} aria-label="Isı haritası takım filtresi" className="max-w-[82px] bg-transparent text-primary text-[10px]">
                   <option value="all">İkisi</option><option value="home">{home.short}</option><option value="away">{away.short}</option>
                 </select>
               </label>
-            </div>
+            </div>}
           </div>}
 
           {activeTab === 'ratings' && <div className="p-3 space-y-3">
@@ -643,18 +658,20 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onE
         </section>
       </main>
 
-      <nav className="shrink-0 border-t border-line bg-[#111b16] px-1.5 pt-1.5 pb-[max(6px,env(safe-area-inset-bottom))]" role="tablist" aria-label="Maç konsolu sekmeleri">
+      <nav className="match-console shrink-0 border-t border-line bg-[#111b16] px-1.5 pt-1.5 pb-[max(6px,env(safe-area-inset-bottom))]" role="tablist" aria-label="Maç konsolu sekmeleri">
         <div className="flex gap-1 overflow-x-auto no-scrollbar">
           {LIVE_CONSOLE_TABS.map((tab) => <button key={tab.id} id={`match-tab-${tab.id}`} role="tab" aria-selected={activeTab === tab.id} aria-controls={`match-panel-${tab.id}`} aria-label={tab.label} title={tab.label} onClick={() => setActiveTab(tab.id)} className={`shrink-0 min-w-[59px] min-h-[48px] px-1.5 rounded-lg flex flex-col items-center justify-center gap-0.5 border text-[10px] font-bold ${activeTab === tab.id ? 'bg-[#2b3b2f] border-[#9fbc77] text-[#f5e4ae]' : 'bg-transparent border-transparent text-[#c3cfc4]'}`}><GameIcon id={tab.icon} className="w-4 h-4" /><span>{tab.short}</span></button>)}
         </div>
       </nav>
 
-      {!done && <button onClick={() => setShowTouchline(true)} className="absolute right-3 bottom-[118px] z-30 min-h-[44px] rounded-full border border-[#c19245] bg-[#463519] text-[#ffe09b] text-[10px] font-black shadow-lg px-3" aria-label="Kenar Talimatı">⚡ Kenar Talimatı</button>}
       <footer className="shrink-0 px-3 py-2 bg-[#111b16] border-t border-line/50">
         {!done ? (
-          <div className="w-full !min-h-[42px] flex items-center justify-center gap-2 rounded-xl border border-line bg-surface text-muted text-[11px] font-bold" aria-live="polite">
-            <span className="w-1.5 h-1.5 rounded-full bg-danger animate-pulse" />
-            Maç canlı — düdükten sonra özeti inceleyebilir, hazır olunca röportaja geçebilirsin
+          <div className="flex items-stretch gap-2">
+            <div className="min-w-0 flex-1 min-h-[44px] flex items-center justify-center gap-2 rounded-xl border border-line bg-surface px-2 text-muted text-[10px] leading-tight font-bold" aria-live="polite">
+              <span className="w-1.5 h-1.5 shrink-0 rounded-full bg-danger animate-pulse" />
+              <span>Maç canlı · Düdükten sonra röportaja sen geçersin</span>
+            </div>
+            <button type="button" onClick={() => setShowTouchline(true)} className="shrink-0 min-h-[44px] flex items-center justify-center gap-1.5 rounded-xl border border-[#c19245] bg-[#463519] text-[#ffe09b] text-[10px] leading-tight font-black px-2.5" aria-label="Kenar Talimatı"><span className="w-4 h-4" aria-hidden="true"><ICONS.tactics /></span><span>Kenar<br />Talimatı</span></button>
           </div>
         ) : (
           <Btn variant="amber" className="w-full !min-h-[46px] !text-[11px]" onClick={() => { if (!finResult) finalizeFromSession(); setPhase('interview'); }}>Maç Sonu Röportajına Geç →</Btn>

@@ -59,7 +59,7 @@ export function resolveKeeper(slots: LineupSlot[]): LineupSlot | undefined {
 }
 
 /** Kullanılabilir oyuncular (ilk 11 veya yedek havuzu → slot eşlemesi) */
-export function autoLineup(squad: Player[], formation: Formation, customIds?: (string | null)[], riskIds?: Set<string>): { slots: LineupSlot[]; bench: Player[] } {
+export function autoLineup(squad: Player[], formation: Formation, customIds?: (string | null)[], riskIds?: Set<string>, customBenchIds?: readonly string[]): { slots: LineupSlot[]; bench: Player[] } {
   // v0.9.9: iğneyle oynatma onaylı sakatlar (riskIds) da saute indirgenebilir
   const availAll = squad.filter((p) => (p.injuredDays <= 0 || riskIds?.has(p.id)) && p.suspendedMatches <= 0);
   // Kullanıcı seçimi varsa: o dizilim önce gelir (gençleşme düşükse de sahaya sürer — maç reytingi kondisyonu düşürür)
@@ -94,7 +94,15 @@ export function autoLineup(squad: Player[], formation: Formation, customIds?: (s
     used.add(pick.id);
     slots.push({ player: pick, slotGroup, liveFitness: pick.fitness, yellows: 0, offs: { g: 0, a: 0, shots: 0, saves: 0, yellow: 0, red: 0 } });
   }
-  const bench = avail.filter((p) => !used.has(p.id)).slice(0, 9);
+  const benchPool = avail.filter((p) => !used.has(p.id));
+  const benchById = new Map(benchPool.map((p) => [p.id, p]));
+  const preferred = [...new Set(customBenchIds ?? [])].flatMap((id) => {
+    const player = benchById.get(id);
+    return player ? [player] : [];
+  });
+  const preferredIds = new Set(preferred.map((p) => p.id));
+  // Respect the selected bench first, then fill unused places with available players.
+  const bench = [...preferred, ...benchPool.filter((p) => !preferredIds.has(p.id))].slice(0, 9);
   return { slots: slots.slice(0, 11), bench };
 }
 

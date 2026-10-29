@@ -1,13 +1,22 @@
 {
   "name": "manager26",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build && node tools/inject-sw-manifest.mjs",
     "preview": "vite preview",
     "qa:features": "tsx tools/qa-features-v099.ts",
+    "qa:save-meta": "tsx tools/qa-save-metadata.ts",
+    "qa:save-integrity": "node --import tsx --loader ./tools/qa-live-loader.mjs tools/qa-save-integrity.tsx",
+    "qa:save-integrity:browser": "node tools/e2e-save-integrity.mjs",
+    "qa:sw-manifest": "node tools/qa-sw-manifest.mjs",
+    "qa:sw-update:browser": "node tools/e2e-sw-update.mjs",
+    "qa:game-update:browser": "node tools/e2e-update-game.mjs",
+    "qa:security-skill": "node tools/qa-security-skill.mjs",
+    "qa:security-skill:validators": "node --test .agents/skills/security-audit/validate-findings.test.cjs .agents/skills/security-audit/validate-coverage-ledger.test.cjs",
+    "qa:agency-roles": "node tools/qa-agency-roles.mjs",
     "qa:wave0": "tsx tools/qa-wave0-fixes.ts",
     "qa:wave1": "tsx tools/qa-wave1-analytics.ts",
     "qa:wave2": "tsx tools/qa-wave2-tactics.ts",
@@ -59,6 +68,15 @@
     "qa:transfer:scene": "tsx tools/qa-transfer-scene.ts",
     "qa:transfer:scene:ui": "node --import tsx --loader ./tools/qa-live-loader.mjs tools/qa-transfer-scene-ui.tsx",
     "qa:transfer:scene:browser": "node tools/e2e-transfer-scene.mjs",
+    "qa:sale:ui": "node --import tsx --loader ./tools/qa-live-loader.mjs tools/qa-sale-flow.tsx",
+    "qa:market-squad:ui": "node --import tsx --loader ./tools/qa-live-loader.mjs tools/qa-market-squad-polish.tsx",
+    "qa:market-squad:browser": "node tools/e2e-market-squad-polish.mjs",
+    "qa:renewal-highlights:ui": "node --import tsx --loader ./tools/qa-live-loader.mjs tools/qa-renewal-highlights.tsx",
+    "qa:renewal-highlights:browser": "node tools/e2e-renewal-highlights.mjs",
+    "qa:atmosphere-paper:ui": "node --import tsx --loader ./tools/qa-live-loader.mjs tools/qa-atmosphere-comparison-paper.tsx",
+    "qa:atmosphere-paper:browser": "node tools/e2e-atmosphere-comparison-paper.mjs",
+    "qa:career-scenes:ui": "node --import tsx --loader ./tools/qa-live-loader.mjs tools/qa-career-scenes.tsx",
+    "qa:career-scenes:browser": "node tools/e2e-career-scenes.mjs",
     "qa:academy:wave12": "tsx tools/qa-academy-wave12.ts",
     "qa:newsroom:wave13": "tsx tools/qa-newsroom-wave13.ts",
     "qa:culture:wave14": "tsx tools/qa-culture-wave14.ts",
@@ -83,6 +101,6 @@
     "tailwindcss": "^3.4.17",
     "tsx": "^4.23.15",
     "typescript": "^5.7.3",
-    "vite": "^5.4.11"
+    "vite": "^6.4.5"
   }
 }

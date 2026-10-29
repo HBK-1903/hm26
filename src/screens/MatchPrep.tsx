@@ -7,9 +7,12 @@ import { Crest } from '../components/assets/Crest';
 import { GameIcon } from '../components/icons';
 import { clubById } from '../data/clubs';
 import { GAME_PLANS } from '../data/meta';
-import { autoXI } from '../data/gen';
 import { DemoMatchResult } from '../store/game';
 import { LiveMatch } from './LiveMatch';
+import { MatchHighlights } from '../components/match/MatchHighlights';
+import { ArrivalScene } from '../components/match/ArrivalScene';
+import { MatchAwardCeremony } from '../components/match/MatchAwardCeremony';
+import { selectMatchAward } from '../data/matchAward';
 import { buildMatchBrief, type NoteTone } from '../engine/matchDay';
 import { buildMatchdayAtmosphere } from '../engine/atmosphere';
 import { normalizeClubCulture } from '../data/culture';
@@ -18,26 +21,52 @@ import { goalMinuteProfile } from '../engine/matchEvents';
 import { COMP_LABEL } from '../data/newsroom';
 import { opponentScout } from '../engine/scout';
 import { rotationAdvice } from '../engine/squadInsights';
-import { FORMATION_SLOTS } from '../engine/profiles';
+import { autoLineup } from '../engine/profiles';
+import { boardToEngine } from '../engine/lineupOrder';
 
 
-export const MatchPrep: React.FC<{ go: (s: Screen) => void; onEndDay?: () => void }> = ({ go, onEndDay }) => {
+export const MatchPrep: React.FC<{ go: (s: Screen) => void; onEndDay?: () => void; onMatchSessionChange?: (active: boolean) => void }> = ({ go, onEndDay, onMatchSessionChange }) => {
   const g = useGame();
   const next = g.nextFixture;
   const [prepared, setPrepared] = useState<Set<string>>(new Set(['tactic', 'xi']));
   const [started, setStarted] = useState(false);
   const [activeTacticIdx, setActiveTacticIdx] = useState(0);   // P2 (SPEC Böl.I/7): 5 plan slotu seçilebilir
   const [quick, setQuick] = useState<DemoMatchResult | null>(null);
+  const [quickHighlights, setQuickHighlights] = useState(false);
+  const [quickAwardOpen, setQuickAwardOpen] = useState(false);
+  const [arrivalOpen, setArrivalOpen] = useState(false);
   // "Kaydet ve Günü Bitir": maç commit edilip LiveMatch kapandıktan SONRA gün ilerletilir.
   // Aynı event içinde çağırsak advanceDay fikstürü oynanmamış görüp engel dönerdi;
   // efekt, store yeniden render olduktan sonra taze closure ile çalışmayı garanti eder.
   const [endDayPending, setEndDayPending] = useState(false);
+  useEffect(() => () => onMatchSessionChange?.(false), [onMatchSessionChange]);
   useEffect(() => {
     if (!endDayPending || started) return;
     setEndDayPending(false);
     if (onEndDay) onEndDay();
     else go('hub');
   }, [endDayPending, started, onEndDay, go]);
+  // A quick result stays accessible even if it was the final fixture and nextFixture is now null.
+  if (quick) {
+    const quickHome = clubById(quick.homeId);
+    const quickAway = clubById(quick.awayId);
+    const award = selectMatchAward(quick, g.clubOfPlayer, g.playerOf);
+    const close = () => { setQuick(null); setQuickHighlights(false); setQuickAwardOpen(false); go('hub'); };
+    return <div className="h-full bg-base">
+      <Sheet open onClose={close} title="Hızlı Simülasyon Sonucu" tall>
+        <div className="text-center pb-2 space-y-3">
+          <div className="font-display text-2xl text-primary">{quickHome.short} <span className="text-amber">{quick.hg}–{quick.ag}</span> {quickAway.short}</div>
+          <div className="text-muted text-[12px]">xG {quick.xgHome.toFixed(2)}–{quick.xgAway.toFixed(2)} · Sonuç sezona ve tabloya işlendi</div>
+          <p className="text-secondary text-[12.5px] leading-snug">{quick.insights[0]}</p>
+          {award && !quickAwardOpen && <Btn variant="secondary" testId="quick-open-award" className="w-full" onClick={() => setQuickAwardOpen(true)}>Maçın Adamı Törenini İzle</Btn>}
+          {award && quickAwardOpen && <div className="text-left"><MatchAwardCeremony award={award} reducedMotion={g.career.settings.reduceMotion} onClose={() => setQuickAwardOpen(false)} /></div>}
+          {!quickHighlights && <Btn variant="secondary" testId="quick-open-highlights" className="w-full" onClick={() => setQuickHighlights(true)}>Öne Çıkan Anları İzle</Btn>}
+          {quickHighlights && <div className="text-left"><MatchHighlights home={quickHome} away={quickAway} homeGoals={quick.hg} awayGoals={quick.ag} events={quick.events ?? []} reduceMotion={g.career.settings.reduceMotion} /></div>}
+          <Btn variant="amber" className="w-full" onClick={close}>Ana Merkez'e Dön</Btn>
+        </div>
+      </Sheet>
+    </div>;
+  }
   if (!next) {
     return (
       <div className="h-full flex flex-col items-center justify-center px-8 text-center">
@@ -55,9 +84,9 @@ export const MatchPrep: React.FC<{ go: (s: Screen) => void; onEndDay?: () => voi
   if (started) return <LiveMatch
     fixture={next}
     tacticIdx={activeTacticIdx}
-    onExit={() => setStarted(false)}
-    onSaved={() => { setStarted(false); go('hub'); }}
-    onEndDay={() => { setStarted(false); setEndDayPending(true); }}
+    onExit={() => { onMatchSessionChange?.(false); setStarted(false); }}
+    onSaved={() => { onMatchSessionChange?.(false); setStarted(false); go('hub'); }}
+    onEndDay={() => { onMatchSessionChange?.(false); setStarted(false); setEndDayPending(true); }}
   />;
 
   // Dalga 1 (v0.5): işsiz menajer maç merkezine giremez
@@ -78,12 +107,15 @@ export const MatchPrep: React.FC<{ go: (s: Screen) => void; onEndDay?: () => voi
   const away = clubById(next.awayId);
   const mine = g.myClub.id === home.id ? home : away;
   const isHome = mine.id === home.id;
-  const xi = autoXI(g.mySquad, g.tactics[0].formation);
-  const xiList = [...xi.gk, ...xi.defShape, ...xi.fbWb, ...xi.dm, ...xi.cm, ...xi.am, ...xi.wg, ...xi.st];
+  const selectedPlan = g.tactics[activeTacticIdx] ?? g.tactics[0];
+  // Use the very same lineup selection as the match engine, including manual XI and approved injury risks.
+  const selectedIds = selectedPlan.customLineup && boardToEngine(selectedPlan.formation, selectedPlan.customLineup);
+  const xi = autoLineup(g.mySquad, selectedPlan.formation, selectedIds, new Set(g.riskPlayIds ?? []), selectedPlan.customBench);
+  const xiList = xi.slots.map((slot) => slot.player);
   const avgFitness = Math.round(xiList.reduce((x, p) => x + p.fitness, 0) / Math.max(1, xiList.length));
   const riskCount = xiList.filter((p) => p.fitness < 60 || p.injuredDays > 0).length;
   const checklist: { id: string; ok: boolean; title: string; sub: string }[] = [
-    { id: 'squadOk', ok: riskCount === 0, title: 'İlk 11 tamamlandı ve sağlıklı', sub: riskCount ? `${riskCount} oyuncu yüksek risk taşıyor` : `${xiList.length}/11 hazır · ort. kondisyon ${avgFitness}` },
+    { id: 'squadOk', ok: xiList.length === 11 && riskCount === 0, title: 'İlk 11 tamamlandı ve sağlıklı', sub: riskCount ? `${riskCount} oyuncu yüksek risk taşıyor` : `${xiList.length}/11 hazır · ort. kondisyon ${avgFitness}` },
     { id: 'bench', ok: xi.bench.length >= 5, title: 'Yedekler seçildi', sub: `${xi.bench.length} yedek (5 değişiklik hakkı)` },
     { id: 'fitness', ok: avgFitness >= 75, title: 'Kondisyon incelendi', sub: `Ortalama ${avgFitness}% ${avgFitness >= 75 ? '— hazır' : '— rotasyon önerilebilir'}` },
     { id: 'report', ok: prepared.has('report'), title: 'Rakip raporu okundu', sub: `${away.name === mine.name ? home.name : away.name} analizi hazır` },
@@ -110,7 +142,7 @@ export const MatchPrep: React.FC<{ go: (s: Screen) => void; onEndDay?: () => voi
             <div className="text-primary text-[12px] font-bold mt-1.5 max-w-[90px] truncate">{home.short}</div>
           </div>
           <div className="text-center">
-            <div className="text-muted text-[10px] uppercase tracking-wide">{home.stadium}</div>
+            <div data-testid="match-stadium" className="text-muted text-[10px] uppercase tracking-wide">{home.stadium}</div>
             <div className="num text-primary font-display text-2xl">VS</div>
           </div>
           <div className="text-center">
@@ -125,6 +157,12 @@ export const MatchPrep: React.FC<{ go: (s: Screen) => void; onEndDay?: () => voi
       )}
 
       <div className="px-4 space-y-2.5 mt-1">
+        <Card className="!p-3" accent="var(--c-accent)">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0"><div className="text-primary text-[13px] font-bold">Takımın stadyuma gelişi</div><p className="text-secondary text-[11px] leading-snug mt-1">{isMatchday ? `${mine.name} otobüsü · ${home.stadium}` : 'Geliş sahnesi maç günü açılır.'}</p></div>
+            <Btn variant="secondary" testId="open-arrival" className="!min-h-[42px] !px-3 !text-[11.5px] shrink-0" disabled={!isMatchday} onClick={() => setArrivalOpen(true)}>Gelişi İzle</Btn>
+          </div>
+        </Card>
         <div className="flex items-center justify-between">
           <div className="text-[11px] text-muted uppercase tracking-wide">Maç Hazırlığı Kontrol Listesi</div>
           <Badge kind={ready === checklist.length ? 'ok' : 'warn'}>{ready}/{checklist.length} tamam</Badge>
@@ -147,14 +185,12 @@ export const MatchPrep: React.FC<{ go: (s: Screen) => void; onEndDay?: () => voi
 
         {/* Dalga 5: Teknik Direktör Notu — gerçek veriden brifing (yeni şema yok, arşiv yoksa form yorumu yok) */}
         {(() => {
-          const tac = g.tactics[activeTacticIdx] ?? g.tactics[0];
-          const briefXi = autoXI(g.mySquad, tac.formation);
-          const briefList = [...briefXi.gk, ...briefXi.defShape, ...briefXi.fbWb, ...briefXi.dm, ...briefXi.cm, ...briefXi.am, ...briefXi.wg, ...briefXi.st];
+          const tac = selectedPlan;
           const opp = isHome ? away : home;
           const brief = buildMatchBrief({
             myClub: { short: mine.short, strength: mine.strength },
             oppClub: { short: opp.short, strength: opp.strength },
-            plan: tac, xi: briefList, squad: g.mySquad,
+            plan: tac, xi: xiList, squad: g.mySquad,
             reports: g.matchReports ?? [], isHome,
           });
           const toneCls: Record<NoteTone, string> = {
@@ -339,11 +375,7 @@ export const MatchPrep: React.FC<{ go: (s: Screen) => void; onEndDay?: () => voi
 
         {/* Risk & rotasyon — gerçek kondisyon, sakatlık ve arşiv reyting sinyalleri */}
         {(() => {
-          const tac = g.tactics[activeTacticIdx] ?? g.tactics[0];
-          const xiAuto = autoXI(g.mySquad, tac.formation);
-          const lineup = [...xiAuto.gk, ...xiAuto.defShape, ...xiAuto.fbWb, ...xiAuto.dm, ...xiAuto.cm, ...xiAuto.am, ...xiAuto.wg, ...xiAuto.st];
-          const groups = FORMATION_SLOTS[tac.formation];
-          const xiSlots = lineup.map((p, i) => ({ playerId: p.id, slotGroup: groups[i] ?? 'CM' }));
+          const xiSlots = xi.slots.map((slot) => ({ playerId: slot.player.id, slotGroup: slot.slotGroup }));
           const advice = rotationAdvice({ squad: g.mySquad, xi: xiSlots, reports: g.matchReports ?? [] });
           return (
             <Card className="!p-3">
@@ -396,29 +428,26 @@ export const MatchPrep: React.FC<{ go: (s: Screen) => void; onEndDay?: () => voi
           })()}
         </Card>
         <div className="sticky bottom-2 pt-2 pb-1 space-y-2">
-          <Btn variant="amber" className="w-full !min-h-[52px] text-[15px]" disabled={!isMatchday} onClick={() => isMatchday && setStarted(true)}>
+          <Btn variant="amber" className="w-full !min-h-[52px] text-[15px]" disabled={!isMatchday} onClick={() => { if (isMatchday) { onMatchSessionChange?.(true); setStarted(true); } }}>
             {isMatchday ? 'Maça Başla' : `Maç için ${daysLeft} gün kaldı`}
           </Btn>
-          <Btn variant="secondary" className="w-full !min-h-touch" disabled={!isMatchday} onClick={() => isMatchday && setQuick(g.playLeagueMatch({ ...next }))}>
+          <Btn variant="secondary" className="w-full !min-h-touch" disabled={!isMatchday} onClick={() => {
+            if (!isMatchday) return;
+            const result = g.playLeagueMatch({ ...next }, undefined, activeTacticIdx);
+            g.applyRiskOutcome(Object.entries(result.playerRows ?? {}).filter(([, row]) => row.min > 0).map(([id]) => id));
+            setQuick(result);
+          }}>
             Simüle Et (hızlı sonuç)
           </Btn>
           {!isMatchday && <p className="text-warn text-[11.5px] text-center mt-1">Maç günleri takvimde işaretli — günü ilerletmek için Ana Merkez'den "Sonraki Gün"e dokun.</p>}
           <p className="text-center text-muted text-[11px]">Canlı yönetim önerilir — hızlı simülasyon sonucu anında işler ve sezona yansır.</p>
         </div>
       </div>
-
-      {quick && (
-        <Sheet open onClose={() => { setQuick(null); go('hub'); }} title="Hızlı Simülasyon Sonucu">
-          <div className="text-center pb-2">
-            <div className="font-display text-3xl text-primary">
-              {clubById(quick.homeId).short} <span className="text-amber">{quick.hg}–{quick.ag}</span> {clubById(quick.awayId).short}
-            </div>
-            <div className="text-muted text-[12px] mt-1">xG {quick.xgHome.toFixed(2)}–{quick.xgAway.toFixed(2)} · Sonuç sezona ve tabloya işlendi</div>
-            <p className="text-secondary text-[12.5px] mt-3 leading-snug">{quick.insights[0]}</p>
-            <Btn variant="amber" className="w-full mt-4" onClick={() => { setQuick(null); go('hub'); }}>Ana Merkez'e Dön</Btn>
-          </div>
-        </Sheet>
-      )}
+      <Sheet open={arrivalOpen} onClose={() => setArrivalOpen(false)} title="Stadyuma Geliş" tall>
+        <ArrivalScene home={home} away={away} team={mine} day={next.day} players={xiList} reducedMotion={g.career.settings.reduceMotion} />
+        <Btn variant="amber" className="w-full mt-3" disabled={!isMatchday} onClick={() => { if (isMatchday) { setArrivalOpen(false); onMatchSessionChange?.(true); setStarted(true); } }}>Maça Başla</Btn>
+        <Btn variant="secondary" className="w-full mt-2" onClick={() => setArrivalOpen(false)}>Hazırlığa Dön</Btn>
+      </Sheet>
     </div>
   );
 };

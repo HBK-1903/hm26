@@ -8,8 +8,9 @@ import { GameIcon } from '../components/icons';
 import { clubById, LEAGUES } from '../data/clubs';
 import { InstallBanner } from '../components/ui/InstallBanner';
 import { opponentScout } from '../engine/scout';
+import { TrainingGround } from '../components/TrainingGround';
 
-export const Hub: React.FC<{ go: (s: Screen) => void }> = ({ go }) => {
+export const Hub: React.FC<{ go: (s: Screen) => void; onOpenWeekly?: () => void }> = ({ go, onOpenWeekly }) => {
   const g = useGame();
   const [trainingOpen, setTrainingOpen] = useState(false);
   const next = g.nextFixture;
@@ -211,7 +212,7 @@ export const Hub: React.FC<{ go: (s: Screen) => void }> = ({ go }) => {
 
         {/* Prototip §compact tap-cards: antrenman + manşet kısayolu */}
         {!g.career.jobSearch && (
-          <button onClick={() => setTrainingOpen(true)} className="w-full text-left bg-surface border border-line rounded-card p-3 flex items-center gap-2.5 m26-in">
+          <button type="button" data-testid="hub-training" onClick={() => setTrainingOpen(true)} className="w-full text-left bg-surface border border-line rounded-card p-3 flex items-center gap-2.5 m26-in">
             <span className="w-9 h-9 rounded-lg border border-line bg-amber/5 flex items-center justify-center text-amber shrink-0"><Icon id="tactics" className="w-[18px] h-[18px]" /></span>
             <span className="flex-1 min-w-0">
               <span className="block text-primary text-[12.5px] font-bold">Haftalık antrenman</span>
@@ -220,6 +221,18 @@ export const Hub: React.FC<{ go: (s: Screen) => void }> = ({ go }) => {
             <Icon id="settings" className="w-4 h-4 text-muted" />
           </button>
         )}
+        <button type="button" data-testid="hub-career-story" onClick={() => go('careerProfile')} className="w-full text-left bg-surface border border-line rounded-card p-3 flex items-center gap-2.5 m26-in">
+          <span className="w-9 h-9 rounded-lg border border-line bg-amber/5 flex items-center justify-center text-amber shrink-0"><Icon id="profile" className="w-[18px] h-[18px]" /></span>
+          <span className="flex-1 min-w-0"><span className="block text-primary text-[12.5px] font-bold">Kariyer hikâyesi</span><span className="block text-muted text-[10.5px] mt-0.5">Kayıtlı maçlar, transferler ve kupalar</span></span>
+          <span className="text-muted" aria-hidden="true">›</span>
+        </button>
+        <button type="button" onClick={() => onOpenWeekly ? onOpenWeekly() : go('newsroom')} data-testid="hub-weekly-paper"
+          className="w-full min-h-[72px] text-left rounded-card border border-[#bd9a5c] overflow-hidden relative flex items-center gap-3 px-3 py-2.5"
+          style={{ background: "linear-gradient(90deg,rgba(20,36,25,.97),rgba(20,36,25,.72)),url('/assets/transfer/stadium.webp') center/cover" }}>
+          <span className="w-10 h-10 rounded-lg border border-[#cfb57f]/70 bg-[#e9ddc1] flex items-center justify-center text-[#4a3d29] shrink-0" aria-hidden="true"><span className="w-5 h-5"><Icon id="news" className="w-5 h-5" /></span></span>
+          <span className="flex-1 min-w-0"><span className="block text-[#e1c992] text-[9px] font-black tracking-wider">YENİ SAYI · GÜN {g.career.day}</span><span className="block text-[#fff6df] text-[13px] font-bold">Haftanın Futbol Gazetesi</span><span className="block text-[#e1dccd] text-[10px]">Sonuçlar · transferler · form</span></span>
+          <span className="text-[#f5d690] font-black" aria-hidden="true">→</span>
+        </button>
         <button onClick={() => go('newsroom')} className="w-full text-left bg-surface border border-line rounded-card p-3 flex items-center gap-2.5 m26-in">
           <span className="w-9 h-9 rounded-lg border border-line bg-amber/5 flex items-center justify-center text-amber shrink-0"><Icon id="news" className="w-[18px] h-[18px]" /></span>
           <span className="flex-1 min-w-0">
@@ -252,7 +265,7 @@ export const Hub: React.FC<{ go: (s: Screen) => void }> = ({ go }) => {
             <div className="text-[12px] font-bold text-primary mb-2">Antrenman odağı</div>
             <div className="flex gap-1.5 flex-wrap">
               {(['Teknik', 'Hücum', 'Defans', 'Fizik', 'Zekâ'] as const).map((a) => (
-                <button key={a} onClick={() => g.setTrainingFocus({ ...tf, area: a, sinceDay: g.career.day })}
+                <button key={a} type="button" aria-pressed={tf.area === a} onClick={() => g.setTrainingFocus({ ...tf, area: a, sinceDay: g.career.day })}
                   className={`px-3 min-h-[42px] rounded-lg text-[12px] font-bold border transition ${tf.area === a ? 'bg-amber text-base border-amber' : 'bg-surface text-secondary border-line'}`}>{a}</button>
               ))}
             </div>
@@ -261,13 +274,14 @@ export const Hub: React.FC<{ go: (s: Screen) => void }> = ({ go }) => {
             <div className="text-[12px] font-bold text-primary mb-2">Yoğunluk</div>
             <div className="flex gap-1.5">
               {(['hafif', 'normal', 'yogun'] as const).map((iv) => (
-                <button key={iv} onClick={() => g.setTrainingFocus({ ...tf, intensity: iv, sinceDay: g.career.day })}
+                <button key={iv} type="button" aria-pressed={tf.intensity === iv} onClick={() => g.setTrainingFocus({ ...tf, intensity: iv, sinceDay: g.career.day })}
                   className={`flex-1 min-h-[42px] rounded-lg text-[12px] font-bold border transition ${tf.intensity === iv ? 'bg-amber text-base border-amber' : 'bg-surface text-secondary border-line'}`}>
                   {iv === 'hafif' ? 'Hafif' : iv === 'normal' ? 'Normal' : 'Yoğun'}
                 </button>
               ))}
             </div>
           </div>
+          <TrainingGround club={g.myClub} squad={g.mySquad} focus={tf} level={tlvl} reducedMotion={g.career.settings.reduceMotion} />
           <p className="text-muted text-[10.5px] leading-snug border-l-2 border-amber bg-amber/5 rounded px-3 py-2.5">Tesis: {tlvl}/5 — tesis yatırımı antrenman verimini büyütür (Kulüp › Tesisler).</p>
           <Btn variant="amber" className="w-full" onClick={() => setTrainingOpen(false)}>Özeti güncelle ✓</Btn>
         </div>

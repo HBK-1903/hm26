@@ -1,9 +1,10 @@
 // HM26 — Maç sonu akışı regresyon testi.
-// Kapsam: canlı maçta "Maçtan çık" olmaması · maç bitince otomatik röportaj açılması ·
+// Kapsam: canlı maçta "Maçtan çık" olmaması · maç bitince röportajın yalnız kullanıcı isteğiyle açılması ·
 // röportaj seçiminin kültür + inbox etkisi · reddetme yolunun kayıtsız kalması ·
 // maç sonu analizi → "Sonucu Kaydet — Ana Merkez" → Hub → "Sonraki Gün" zinciri ·
 // röportaj sonrası "Kaydet ve Günü Bitir" kısayolu (kaydet + gün ilerletme + özet sheet).
 // Gerçek AppShell üzerinde oynatılır.
+import 'fake-indexeddb/auto';
 import { JSDOM } from 'jsdom';
 const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', { url: 'http://localhost/', pretendToBeVisual: true });
 (globalThis as any).window = dom.window;
@@ -98,7 +99,8 @@ async function playLiveMatch(mode: 'answer' | 'decline', endDay = false) {
 
   // YENİ KURAL: canlı maç sırasında "Maçtan çık" yok; manuel röportaj geçişini anlatan şerit var
   ok(!findBtn([/Maçtan çık/], true), 'Canlı maçta "Maçtan çık" butonu YOK');
-  ok(/düdükten sonra özeti inceleyebilir/.test(body()), 'Manuel röportaj geçişi bilgilendirme şeridi görünüyor');
+  const liveNotice = dom.window.document.querySelector('footer [aria-live="polite"]')?.textContent ?? '';
+  ok(/düdükten sonra.*röportaja.*sen geç/i.test(liveNotice), 'Manuel röportaj geçişi bilgilendirme şeridi görünüyor');
 
   ok(await click([/^4×$/]), '4× hız açıldı');
   let ctaSeen = false;

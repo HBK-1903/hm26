@@ -81,8 +81,28 @@ export function managerTransferLine(tone: TransferTone, phase: 'seller' | 'playe
 export function sellerTransferLine(outcome: 'accept' | 'counter' | 'walk', key: string): TransferVoiceLine {
   return pick(outcome === 'accept' ? sellerAccept : outcome === 'walk' ? sellerWalk : sellerCounter, `${key}|${outcome}`);
 }
+
+/** Selling uses only recordings that make sense for the selling manager and buying club. */
+export function managerSaleLine(tone: TransferTone, key: string): TransferVoiceLine {
+  const lines = tone === 'calm' ? calm : tone === 'witty' ? [witty[2], witty[3]] : [firm[0], firm[3]];
+  return pick(lines, `${key}|sale|${tone}`);
+}
+export function buyerTransferLine(accepted: boolean, key: string): TransferVoiceLine {
+  return pick(accepted ? [sellerAccept[0], sellerAccept[2], sellerAccept[3]] : sellerWalk, `${key}|buyer|${accepted}`);
+}
 export function playerTransferLine(accepted: boolean, key: string): TransferVoiceLine {
   return pick(accepted ? playerAccept : playerReject, `${key}|${accepted ? 'accept' : 'reject'}`);
+}
+
+/** A renewal uses the same recorded voices, limited to lines appropriate for an existing player. */
+export function managerRenewalLine(tone: TransferTone, key: string): TransferVoiceLine {
+  return pick(tone === 'calm' ? calm : tone === 'witty' ? [witty[1], witty[2], witty[3]] : [firm[0], firm[1], firm[3]], `${key}|renew|${tone}`);
+}
+export function playerRenewalLine(accepted: boolean, key: string): TransferVoiceLine {
+  return pick(accepted ? [playerAccept[0], playerAccept[1]] : playerReject, `${key}|renew|${accepted}`);
+}
+export function renewalSignedLine(key: string): TransferVoiceLine {
+  return pick([playerSigned[0], playerSigned[2]], `${key}|renew|signed`);
 }
 export const signingReadyLine = line('player-sign-1', 'player', 'Kalemi verin hocam, fikrimi değiştirmeden imzalayayım.');
 export function signedTransferLine(key: string): TransferVoiceLine { return pick(playerSigned, `${key}|signed`); }

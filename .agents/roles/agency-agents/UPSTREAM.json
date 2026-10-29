@@ -1,0 +1,13 @@
+{
+  "repository": "https://github.com/msitarzewski/agency-agents",
+  "revision": "b37b5bb33b78f2c1d6567d98e25ca818e3259219",
+  "license": "MIT",
+  "hashAlgorithm": "git-blob-sha1",
+  "files": {
+    "LICENSE": "523078c01624b9b1b1c551e75054b9d3a9f953ab",
+    "design/design-ui-designer.md": "6744e81bf2d64a4b22881eace74d8438045dca6e",
+    "game-development/game-designer.md": "64f719fac09531dfeea308c258ade32d1d74db3c",
+    "game-development/narrative-designer.md": "261a5d792c14ad46af144d06e01e21fe5a41db89",
+    "testing/testing-test-automation-engineer.md": "59650291b60ed280f8f5d5da69f15fec2aea3dca"
+  }
+}

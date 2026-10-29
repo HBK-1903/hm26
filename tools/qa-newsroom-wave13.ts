@@ -64,7 +64,7 @@ const report: MatchArchiveEntry = {
   const shell = readFileSync(new URL('../src/screens/Shell.tsx', import.meta.url), 'utf8');
   const wired = store.includes('matchReports: (pxAny.matchReports as MatchArchiveEntry[]) ?? []')
     && store.includes('?? res.playerRows') && store.includes('matchReports: [matchReport,')
-    && matchScreen.includes('rr.referee') && shell.includes("current === 'newsroom' && <NewsroomScreen />");
+    && matchScreen.includes('rr.referee') && /current === 'newsroom' && <NewsroomScreen(?:\s+[^>]*)?\s*\/>/.test(shell);
   const noEngineMutation = !/buildHeadlines[\s\S]{0,800}(?:playLeagueMatch|setSt|simulateMatch)\(/.test(readFileSync(new URL('../src/data/newsroom.ts', import.meta.url), 'utf8'));
   check('Archive migrates old saves and newsroom is wired read-only from actual match reports', wired && noEngineMutation,
     `archive=${wired}; pure newsroom=${noEngineMutation}; referee/player rows preserved`);

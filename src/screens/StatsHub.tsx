@@ -4,8 +4,12 @@
 import { GameIcon } from '../components/icons';
 import React, { useMemo, useState } from 'react';
 import { useGame } from '../store/game';
-import { Card, Badge } from '../components/ui/kit';
-import { clubById } from '../data/clubs';
+import { Card, Badge, Sheet } from '../components/ui/kit';
+import { clubById, clubByIdSafe } from '../data/clubs';
+import type { MatchArchiveEntry } from '../types';
+import { MatchHighlights } from '../components/match/MatchHighlights';
+import { archivedHighlightEvents } from '../engine/highlights';
+import { COMP_LABEL } from '../data/newsroom';
 import { buildXptsTable, buildLeagueXptsTable, buildFairPlayTable, goalkeeperSaveRate, buildRefereeProfile } from '../engine/analytics';
 import { normalizeMyMatches, teamSplit, formStrip, goalBuckets, perMatch, xgTrend, xgVerdict, seasonMatchStats, cardDisciplineByPosition, type TeamSplitRow } from '../engine/teamInsights';
 import { goalMinuteProfile, firstGoalProfile, injuryTally, varStats } from '../engine/matchEvents';
@@ -51,6 +55,7 @@ const medal = (i: number) => (i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '�
 export const StatsHub: React.FC = () => {
   const g = useGame();
   const [tab, setTab] = useState<Tab>('krallik');
+  const [archiveMatch, setArchiveMatch] = useState<MatchArchiveEntry | null>(null);
   const stats = g.playerStats ?? {};
   const seasonLabel = `${2025 + g.seasonNo}–${String(26 + g.seasonNo).padStart(2, '0')}`;
 
@@ -130,6 +135,11 @@ export const StatsHub: React.FC = () => {
   const myBuckets = useMemo(() => goalBuckets(myMatches), [myMatches]);
   const myXgTrend = useMemo(() => xgTrend(myMatches), [myMatches]);
   const myXgVerdict = useMemo(() => xgVerdict(myMatches), [myMatches]);
+  const recentReports = useMemo(() => reports.filter((r) => r.homeId === g.career.clubId || r.awayId === g.career.clubId)
+    .slice().sort((a, b) => b.seasonNo - a.seasonNo || b.day - a.day).slice(0, 10), [reports, g.career.clubId]);
+  const archiveEvents = useMemo(() => archivedHighlightEvents(archiveMatch?.events, (id) => g.playerOf(id)?.name), [archiveMatch, g.playerOf]);
+  const archiveHome = archiveMatch ? clubByIdSafe(archiveMatch.homeId) : undefined;
+  const archiveAway = archiveMatch ? clubByIdSafe(archiveMatch.awayId) : undefined;
 
   return (
     <div className="h-full flex flex-col">
@@ -164,6 +174,21 @@ export const StatsHub: React.FC = () => {
 
         {tab === 'analiz' && (
           <>
+            <Card className="!p-0 overflow-hidden" >
+              <div className="px-4 py-2.5 border-b border-line font-display font-bold text-[13px]">🎬 Son Maçların Özetleri</div>
+              {recentReports.length === 0 ? <div className="px-4 py-3 text-muted text-[12px]">Arşivde henüz maçın yok. Oynanan maçlar burada görünür.</div>
+                : <div data-testid="archive-highlights-list">{recentReports.map((report) => {
+                  const home = clubByIdSafe(report.homeId);
+                  const away = clubByIdSafe(report.awayId);
+                  return <button type="button" key={report.id} data-testid="archive-highlight-open" onClick={() => setArchiveMatch(report)}
+                    aria-label={`${home?.short ?? report.homeId} ${report.hg}–${report.ag} ${away?.short ?? report.awayId} özetini aç`}
+                    className="w-full min-h-touch flex items-center gap-2 text-left px-4 py-2.5 border-b border-line/40 last:border-0 hover:bg-base/60">
+                    <span className="flex-1 min-w-0"><span className="block text-primary text-[12px] font-bold truncate">{home?.short ?? report.homeId} <span className="text-amber num">{report.hg}–{report.ag}</span> {away?.short ?? report.awayId}</span><span className="text-muted text-[10px]">{COMP_LABEL[report.comp]} · {report.day}. gün</span></span>
+                    <span className="text-amber text-[11px] font-bold shrink-0">Özeti Aç ›</span>
+                  </button>;
+                })}</div>}
+              <p className="px-4 py-2 text-muted text-[10.5px]">Arşivde yalnızca kaydedilmiş olaylar gösterilir.</p>
+            </Card>
             {/* Dalga 6: Takımım — ev/deplasman performansı (yalnız gerçek arşiv) */}
             <Card className="!p-0 overflow-hidden">
               <div data-testid="team-split">
@@ -561,6 +586,11 @@ export const StatsHub: React.FC = () => {
           </>
         )}
       </div>
+      <Sheet open={!!archiveMatch} onClose={() => setArchiveMatch(null)} title="Maç Arşivi · Öne Çıkan Anlar" tall>
+        {archiveMatch && (archiveHome && archiveAway
+          ? <MatchHighlights home={archiveHome} away={archiveAway} homeGoals={archiveMatch.hg} awayGoals={archiveMatch.ag} events={archiveEvents} archived reduceMotion={g.career.settings.reduceMotion} />
+          : <p className="text-secondary text-[12px]">Bu eski kayıtta takım bilgileri bulunamadı.</p>)}
+      </Sheet>
     </div>
   );
 };

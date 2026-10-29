@@ -14,6 +14,7 @@ export interface ServiceWorkerUpdateState {
 export function useServiceWorker(): ServiceWorkerUpdateState {
   const registrationRef = useRef<ServiceWorkerRegistration | null>(null);
   const reloadAfterControllerChangeRef = useRef(false);
+  const controllerChangedInOtherTabRef = useRef(false);
   const [updateReady, setUpdateReady] = useState(false);
 
   useEffect(() => {
@@ -23,11 +24,21 @@ export function useServiceWorker(): ServiceWorkerUpdateState {
     let registration: ServiceWorkerRegistration | null = null;
     let installingWorker: ServiceWorker | null = null;
     let onInstallingStateChange: (() => void) | null = null;
+    let hadController = !!navigator.serviceWorker.controller;
 
     const onControllerChange = () => {
-      if (!reloadAfterControllerChangeRef.current) return;
-      reloadAfterControllerChangeRef.current = false;
-      window.location.reload();
+      if (reloadAfterControllerChangeRef.current) {
+        reloadAfterControllerChangeRef.current = false;
+        window.location.reload();
+        return;
+      }
+      // The first install is not an update. A later controller change can come
+      // from another tab; let this tab save and reload only after user approval.
+      if (hadController && !disposed) {
+        controllerChangedInOtherTabRef.current = true;
+        setUpdateReady(true);
+      }
+      hadController = true;
     };
 
     const showIfWaiting = (candidate: ServiceWorkerRegistration) => {
@@ -89,7 +100,10 @@ export function useServiceWorker(): ServiceWorkerUpdateState {
   const applyUpdate = useCallback(() => {
     const waitingWorker = registrationRef.current?.waiting;
     if (!waitingWorker) {
-      setUpdateReady(false);
+      if (controllerChangedInOtherTabRef.current) {
+        controllerChangedInOtherTabRef.current = false;
+        window.location.reload();
+      } else setUpdateReady(false);
       return;
     }
 

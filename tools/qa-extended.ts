@@ -6,7 +6,7 @@ import { genSquad, autoXI, playerValue, genFreeAgent, genYouthRegen, PLAYER_ROLE
 import { simulateMatch, aiDefaultTactic, Weather } from '../src/engine/engine';
 import { MatchSession } from '../src/engine/session';
 import { autoLineup } from '../src/engine/profiles';
-import { dateFromDay, dayToDate, weekdayOf, WEEKDAYS, LEAGUE_ROUND_DAYS, FRIENDLY_DAYS, CUP_GROUP_DAYS, CUP_R16_DAY, CUP_QF_DAY, CUP_SF_DAY, CUP_FINAL_DAY, WINTER_BREAK } from '../src/data/calendar';
+import { buildCup, dateFromDay, dayToDate, weekdayOf, WEEKDAYS, LEAGUE_ROUND_DAYS, FRIENDLY_DAYS, CUP_GROUP_DAYS, CUP_R16_DAY, CUP_QF_DAY, CUP_SF_DAY, CUP_FINAL_DAY, WINTER_BREAK } from '../src/data/calendar';
 import { exportSaveFile, parseImportFile, SAVE_VERSION, SaveBlob, SaveMeta } from '../src/store/persist';
 import { FOREIGN_QUOTA, foreignCountIn, canAddForeign, clubAcceptsLoan, aiAcceptsInboundLoan, loanWage, expiringLoans, activeLoans, onLoan, seasonEndContractMoves, FREE_CLUB, LoanEntry } from '../src/data/market';
 import { computeSeasonAwards, awardFingerprint, StatLine } from '../src/data/awards';
@@ -354,9 +354,9 @@ for (const lg of ['zirve', 'gecit', 'kok'] as const) {
 function makeBlob(extra: Record<string, unknown>): { blob: SaveBlob; meta: SaveMeta } {
   const blob = {
     version: SAVE_VERSION, day: 7,
-    career: { slot: 2, manager: { name: 'X', portrait: 1, background: 'oyuncu', era: 'yerlesik', difficulty: 'zor', challengePoints: 60 }, clubId: 'test_kulup', seed: 1, day: 7, week: 1, settings: { goalPace: 'dengeli', randomness: 'normal', marketRefresh: 'dengeli', boardPressure: 'orta', injuryRate: 'normal', textSize: 'normal', highContrast: false, reduceMotion: false, matchSpeed: 'normal', suggestions: true }, pending: { marketShortlist: [], activeProject: null } },
-    table: { zirve: [], gecit: [], kok: [] }, fixtures: [], friendlies: [], cup: { fixtures: [], rounds: [], champion: null },
-    inbox: [], tactics: [], seasonHistory: [], removedPlayers: [], seasonNo: 1, leagueOf: {}, playerPatch: {}, budget: { tb: 5 },
+    career: { slot: 2, manager: { name: 'X', portrait: 1, background: 'eskiFutbolcu', era: 'yerlesik', difficulty: 'zorlu', challengePoints: 60 }, clubId: 'denizli_yesilova', seed: 1, day: 7, week: 1, settings: { goalPace: 'dengeli', randomness: 'normal', marketRefresh: 'dengeli', boardPressure: 'orta', injuryRate: 'normal', textSize: 'normal', highContrast: false, reduceMotion: false, matchSpeed: 'normal', suggestions: true }, pending: { marketShortlist: [], activeProject: null } },
+    table: { zirve: [], gecit: [], kok: [] }, fixtures: [], friendlies: [], cup: buildCup(1),
+    inbox: [], tactics: [{ id: 'p1', name: 'Ana Plan', formation: '4-3-3', plan: 'dengeli', setPieces: {} }], seasonHistory: [], removedPlayers: [], seasonNo: 1, leagueOf: {}, playerPatch: {}, budget: { tb: 5 },
     pendingBids: [], incomingOffers: [], counterDoneDay: -1, freeAgents: [], transferLog: [], oppMatchDays: {}, seasonFinale: null,
     ...extra,
   } as unknown as SaveBlob;

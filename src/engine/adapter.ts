@@ -1,9 +1,10 @@
 // HM26 Maç Motoru — store/app köprüsü
 // simulateMatch (saf TS) ↔ uygulamanın DemoMatchResult / oyun durumu şekilleri
 import { Club, Player, TacticPlan, CareerSettings } from '../types';
-import { MatchInput, MatchResult } from './engine';
+import { MatchInput, MatchResult, MatchStateEvent } from './engine';
 import { ZONE_XY } from './zones';
 import { DemoMatchEvent, DemoMatchResult, ShotDot } from '../store/game';
+import { isConfirmedGoal } from './matchPresentation';
 
 const KIND_MAP: Record<string, DemoMatchEvent['kind']> = {
   info: 'info', goal: 'goal', save: 'save', card: 'card', sub: 'sub',
@@ -11,18 +12,31 @@ const KIND_MAP: Record<string, DemoMatchEvent['kind']> = {
   injury: 'injury', var: 'var', half: 'half', danger: 'chance', corner: 'chance',
 };
 
+// The session is the source of truth for both live reports and compact archives.
+// Do not derive the final result from React's asynchronously updated visible feed:
+// the last batch and the remainder of a recovered match might not be rendered yet.
+export function matchEventsToDemo(events: readonly MatchStateEvent[]): DemoMatchEvent[] {
+  return events.map((e) => {
+    const event: DemoMatchEvent = {
+      minute: e.minute,
+      text: e.text,
+      kind: KIND_MAP[e.kind] ?? 'info',
+      side: e.side,
+      path: e.path,
+      ...(e.playerId ? { playerId: e.playerId } : {}),
+      ...(e.scorerId ? { scorerId: e.scorerId } : {}),
+      ...(e.assisterId ? { assisterId: e.assisterId } : {}),
+      ...(e.anim ? { anim: e.anim } : {}),
+      ...(e.visualEvent ? { visualEvent: e.visualEvent } : {}),
+      ...(e.visualActors ? { visualActors: e.visualActors } : {}),
+    };
+    // A contradictory/cancelled goal is a VAR decision, never a live goal cue.
+    return event.kind === 'goal' && !isConfirmedGoal(event) ? { ...event, kind: 'var' } : event;
+  });
+}
+
 export function matchEngineToDemo(res: MatchResult): DemoMatchResult & { engine: MatchResult } {
-  const events: DemoMatchEvent[] = res.events.map((e) => ({
-    minute: e.minute,
-    text: e.text,
-    kind: KIND_MAP[e.kind] ?? 'info',
-    side: e.side,
-    path: e.path,
-    // C2: kalıcı olay sıkıştırması için oyuncu kimlikleri ve kart rengi korunur
-    ...(e.playerId ? { playerId: e.playerId } : {}),
-    ...(e.scorerId ? { scorerId: e.scorerId } : {}),
-    ...(e.anim ? { anim: e.anim } : {}),
-  }));
+  const events = matchEventsToDemo(res.events);
   // §5-D: şut günlüğü → yüzde koordinat (deplasman aynalı: rakip yarı alan alta)
   const shotsLog: ShotDot[] = (res.shotsLog ?? []).map((s) => {
     const z = ZONE_XY[s.zone] ?? ZONE_XY['C-M'];

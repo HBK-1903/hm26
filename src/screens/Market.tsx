@@ -1,24 +1,86 @@
 // HM26 — UI/UX §5.9 Piyasa (Aşama 2: gerçek dünya kadrolarından piyasa + gelen teklifler + sözleşmeler + transfer geçmişi)
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useGame } from '../store/game';
 import { Card, Badge, Btn, Sheet, Seg, useToast } from '../components/ui/kit';
 import { GameIcon, ICONS } from '../components/icons';
 import { PlayerPortrait } from '../components/assets/Portrait';
 import { Crest } from '../components/assets/Crest';
 import { clubById, clubByIdSafe } from '../data/clubs';
-import { genFreeAgent, playerValue } from '../data/gen';
+import { playerValue } from '../data/gen';
 import { resolveMarketShortlist, selectClubOpportunities } from '../data/marketOpportunities';
+import { currentMarketFreeAgents, marketRefreshDays } from '../data/playerComparison';
+import { ComparisonDesk } from '../components/players/ComparisonDesk';
 import { FOREIGN_QUOTA } from '../data/market';
 import { inWindow } from '../data/calendar';
 import { counterCashAsk, sellOnCredit, transferLeakRisk, transferOfferLeaks } from '../data/transferNegotiation';
 import { playerToneHints, respondToPlayerWithTone, respondToSellerWithTone, sellerToneHints, transferRevealForGen, type PlayerToneResult, type TransferTone } from '../data/transferPresentation';
 import { managerTransferLine, playerTransferLine, sellerTransferLine, signedTransferLine, signingReadyLine, transferAnnouncement, transferLeakLine } from '../data/transferVoices';
 import { TransferSpeechCue, TransferSubtitle, TransferTheatre } from '../components/transfer/TransferTheatre';
+import { SaleFlow } from '../components/transfer/SaleFlow';
+import { ContractRenewal } from '../components/transfer/ContractRenewal';
 import { transferVoiceVolume, useTransferSpeech } from '../components/transfer/useTransferSpeech';
 import { audio } from '../audio/engine';
-import { Player, Screen } from '../types';
+import { type Club, type IncomingOffer, Player, Screen } from '../types';
 
 const G_SHORT: Record<string, string> = { GK: 'Kaleci', CB: 'Stoper', FB: 'Bek', WB: 'Kanat Bek', DM: 'D.O.S', CM: 'M.O.S', AM: 'O.O.S', WG: 'Kanat', ST: 'Santrfor' };
+
+// Stable rows retain keyboard focus when the shortlist changes; memoization also
+// avoids repainting dozens of portraits for unrelated filter changes.
+const MarketPlayerRow = React.memo(function MarketPlayerRow({ player, reason, price, inShort, alreadyOwn, onLoanNow, inWindow, onShort, onOffer, onLoan, onCompare }: {
+  player: Player; reason: string; price: number; inShort: boolean; alreadyOwn: boolean; onLoanNow: boolean; inWindow: boolean;
+  onShort: (player: Player) => void; onOffer: (player: Player) => void; onLoan: (player: Player) => void; onCompare: (player: Player) => void;
+}) {
+  const isFree = player.id.startsWith('fa_') || player.clubId === 'FA';
+  const seller = isFree ? null : clubByIdSafe(player.clubId) ?? null;
+  const IStar = inShort ? ICONS.starF : ICONS.star;
+  return (
+    <article className="bg-surface border border-line rounded-xl p-3" data-testid="market-player" data-player-id={player.id} data-position={player.group}>
+      <div className="flex items-start gap-2.5">
+        <span className="w-[36px] h-[39px] rounded-lg overflow-hidden border border-line/60 bg-elevated shrink-0"><PlayerPortrait player={player} size={36} /></span>
+        <div className="flex-1 min-w-0">
+          <div className="text-primary text-[13px] font-bold truncate flex items-center gap-1">{player.name}{player.important && <span className="text-amber text-[10px]" title="Önemli oyuncu">★</span>}</div>
+          <div className="text-muted text-[9.5px] mt-0.5 truncate flex items-center gap-1">
+            {seller && <Crest club={seller} size={11} />}
+            <span className="truncate">{player.clubId === 'FA' ? '🔓 Bosman' : seller ? seller.name : 'Serbest'} · {G_SHORT[player.group] ?? player.group} · {player.age} yaş</span>
+          </div>
+          <div className="text-muted text-[9.5px] mt-0.5">{player.foreign ? 'Yabancı oyuncu' : 'Yerli oyuncu'}{onLoanNow ? ' · 🔁 kiralık' : ''}</div>
+          <div className="text-amber/90 text-[10px] mt-1 leading-snug">⚑ {reason}</div>
+        </div>
+        <div className="shrink-0 flex flex-col items-center">
+          <span className="w-[38px] min-h-[38px] rounded-lg bg-amber/10 border border-amber/25 flex flex-col items-center justify-center">
+            <span className="num text-[15px] font-extrabold text-amber leading-none">{player.ratings.gen}</span>
+            <span className="text-[7px] text-muted mt-0.5">GEN</span>
+          </span>
+          <span className="text-secondary text-[10px] font-bold mt-1 num" aria-label={`Potansiyel ${Number.isFinite(player.potential) ? player.potential : 'bilinmiyor'}`}>
+            POT {Number.isFinite(player.potential) ? player.potential : '—'}
+          </span>
+        </div>
+      </div>
+      <div className="flex items-center gap-2 border-t border-line/60 mt-2.5 pt-2">
+        <span className="flex-1 min-w-0">
+          <span className="block text-muted text-[8.5px] uppercase">Piyasa değeri</span>
+          <span className="num text-primary font-extrabold text-[14px]">{isFree ? 'Bedelsiz' : `₺${price.toFixed(2).replace('.', ',')}M`}</span>
+        </span>
+        <button onClick={() => onShort(player)} aria-pressed={inShort} aria-label={inShort ? 'Kısa listeden çıkar' : 'Kısa listeye ekle'}
+          className={`min-w-[44px] min-h-[44px] rounded-lg border flex items-center justify-center ${inShort ? 'text-amber bg-amber/10 border-amber/50' : 'text-muted border-line'}`}>
+          <span className="w-[18px] h-[18px] inline-block">{IStar ? <IStar /> : null}</span>
+        </button>
+        <Btn variant="amber" className="!min-h-[44px] !text-[11.5px] !px-3.5" onClick={() => onOffer(player)}
+          disabled={alreadyOwn || (!!seller && !inWindow) || onLoanNow}>
+          {alreadyOwn ? 'Kadromuzda' : onLoanNow ? 'Kiralıkta' : seller && !inWindow ? 'Pencere Kapalı' : 'Teklif'}
+        </Btn>
+        {seller && !alreadyOwn && !onLoanNow && inWindow && (
+          <Btn variant="secondary" className="!min-h-[44px] !text-[12px] !px-3" onClick={() => onLoan(player)}>🔁</Btn>
+        )}
+      </div>
+      <button type="button" onClick={() => onCompare(player)} aria-label={`${player.name} karşılaştır`}
+        className="mt-2 w-full min-h-[40px] flex items-center justify-center gap-1.5 rounded-lg border border-line bg-base/60 text-secondary text-[11px] font-bold"><GameIcon id="market" className="w-4 h-4" />Oyuncuyu karşılaştır</button>
+    </article>
+  );
+});
+
+// Turkish and ASCII spellings should find the same name (e.g. Işık / isik).
+const searchKey = (value: string) => value.trim().toLocaleLowerCase('tr').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/ı/g, 'i');
 
 export const MarketScreen: React.FC<{ go?: (s: Screen) => void }> = ({ go }) => {
   const g = useGame();
@@ -32,6 +94,7 @@ export const MarketScreen: React.FC<{ go?: (s: Screen) => void }> = ({ go }) => 
   const [freeOnly, setFreeOnly] = useState(false);
   const [valF, setValF] = useState('all'); // all | u1 | 1_3 | 3p (₺M)
   const [moreOpen, setMoreOpen] = useState(false);
+  const [compare, setCompare] = useState<Player | 'empty' | null>(null);
   const openOffers = g.incomingOffers.filter((o) => o.state === 'open').length;
   const { show, ToastView } = useToast();
 
@@ -39,7 +102,7 @@ export const MarketScreen: React.FC<{ go?: (s: Screen) => void }> = ({ go }) => 
   const wageCapB = Math.round(((g.myClub.wageBudget + (g.budget?.wbExtra ?? 0)) * 1000)); // ₺B/ay tavan
   const wageHeadroomB = wageCapB - wageUseB;
   const inWin = inWindow(g.career.day);
-  const cycle = g.career.settings.marketRefresh === 'sakin' ? 30 : g.career.settings.marketRefresh === 'yogun' ? 7 : 14;
+  const cycle = marketRefreshDays(g.career.settings.marketRefresh);
 
   // §11.1: refresh bazında seed'li tarama; kulüp başına en fazla bir hedef ve çevrimler arasında rotasyon.
   const market = useMemo(() => {
@@ -60,18 +123,17 @@ export const MarketScreen: React.FC<{ go?: (s: Screen) => void }> = ({ go }) => 
       pool.push({ p, reason: 'Bosman: sözleşmesi bitti — bedelsiz', league: g.myLeague, rankScore: p.ratings.gen * 0.6 + 12 - index });
     });
     // Serbest oyuncu arşivi de genişletildi; her yenilemede oyuncu profilleri değişir, shortlist snapshot'ları etkilenmez.
-    for (let i = 0; i < 12; i++) {
-      const fa = genFreeAgent(g.career.seed + cycleNo * 977, g.myLeague, i, 'free');
-      if (pool.some((item) => item.p.id === fa.id)) continue;
+    currentMarketFreeAgents(g.career.seed, cycleNo, g.myLeague).forEach((fa, i) => {
+      if (pool.some((item) => item.p.id === fa.id)) return;
       pool.push({ p: fa, reason: i < 3 ? 'Menajeri agresif satıyor — bedelsiz' : 'Serbest statüden anında katılabilir', league: g.myLeague, rankScore: fa.ratings.gen * 0.6 + (i % 5) * 2 });
-    }
+    });
     return pool.sort((a, b) => b.rankScore - a.rankScore || a.p.id.localeCompare(b.p.id)).slice(0, 64);
   }, [g.squads, g.career.seed, g.career.day, g.career.clubId, g.budget.tb, g.myLeague, cycle]);
 
   const priceOf = (p: Player) => (p.id.startsWith('fa_') || p.clubId === 'FA' ? 0 : playerValue(p, clubByIdSafe(p.clubId)?.league ?? g.myLeague));
   const nextRefresh = cycle - (g.career.day % cycle);
 
-  const toggleShort = (player: Player) => {
+  const toggleShort = useCallback((player: Player) => {
     const id = player.id;
     const adding = !short.includes(id);
     const nextIds = adding ? [...short, id] : short.filter((candidate) => candidate !== id);
@@ -80,7 +142,7 @@ export const MarketScreen: React.FC<{ go?: (s: Screen) => void }> = ({ go }) => 
       ? [...snapshots.filter((candidate) => candidate.id !== id), g.playerOf(id) ?? player]
       : snapshots.filter((candidate) => candidate.id !== id);
     g.updateMarketShortlist(nextIds, nextSnapshots);
-  };
+  }, [short, g.career.pending.marketShortlistPlayers, g.playerOf, g.updateMarketShortlist]);
 
   const isFreeP = (p: Player) => p.id.startsWith('fa_') || p.clubId === 'FA';
   const priceOk = (p: Player) => {
@@ -92,67 +154,30 @@ export const MarketScreen: React.FC<{ go?: (s: Screen) => void }> = ({ go }) => 
     return true;
   };
 
+  const searchTerm = searchKey(search);
   const matchSearch = (p: Player) =>
     (posF === 'all' || p.group === posF) &&
-    (p.name.toLowerCase().includes(search.toLowerCase()) || (clubByIdSafe(p.clubId)?.name ?? (isFreeP(p) ? 'serbest bosman' : '')).toLowerCase().includes(search.toLowerCase()));
+    (searchKey(p.name).includes(searchTerm) || searchKey(clubByIdSafe(p.clubId)?.name ?? (isFreeP(p) ? 'serbest bosman' : '')).includes(searchTerm));
 
   const filtered = market.filter((m) => matchSearch(m.p) && priceOk(m.p));
+  const visibleSearch = filtered.filter((m) => !budgetOnly || priceOf(m.p) <= g.budget.tb);
+  const visibleOpportunities = market.filter((m) => !budgetOnly || priceOf(m.p) <= g.budget.tb).slice(0, 8);
+  const filtersActive = !!searchTerm || posF !== 'all' || valF !== 'all' || freeOnly || budgetOnly;
+  const resetFilters = () => { setSearch(''); setPosF('all'); setValF('all'); setFreeOnly(false); setBudgetOnly(false); };
   const savedShortlistPlayers = g.career.pending.marketShortlistPlayers ?? [];
   const shortlistRows = resolveMarketShortlist(short, savedShortlistPlayers, (id) => g.playerOf(id) ?? market.find((item) => item.p.id === id)?.p ?? null)
     .map((player) => ({ p: player, reason: market.find((item) => item.p.id === player.id)?.reason ?? 'Kalıcı kısa liste hedefi' }));
 
-  const Row: React.FC<{ m: { p: Player; reason: string } }> = ({ m }) => {
-    const price = priceOf(m.p);
-    const isFree = m.p.id.startsWith('fa_') || m.p.clubId === 'FA';
-    const seller = isFree ? null : clubByIdSafe(m.p.clubId) ?? null;
-    const onLoanNow = g.loans?.some((l) => l.playerId === m.p.id);
-    const inShort = short.includes(m.p.id);
-    const alreadyOwn = g.mySquad.some((player) => player.id === m.p.id);
-    const IStar = inShort ? ICONS.starF : ICONS.star;
-    return (
-      <article className="bg-surface border border-line rounded-xl p-3">
-        <div className="flex items-start gap-2.5">
-          <span className="w-[36px] h-[39px] rounded-lg overflow-hidden border border-line/60 bg-elevated shrink-0"><PlayerPortrait player={m.p} size={36} /></span>
-          <div className="flex-1 min-w-0">
-            <div className="text-primary text-[13px] font-bold truncate flex items-center gap-1">{m.p.name}{m.p.important && <span className="text-amber text-[10px]" title="Önemli oyuncu">★</span>}</div>
-            <div className="text-muted text-[9.5px] mt-0.5 truncate flex items-center gap-1">
-              {seller && <Crest club={seller} size={11} />}
-              <span className="truncate">{m.p.clubId === 'FA' ? '🔓 Bosman' : seller ? seller.name : 'Serbest'} · {G_SHORT[m.p.group] ?? m.p.group} · {m.p.age} yaş</span>
-            </div>
-            <div className="text-muted text-[9.5px] mt-0.5">{m.p.foreign ? 'Yabancı oyuncu' : 'Yerli oyuncu'}{onLoanNow ? ' · 🔁 kiralık' : ''}</div>
-            <div className="text-amber/90 text-[10px] mt-1 leading-snug">⚑ {m.reason}</div>
-          </div>
-          <div className="shrink-0 flex flex-col items-center">
-            <span className="w-[38px] min-h-[38px] rounded-lg bg-amber/10 border border-amber/25 flex flex-col items-center justify-center">
-              <span className="num text-[15px] font-extrabold text-amber leading-none">{m.p.ratings.gen}</span>
-              <span className="text-[7px] text-muted mt-0.5">GEN</span>
-            </span>
-            {m.p.potential - m.p.ratings.gen >= 5 && <span className="text-ok text-[8px] mt-1 num">POT {m.p.potential}</span>}
-          </div>
-        </div>
-        <div className="flex items-center gap-2 border-t border-line/60 mt-2.5 pt-2">
-          <span className="flex-1 min-w-0">
-            <span className="block text-muted text-[8.5px] uppercase">Piyasa değeri</span>
-            <span className="num text-primary font-extrabold text-[14px]">{isFree ? 'Bedelsiz' : `₺${price.toFixed(2).replace('.', ',')}M`}</span>
-          </span>
-          <button onClick={() => toggleShort(m.p)} aria-pressed={inShort} aria-label={inShort ? 'Kısa listeden çıkar' : 'Kısa listeye ekle'}
-            className={`min-w-[44px] min-h-[44px] rounded-lg border flex items-center justify-center ${inShort ? 'text-amber bg-amber/10 border-amber/50' : 'text-muted border-line'}`}>
-            <span className="w-[18px] h-[18px] inline-block">{IStar ? <IStar /> : null}</span>
-          </button>
-          <Btn variant="amber" className="!min-h-[44px] !text-[11.5px] !px-3.5" onClick={() => setOffer(m.p)}
-            disabled={alreadyOwn || (!!seller && !inWin) || !!onLoanNow}>
-            {alreadyOwn ? 'Kadromuzda' : onLoanNow ? 'Kiralıkta' : seller && !inWin ? 'Pencere Kapalı' : 'Teklif'}
-          </Btn>
-          {seller && !alreadyOwn && !onLoanNow && inWin && (
-            <Btn variant="secondary" className="!min-h-[44px] !text-[12px] !px-3"
-              onClick={() => { const r = g.loanIn(m.p); show(r.ok ? `🔁 ${m.p.name} sezon sonuna dek kiralandı` : (r.reason ?? 'Kiralanamadı'), r.ok ? 'ok' : 'warn'); }}>
-              🔁
-            </Btn>
-          )}
-        </div>
-      </article>
-    );
-  };
+  const loanPlayer = useCallback((player: Player) => {
+    const result = g.loanIn(player);
+    show(result.ok ? `🔁 ${player.name} sezon sonuna dek kiralandı` : (result.reason ?? 'Kiralanamadı'), result.ok ? 'ok' : 'warn');
+  }, [g.loanIn, show]);
+  const ownIds = useMemo(() => new Set(g.mySquad.map((player) => player.id)), [g.mySquad]);
+  const loanIds = useMemo(() => new Set((g.loans ?? []).map((loan) => loan.playerId)), [g.loans]);
+  const renderRow = (m: { p: Player; reason: string }) => <MarketPlayerRow key={m.p.id}
+    player={m.p} reason={m.reason} price={priceOf(m.p)} inShort={short.includes(m.p.id)}
+    alreadyOwn={ownIds.has(m.p.id)} onLoanNow={loanIds.has(m.p.id)} inWindow={inWin}
+    onShort={toggleShort} onOffer={setOffer} onLoan={loanPlayer} onCompare={setCompare} />;
 
   return (
     <div className="h-full flex flex-col">
@@ -162,6 +187,7 @@ export const MarketScreen: React.FC<{ go?: (s: Screen) => void }> = ({ go }) => 
           <span className={`text-[10px] font-bold border rounded-md px-2 py-1 ${inWin ? 'bg-ok/10 border-ok/30 text-ok' : 'bg-warn/10 border-warn/40 text-warn'}`}>{inWin ? 'Pencere açık' : 'Pencere kapalı · yalnız serbest'}</span>
         </div>
         <p className="text-muted text-[11px] mt-0.5">Transfer fırsatları · yenilenme: <b className="text-amber num">{nextRefresh}g</b></p>
+        <button type="button" onClick={() => setCompare('empty')} className="w-full mt-2 min-h-[44px] flex items-center justify-center gap-1.5 rounded-xl border border-amber/35 bg-amber/5 text-amber text-[11.5px] font-bold"><GameIcon id="market" className="w-4 h-4" />Oyuncu Karşılaştırma Masası</button>
       </div>
 
       <div className="mx-4 mb-2.5 flex items-center justify-between bg-surface border border-line rounded-lg px-3 py-2.5">
@@ -191,17 +217,20 @@ export const MarketScreen: React.FC<{ go?: (s: Screen) => void }> = ({ go }) => 
         )}
         {tab === 'firsat' && (
           <>
-            {market.filter((m) => !budgetOnly || priceOf(m.p) <= g.budget.tb).slice(0, 8).length === 0 && (
-              <div className="text-muted text-center py-8 border border-dashed border-line rounded-xl text-[12px] leading-relaxed">Bu yenilemede bütçene uygun tarama yok.<br />Filtreleri gevşetmeyi dene.</div>
-            )}
-            {market.filter((m) => !budgetOnly || priceOf(m.p) <= g.budget.tb).slice(0, 8).map((m) => <Row key={m.p.id} m={m} />)}
+            {visibleOpportunities.map(renderRow)}
+            {visibleOpportunities.length === 0 && <p className="text-secondary text-[12px] text-center py-5">Bu bütçeyle eşleşen fırsat yok. Bütçe filtresini kapatmayı deneyebilirsin.</p>}
           </>
         )}
         {tab === 'ara' && (
           <>
             <div className="space-y-2">
-              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Oyuncu veya kulüp adı ara…" className="w-full bg-surface border border-line rounded-xl px-4 min-h-touch text-primary text-[14px] focus:outline-none focus:border-amber placeholder:text-muted" />
-              <Seg options={[{ v: 'all', label: 'Tümü' }, { v: 'GK', label: 'KL' }, { v: 'CB', label: 'STP' }, { v: 'CM', label: 'MO' }, { v: 'WG', label: 'KNT' }, { v: 'ST', label: 'SN' }]} value={posF} onChange={setPosF} />
+              <input value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Oyuncu veya kulüp ara" placeholder="Oyuncu veya kulüp adı ara…" className="w-full bg-surface border border-line rounded-xl px-4 min-h-touch text-primary text-[14px] focus:outline-none focus:border-amber placeholder:text-muted" />
+              <div className="grid grid-cols-5 gap-1.5" role="group" aria-label="Mevki filtresi">
+                {([['all', 'Tümü'], ['GK', 'KL'], ['CB', 'STP'], ['FB', 'BEK'], ['WB', 'KBEK'], ['DM', 'DOS'], ['CM', 'MO'], ['AM', 'OOS'], ['WG', 'KNT'], ['ST', 'SN']] as const).map(([value, label]) => (
+                  <button key={value} type="button" aria-pressed={posF === value} aria-label={value === 'all' ? 'Tüm mevkiler' : G_SHORT[value]}
+                    onClick={() => setPosF(value)} className={`min-h-[36px] rounded-lg border text-[10px] font-bold ${posF === value ? 'bg-amber/15 border-amber/60 text-amber' : 'border-line bg-surface text-secondary'}`}>{label}</button>
+                ))}
+              </div>
               {/* v0.9.9: değer aralığı + serbest filtresi */}
               <Seg options={[{ v: 'all', label: 'Değer: Tümü' }, { v: 'u1', label: '≤₺1M' }, { v: '1_3', label: '₺1–3M' }, { v: '3p', label: '₺3M+' }]} value={valF} onChange={setValF} />
               <div className="flex gap-1.5 flex-wrap">
@@ -213,19 +242,19 @@ export const MarketScreen: React.FC<{ go?: (s: Screen) => void }> = ({ go }) => 
                   className={`min-h-[36px] px-2.5 rounded-md border text-[10.5px] font-bold ${budgetOnly ? 'text-amber border-amber bg-amber/10' : 'text-muted border-line bg-surface'}`}>
                   Değeri ≤ bütçe {budgetOnly ? '✓' : ''}
                 </button>
-                {(freeOnly || valF !== 'all' || budgetOnly) && (
-                  <button onClick={() => { setFreeOnly(false); setValF('all'); setBudgetOnly(false); }}
+                {filtersActive && (
+                  <button onClick={resetFilters}
                     className="min-h-[36px] px-2.5 rounded-md border border-line text-[10.5px] font-bold text-muted">Filtreleri temizle ✕</button>
                 )}
               </div>
             </div>
-            {filtered.filter((m) => !budgetOnly || priceOf(m.p) <= g.budget.tb).length === 0 && <div className="text-muted text-center py-8 border border-dashed border-line rounded-xl text-[12px] leading-relaxed">Bu kriterde piyasada oyuncu yok.</div>}
-            {filtered.filter((m) => !budgetOnly || priceOf(m.p) <= g.budget.tb).map((m) => <Row key={m.p.id} m={m} />)}
+            {visibleSearch.length === 0 && <div className="text-muted text-center py-8 border border-dashed border-line rounded-xl text-[12px] leading-relaxed">Bu kriterde piyasada oyuncu yok. Aramayı veya filtreleri değiştirmeyi dene.</div>}
+            {visibleSearch.map(renderRow)}
           </>
         )}
         {tab === 'kisa' && (shortlistRows.length === 0
           ? <div className="text-muted text-center py-8 border border-dashed border-line rounded-xl text-[12px] leading-relaxed">Bu görünümde oyuncu yok.<br />Bir oyuncuyu ★ ile eklediğinde pazar yenilense ve uygulama yeniden açılsa bile burada kalır.</div>
-          : shortlistRows.map((m) => <Row key={m.p.id} m={m} />))}
+          : shortlistRows.map(renderRow))}
         {tab === 'gelen' && <IncomingOffers />}
         {tab === 'sozlesme' && <Contracts />}
         {tab === 'gecmis' && <TransferHistory />}
@@ -259,6 +288,7 @@ export const MarketScreen: React.FC<{ go?: (s: Screen) => void }> = ({ go }) => 
           />
         )}
       </Sheet>
+      {compare !== null && <ComparisonDesk initialPlayer={compare === 'empty' ? null : compare} onClose={() => setCompare(null)} />}
       {ToastView}
     </div>
   );
@@ -267,8 +297,7 @@ export const MarketScreen: React.FC<{ go?: (s: Screen) => void }> = ({ go }) => 
 // ── Gelen Teklifler sekmesi (§11.3): AI kulüpten kendi oyuncuna ──
 const IncomingOffers: React.FC = () => {
   const g = useGame();
-  const [counter, setCounter] = useState<string | null>(null);
-  const [counterFee, setCounterFee] = useState(0);
+  const [activeSale, setActiveSale] = useState<{ offer: IncomingOffer; player: Player; buyer: Club } | null>(null);
   const { show, ToastView } = useToast();
   const open = g.incomingOffers.filter((o) => o.state === 'open');
   const closed = g.incomingOffers.filter((o) => o.state !== 'open').slice(0, 10);
@@ -285,7 +314,8 @@ const IncomingOffers: React.FC = () => {
       {open.map((o) => {
         const p = g.playerOf(o.playerId);
         if (!p) return null;
-        const buyer = clubById(o.fromClubId);
+        const buyer = clubByIdSafe(o.fromClubId);
+        if (!buyer) return null;
         const value = playerValue(p, g.myLeague);
         const fair = o.fee >= value * 0.9;
         return (
@@ -294,7 +324,7 @@ const IncomingOffers: React.FC = () => {
               <div className="w-11 h-11 rounded-lg overflow-hidden bg-elevated border border-line"><PlayerPortrait player={p} size={44} /></div>
               <div className="flex-1 min-w-0">
                 <div className="text-primary font-bold text-[14px] truncate">{p.name}</div>
-                <div className="text-secondary text-[11.5px] mt-0.5">{G_SHORT[p.group]} · {p.ratings.gen} GEN · değer ₺{value}M</div>
+                <div className="text-secondary text-[11.5px] mt-0.5">{G_SHORT[p.group]} · {p.ratings.gen} GEN · POT {Number.isFinite(p.potential) ? p.potential : '—'} · değer ₺{value}M</div>
                 <div className="flex items-center gap-1.5 mt-1.5 text-[12px]">
                   <Crest club={buyer} size={14} /><span className="text-secondary">{buyer.name}</span>
                   <span className="num text-amber font-bold ml-auto">₺{o.fee.toFixed(1)}M</span>
@@ -305,25 +335,13 @@ const IncomingOffers: React.FC = () => {
               <span className="text-muted">Süre: {o.expiresDay - g.career.day > 0 ? `${o.expiresDay - g.career.day} gün kaldı` : 'bugün son gün'}</span>
               <Badge kind={fair ? 'ok' : 'warn'}>{fair ? '✓ makul teklif' : '⚠ değerinin altında'}</Badge>
             </div>
-            {counter === o.id ? (
-              <div className="mt-3 space-y-3">
-                <div>
-                  <div className="flex justify-between text-[12.5px] mb-1"><span className="text-primary font-semibold">Karşı teklif bedeli</span><span className="num text-amber font-bold">₺{counterFee.toFixed(1)}M</span></div>
-                  <input type="range" min={o.fee} max={Math.max(o.fee * 2, value * 1.8)} step={0.1} value={counterFee} onChange={(e) => setCounterFee(+e.target.value)} className="w-full accent-amber h-6" />
-                  <div className="text-muted text-[10.5px]">{counterFee <= o.fee * 1.25 ? 'Neredeyse kesin kabul' : counterFee <= o.fee * 1.6 ? 'Riskli — pazarlık payı yüksek' : 'Muhtemel ret'}</div>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <Btn variant="secondary" onClick={() => setCounter(null)}>Geri</Btn>
-                  <Btn variant="amber" onClick={() => { g.respondOffer(o.id, false, counterFee); setCounter(null); show('Karşı teklif gönderildi — yanıt anında işlendi.', 'ok'); }}>Karşı Teklifi Gönder</Btn>
-                </div>
-              </div>
-            ) : (
-              <div className="grid grid-cols-3 gap-2 mt-3">
-                <Btn variant="amber" className="!min-h-[40px] !text-[12px]" onClick={() => { g.respondOffer(o.id, true); show(`${p.name} satıldı → ₺${o.fee.toFixed(1)}M bütçeye eklendi.`, 'ok'); }}>Kabul Et</Btn>
-                <Btn variant="secondary" className="!min-h-[40px] !text-[12px]" onClick={() => { setCounter(o.id); setCounterFee(Math.round(o.fee * 1.25 * 10) / 10); }}>Pazarlık</Btn>
-                <Btn variant="secondary" className="!min-h-[40px] !text-[12px] text-danger" onClick={() => { g.respondOffer(o.id, false); show('Teklif reddedildi.', 'ok'); }}>Reddet</Btn>
-              </div>
-            )}
+            <div className="grid grid-cols-[1fr_auto] gap-2 mt-3">
+              <Btn variant="amber" testId={`sale-open-${o.id}`} className="!min-h-[44px] !text-[12px]" onClick={() => setActiveSale({ offer: o, player: p, buyer })}>Görüşmeyi Aç</Btn>
+              <Btn variant="secondary" className="!min-h-[44px] !text-[12px] text-danger" onClick={() => {
+                const result = g.respondOffer(o.id, false);
+                show(result.ok ? 'Teklif reddedildi.' : result.reason ?? 'Teklif işlenemedi.', result.ok ? 'ok' : 'warn');
+              }}>Reddet</Btn>
+            </div>
           </Card>
         );
       })}
@@ -334,13 +352,16 @@ const IncomingOffers: React.FC = () => {
             const p = g.playerOf(o.playerId);
             return (
               <div key={o.id} className="bg-base/60 border border-line/40 rounded-lg px-3 py-2 flex items-center justify-between text-[12px]">
-                <span className="text-secondary">{p?.name ?? 'Oyuncu'} ← {clubById(o.fromClubId).short}</span>
-                <Badge kind={o.state === 'accepted' ? 'ok' : 'muted'}>{o.state === 'accepted' ? `Satıldı ₺${o.fee.toFixed(1)}M` : o.state === 'expired' ? 'Süresi doldu' : 'Reddedildi'}</Badge>
+                <span className="text-secondary">{p?.name ?? 'Oyuncu'} ← {clubByIdSafe(o.fromClubId)?.short ?? 'Kulüp'}</span>
+                <Badge kind={o.state === 'accepted' ? 'ok' : 'muted'}>{o.state === 'accepted' ? `Satıldı ₺${o.fee.toFixed(1)}M` : o.state === 'expired' ? 'Geçersiz / süresi doldu' : 'Reddedildi'}</Badge>
               </div>
             );
           })}
         </>
       )}
+      <Sheet open={!!activeSale} onClose={() => setActiveSale(null)} title="Oyuncu Satışı Görüşmesi" tall>
+        {activeSale && <SaleFlow key={activeSale.offer.id} offer={activeSale.offer} player={activeSale.player} buyer={activeSale.buyer} onClose={() => setActiveSale(null)} />}
+      </Sheet>
       {ToastView}
     </div>
   );
@@ -349,27 +370,27 @@ const IncomingOffers: React.FC = () => {
 // ── Sözleşmeler (§11.4 gerçek yenileme) ──
 const Contracts: React.FC = () => {
   const g = useGame();
-  const { show, ToastView } = useToast();
   const [confirm, setConfirm] = useState<Player | null>(null);
   const squad = [...g.mySquad].sort((a, b) => (a.contractYears ?? 3) - (b.contractYears ?? 3));
 
   return (
     <div className="space-y-2">
-      <p className="text-[11.5px] text-muted leading-snug">Sözleşmesi son 2 yıla giren oyuncular gözden geçirilebilir. Yenileme imza bonusu (≈6 aylık maaş) ve %15 maaş artışı gerektirir; süre en az 3 yıl olur.</p>
+      <p className="text-[11.5px] text-muted leading-snug">Son 2 yılına giren kendi oyuncularınla sözleşme görüşmesi yapabilirsin. Başlangıç beklentisi mevcut maaşın %15 üzeridir; imza bonusu mevcut maaşın 6 ayıdır.</p>
       {squad.map((p) => {
         const cy = p.contractYears ?? 3;
         const expiring = cy <= 1;
+        const loaned = (g.loans ?? []).some((loan) => loan.playerId === p.id);
         return (
           <Card key={p.id} className="!p-3" accent={expiring ? 'var(--c-danger)' : cy <= 2 ? 'var(--c-warn)' : undefined}>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3" data-testid="contract-player" data-player-id={p.id}>
               <div className="w-10 h-10 rounded-lg overflow-hidden bg-elevated border border-line"><PlayerPortrait player={p} size={40} /></div>
               <div className="flex-1 min-w-0">
                 <div className="text-primary text-[13.5px] font-bold truncate">{p.name}</div>
-                <div className="text-muted text-[11px] mt-0.5">{G_SHORT[p.group]} · ₺{p.wage}B/ay · {p.age} yaş</div>
+                <div className="text-muted text-[11px] mt-0.5">{G_SHORT[p.group]} · {p.ratings.gen} GEN · POT {Number.isFinite(p.potential) ? p.potential : '—'} · ₺{p.wage}B/ay · {p.age} yaş</div>
               </div>
               <div className="text-right shrink-0">
                 <Badge kind={expiring ? 'danger' : cy <= 2 ? 'warn' : 'muted'}>{cy <= 0 ? 'Sözleşme bitti!' : `${cy} yıl`}</Badge>
-                {cy <= 2 && (
+                {loaned ? <div className="text-muted text-[10px] mt-1">Kiralık</div> : cy <= 2 && (
                   <Btn variant="secondary" className="!min-h-[36px] !px-3 !text-[11.5px] mt-1.5 w-full" onClick={() => setConfirm(p)}>Yenile</Btn>
                 )}
               </div>
@@ -378,30 +399,8 @@ const Contracts: React.FC = () => {
         );
       })}
       <Sheet open={!!confirm} onClose={() => setConfirm(null)} title="Sözleşme Yenileme">
-        {confirm && (
-          <div className="space-y-3">
-            <div className="bg-base rounded-xl p-3 flex items-center gap-3">
-              <PlayerPortrait player={confirm} size={42} />
-              <div>
-                <div className="text-primary font-bold">{confirm.name}</div>
-                <div className="text-secondary text-[12px]">{G_SHORT[confirm.group]} · {confirm.ratings.gen} GEN</div>
-              </div>
-            </div>
-            {[3, 4, 5].map((y) => {
-              const cost = Math.round(confirm.wage * 6) / 1000;
-              const afford = g.budget.tb >= cost;
-              return (
-                <Btn key={y} variant={y === 3 ? 'amber' : 'secondary'} className="w-full justify-between" disabled={!afford}
-                  onClick={() => { const r = g.renewContract(confirm.id, y); if (r.ok) { show(`${confirm.name} ile ${y} yıl uzatıldı ✓`, 'ok'); setConfirm(null); } else show(r.reason ?? 'İşlem yapılamadı.', 'warn'); }}>
-                  <span>{y} yıllık sözleşme</span><span className="num">₺{cost.toFixed(1)}M bonus</span>
-                </Btn>
-              );
-            })}
-            <p className="text-muted text-[11px] leading-snug">Maaş %15 artar. Sözleşmesi bitmiş oyuncu sezon sonunda serbest kalabilir — fırsatları kaçırma.</p>
-          </div>
-        )}
+        {confirm && <ContractRenewal key={confirm.id} player={confirm} onClose={() => setConfirm(null)} />}
       </Sheet>
-      {ToastView}
     </div>
   );
 };

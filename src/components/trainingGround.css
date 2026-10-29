@@ -1,0 +1,46 @@
+.training-ground { min-width:0; overflow:hidden; border:1px solid #aab7a1; border-radius:15px; background:#f2eddf; color:#253c30; }
+.training-ground__stage { position:relative; overflow:hidden; height:180px; background:#456d51; }
+.training-ground__pitch { width:100%; height:100%; display:block; }
+.training-ground__heading { position:absolute; z-index:2; top:9px; left:10px; right:10px; display:flex; justify-content:space-between; align-items:start; pointer-events:none; }
+.training-ground__heading div:first-child { padding:5px 8px; border-radius:7px; background:#122e23dd; box-shadow:0 2px 5px #0003; }
+.training-ground__heading span,.training-ground__heading strong { display:block; color:#f6ecd3; font-size:9px; letter-spacing:.08em; }
+.training-ground__heading strong { color:#fffaf0; font-size:11px; margin-top:2px; }
+.training-ground__badge { display:grid; place-items:center; width:30px; height:30px; border-radius:50%; border:1px solid #f5e1b0; background:#233f32; color:#f8e9c9; font-size:9px; font-weight:900; }
+.training-ground__stage-caption { position:absolute; bottom:6px; left:8px; padding:3px 6px; border-radius:5px; background:#10291fdc; color:#edf1e3; font-size:9px; font-weight:700; }
+.training-props { display:none; }
+.training-ground[data-area="Teknik"] .training-props--cones,.training-ground[data-area="Fizik"] .training-props--lanes,.training-ground[data-area="Zekâ"] .training-props--triangle,.training-ground[data-area="Defans"] .training-props--defence { display:block; }
+.training-actor,.training-ground__ball { transform-box:fill-box; transform-origin:center; }
+.training-actor__legs { transform-box:fill-box; transform-origin:top; animation:training-legs calc(var(--drill-time) / 4) ease-in-out infinite alternate; }
+.training-ground[data-area="Teknik"] .training-actor--one { animation:training-slalom var(--drill-time) ease-in-out infinite; }
+.training-ground[data-area="Teknik"] .training-ground__ball { animation:training-slalom-ball var(--drill-time) ease-in-out infinite; }
+.training-ground[data-area="Hücum"] .training-actor--one { animation:training-attack var(--drill-time) ease-in-out infinite; }
+.training-ground[data-area="Hücum"] .training-ground__ball { animation:training-shoot var(--drill-time) ease-in infinite; }
+.training-ground[data-area="Defans"] .training-actor--one { animation:training-attack var(--drill-time) ease-in-out infinite; }
+.training-ground[data-area="Defans"] .training-actor--three { animation:training-block var(--drill-time) ease-in-out infinite; }
+.training-ground[data-area="Defans"] .training-ground__ball { animation:training-block-ball var(--drill-time) ease-in-out infinite; }
+.training-ground[data-area="Fizik"] .training-actor--one,.training-ground[data-area="Fizik"] .training-actor--two,.training-ground[data-area="Fizik"] .training-actor--three { animation:training-run var(--drill-time) ease-in-out infinite; }
+.training-ground[data-area="Fizik"] .training-actor--two { animation-delay:-.8s; }.training-ground[data-area="Fizik"] .training-actor--three { animation-delay:-1.5s; }
+.training-ground[data-area="Fizik"] .training-ground__ball { display:none; }
+.training-ground[data-area="Zekâ"] .training-ground__ball { animation:training-pass var(--drill-time) ease-in-out infinite; }
+.training-ground[data-area="Zekâ"] .training-actor--two { animation:training-turn var(--drill-time) ease-in-out infinite; }
+.training-ground[data-area="Zekâ"] .training-actor--three { animation:training-turn var(--drill-time) ease-in-out infinite reverse; }
+@keyframes training-legs { from { transform:rotate(-8deg); } to { transform:rotate(9deg); } }
+@keyframes training-slalom { 0%,100%{transform:translate(0,0)}25%{transform:translate(65px,-25px)}50%{transform:translate(125px,22px)}75%{transform:translate(180px,-22px)} }
+@keyframes training-slalom-ball { 0%,100%{transform:translate(0,0)}25%{transform:translate(65px,-25px) rotate(140deg)}50%{transform:translate(125px,22px) rotate(260deg)}75%{transform:translate(180px,-22px) rotate(410deg)} }
+@keyframes training-attack { 0%,100%{transform:translate(0,0)}60%,80%{transform:translate(125px,0)} }
+@keyframes training-shoot { 0%{transform:translate(0,0)}50%{transform:translate(125px,0) rotate(180deg)}82%{transform:translate(420px,-35px) rotate(720deg)}100%{transform:translate(0,0)} }
+@keyframes training-block { 0%,100%{transform:translate(0,0)}45%,70%{transform:translate(-65px,-5px)} }
+@keyframes training-block-ball { 0%,100%{transform:translate(0,0)}55%,75%{transform:translate(200px,-5px) rotate(300deg)} }
+@keyframes training-run { 0%,100%{transform:translate(0,0)}50%{transform:translate(105px,0)} }
+@keyframes training-pass { 0%,100%{transform:translate(0,0)}32%{transform:translate(140px,-85px) rotate(180deg)}66%{transform:translate(275px,-10px) rotate(380deg)} }
+@keyframes training-turn { 0%,100%{transform:rotate(0)}50%{transform:rotate(8deg)} }
+.training-ground__stage.is-paused * { animation-play-state:paused!important; }.training-ground__stage.is-reduced *,html.m26-rm .training-ground__stage * { animation:none!important; }
+@media(prefers-reduced-motion:reduce){.training-ground__stage *{animation:none!important}}
+.training-ground__controls { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:5px 9px; color:#4d6253; font-size:10px; font-weight:700; }
+.training-ground__controls button { min-height:35px; padding:3px 10px; border:1px solid #a5b49f; border-radius:8px; color:#274337; font-weight:800; background:#fbf8ec; }
+.training-ground__controls button:disabled { opacity:.55; }
+.training-ground__metrics { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:1px; background:#d7ddcd; border-block:1px solid #d7ddcd; }
+.training-ground__metrics div { background:#e6eadb; padding:8px 3px; text-align:center; }.training-ground__metrics strong,.training-ground__metrics span { display:block; }.training-ground__metrics strong { color:#244635; font-size:16px; line-height:1.1; }.training-ground__metrics span { color:#5b6f5c; font-size:8px; font-weight:900; letter-spacing:.02em; margin-top:2px; }
+.training-ground__roster { padding:9px 10px 1px; }.training-ground__roster > b { display:block; color:#62715e; font-size:9px; letter-spacing:.08em; }.training-ground__roster > p { font-size:11px; padding:7px 0; color:#536657; }
+.training-ground__player { display:flex; align-items:center; gap:6px; min-width:0; padding:5px 0; border-bottom:1px solid #d9dfd0; }.training-ground__number { width:15px; height:15px; border-radius:50%; background:#385c47; color:#fff; display:grid; place-items:center; font-size:9px; flex:none; }.training-ground__player-name { flex:1; min-width:0; font-size:11px; line-height:1.2; font-weight:800; overflow-wrap:anywhere; }.training-ground__player > span:last-child { color:#677968; font-size:8px; line-height:1.4; white-space:nowrap; }.training-ground__player > span:last-child b { color:#2e4d3b; font-size:10px; }
+.training-ground__note { padding:8px 10px 10px; color:#596b5c; font-size:10px; line-height:1.4; }

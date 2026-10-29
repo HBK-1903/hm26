@@ -1,5 +1,5 @@
 // HM26 — UI/UX §4 Global Kabuk (v0.7.0: UI Prototip entegrasyonu — HM26 header + alt nav + daybar + Daha paneli)
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Screen } from '../types';
 import { GameIcon } from '../components/icons';
 import { useGame, dayToDate } from '../store/game';
@@ -19,7 +19,6 @@ import { MatchPrep } from './MatchPrep';
 import { ScreenBoundary } from '../components/ui/ScreenBoundary';
 import { Sheet, Btn } from '../components/ui/kit';
 import { audio } from '../audio/engine';
-import { useEffect } from 'react';
 
 const NAV: { id: Screen | 'more'; label: string; icon: string }[] = [
   { id: 'hub', label: 'Merkez', icon: 'home' },
@@ -42,6 +41,7 @@ const MORE_IDS: string[] = MORE_MENU.map((m) => m.id);
 
 // v0.8.3 RISK-01: tarayıcı geri/ileri için yalnızca kalıcı ekranlar geçmişe yazılır (liveMatch/matchReport geçici)
 const NAV_SCREENS = new Set<Screen>(['hub', 'squad', 'tactics', 'market', 'club', 'comps', 'stats', 'inbox', 'careerProfile', 'settings', 'backup', 'matchPrep', 'newsroom']);
+const UNSAVED_MATCH_WARNING = 'Maç sonucu henüz kaydedilmedi. Bu ekrandan ayrılırsan maç baştan oynanır. Ayrılmak istiyor musun?';
 
 // PWA kısayolları (#squad, #market …) ve yenileme sonrası derin link: bilinmeyen hash güvenle Merkez'e düşer
 function screenFromHash(): Screen {
@@ -59,6 +59,20 @@ export const AppShell: React.FC<{ pendingScreen: Screen | null; setPendingScreen
   const [moreOpen, setMoreOpen] = useState(false);
   const [blockedReason, setBlockedReason] = useState<string | null>(null);
   const [lastSummary, setLastSummary] = useState<string[] | null>(null);
+  const [newsInitialTab, setNewsInitialTab] = useState<'headlines' | 'weekly'>('headlines');
+  // A live match and its report are transient until the manager saves the result.
+  const matchInProgress = useRef(false);
+  const setMatchInProgress = useCallback((active: boolean) => { matchInProgress.current = active; }, []);
+
+  useEffect(() => {
+    const warnBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!matchInProgress.current) return;
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warnBeforeUnload);
+    return () => window.removeEventListener('beforeunload', warnBeforeUnload);
+  }, []);
 
   // §15.1: ilk kullanıcı temasında sesi aç + tercihleri yükle
   useEffect(() => {
@@ -85,6 +99,14 @@ export const AppShell: React.FC<{ pendingScreen: Screen | null; setPendingScreen
       const fromHash = location.hash.replace(/^#/, '') as Screen;
       const target: Screen = NAV_SCREENS.has(fromState as Screen) ? (fromState as Screen)
         : NAV_SCREENS.has(fromHash) ? fromHash : 'hub';
+      if (matchInProgress.current && target !== 'matchPrep') {
+        if (!window.confirm(UNSAVED_MATCH_WARNING)) {
+          // popstate has already changed the URL; restore the live-match route.
+          try { history.pushState({ hm26s: 'matchPrep' }, '', '#matchPrep'); } catch { /* file:// fallback */ }
+          return;
+        }
+        matchInProgress.current = false;
+      }
       setPendingScreen(null);
       setMoreOpen(false);
       setScreen(target);
@@ -94,8 +116,13 @@ export const AppShell: React.FC<{ pendingScreen: Screen | null; setPendingScreen
   }, [setPendingScreen]);
 
   const current: Screen = pendingScreen ?? screen;
-  const go = (s: Screen) => {
+  const go = (s: Screen, newsTab: 'headlines' | 'weekly' = 'headlines') => {
+    if (matchInProgress.current && s !== 'matchPrep') {
+      if (!window.confirm(UNSAVED_MATCH_WARNING)) return;
+      matchInProgress.current = false;
+    }
     setPendingScreen(null);
+    if (s === 'newsroom') setNewsInitialTab(newsTab);
     setScreen(s);
     setMoreOpen(false);
     // RISK-01: gerçek ekran geçişi tarayıcı geçmişine yazılır — geri tuşu siteden çıkarmaz
@@ -159,12 +186,18 @@ export const AppShell: React.FC<{ pendingScreen: Screen | null; setPendingScreen
           </button>
         </div>
       </header>
+      {g.saveError && (
+        <div role="alert" className="shrink-0 flex items-center gap-2 border-b border-danger/40 bg-danger/10 px-3 py-2 text-[12px] font-semibold text-danger">
+          <span className="flex-1">{g.saveError} Güncel durumu Yedekleme bölümünden dosyaya indirebilirsin.</span>
+          <button type="button" className="min-h-touch underline" onClick={() => { void g.saveNow(); }}>Tekrar Dene</button>
+        </div>
+      )}
 
       {/* İçerik */}
       <div className="flex-1 min-h-0 relative">
         {/* FIX P0/3: ekran-seviye hata sınırı — bölüm çökerse hub canlı kalır */}
         <ScreenBoundary key={current} screenName={current} onBackToHub={() => { setPendingScreen('hub'); setScreen('hub'); }}>
-          {current === 'hub' && <Hub go={go} />}
+          {current === 'hub' && <Hub go={go} onOpenWeekly={() => go('newsroom', 'weekly')} />}
           {current === 'squad' && <SquadScreen goXI={goXI} />}
           {current === 'tactics' && <TacticsScreen pendingXI={pendingXI ? (g.playerOf(pendingXI) ?? null) : null} onClearXI={() => setPendingXI(null)} />}
           {current === 'market' && <MarketScreen go={go} />}
@@ -172,8 +205,8 @@ export const AppShell: React.FC<{ pendingScreen: Screen | null; setPendingScreen
           {current === 'comps' && <CompsScreen />}
           {current === 'inbox' && <InboxScreen go={go} />}
           {current === 'stats' && <StatsHub />}
-          {current === 'newsroom' && <NewsroomScreen />}
-          {current === 'matchPrep' && <MatchPrep go={go} onEndDay={endDayFromMatch} />}
+          {current === 'newsroom' && <NewsroomScreen initialTab={newsInitialTab} />}
+          {current === 'matchPrep' && <MatchPrep go={go} onEndDay={endDayFromMatch} onMatchSessionChange={setMatchInProgress} />}
           {(current === 'careerProfile' || current === 'settings' || current === 'backup') && <PlaceholderScreen id={current} />}
         </ScreenBoundary>
       </div>

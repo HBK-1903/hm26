@@ -35,7 +35,7 @@ export const Splash: React.FC<{ onContinue: () => void; onQuickContinue?: (slot:
 // ─────────────────────────────────────────────
 export const CareerSlots: React.FC<{
   onNew: (slot: number) => void;
-  onContinue: (slot: number, blob: SaveBlob) => void;
+  onContinue: (slot: number, blob: SaveBlob, updatedAt?: number) => void;
   onBack: () => void;
 }> = ({ onNew, onContinue, onBack }) => {
   const [saves, setSaves] = useState<SaveMeta[]>([]);
@@ -55,7 +55,7 @@ export const CareerSlots: React.FC<{
   const continueSlot = async (slot: number) => {
     const r = await readSave(slot).catch((e: Error) => { show(e.message, 'warn'); return null; });
     if (!r) { show('Bu yuvada kayıt bulunamadı.', 'warn'); return; }
-    onContinue(slot, r.blob);
+    onContinue(slot, r.blob, Number.isFinite(r.meta.updatedAt) ? r.meta.updatedAt : undefined);
   };
 
   const doExport = async (slot: number) => {
@@ -79,7 +79,7 @@ export const CareerSlots: React.FC<{
       const existing = saves.find((s) => s.slot === target);
       if (existing) { show(`Yuva ${target} dolu — önce sil veya boş yuva seç.`, 'warn'); return; }
       blob.career = { ...blob.career, slot: target };
-      await writeSave(blob);
+      await writeSave(blob, { onlyIfEmpty: true });
       show(`İçe aktarıldı → Yuva ${target}.`, 'ok');
       await refresh();
     } catch (e) {
