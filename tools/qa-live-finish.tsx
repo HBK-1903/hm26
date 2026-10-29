@@ -41,13 +41,26 @@ MatchSession.prototype.toResult = function observedResult() {
 // Arıza enjeksiyonu: HM26_FAULT=retry|finish → 8. step çağrısında tek seferlik istisna fırlat.
 // HM26_HALFTIME_BATCH=trailing|decision: devre düdüğünden sonra aynı adımda başka olay üret.
 // HM26_FINAL_BATCH=card: son düdükle aynı adımda bir kartı gösterim partisine ekle.
+// HM26_CANCELLED_GOAL=1: çelişkili iptal edilmiş golün canlı sunumunu dene.
 const faultMode = process.env.HM26_FAULT;
 const halftimeBatch = process.env.HM26_HALFTIME_BATCH;
 const finalBatch = process.env.HM26_FINAL_BATCH;
+const cancelledGoal = process.env.HM26_CANCELLED_GOAL === '1';
 let halftimeInjected = false;
 let finalInjected = false;
+let cancelledInjected = false;
+let cancelledChecked = false;
+const cancelledAudio: string[] = [];
 const successfulTalks: string[] = [];
-if (faultMode || halftimeBatch || finalBatch) {
+if (cancelledGoal) {
+  const { audio } = await import('../src/audio/engine');
+  const play = audio.play.bind(audio);
+  audio.play = (kind) => {
+    if (cancelledInjected && !cancelledChecked) cancelledAudio.push(kind);
+    return play(kind);
+  };
+}
+if (faultMode || halftimeBatch || finalBatch || cancelledGoal) {
   const origStep = MatchSession.prototype.step;
   let calls = 0;
   MatchSession.prototype.step = function patchedStep(...args: any[]) {
@@ -57,6 +70,10 @@ if (faultMode || halftimeBatch || finalBatch) {
       if (faultMode === 'fatal' || calls === 8) throw new Error('ENJEKTE_EDİLMİŞ_ADIM_HATASI');
     }
     const events = origStep.apply(this, args as any);
+    if (cancelledGoal && !cancelledInjected && calls === 5) {
+      cancelledInjected = true;
+      events.push({ minute: this.getMinute(), kind: 'goal', side: 'home', text: 'QA: GOL İPTAL' });
+    }
     if (halftimeBatch && events.some((e) => e.kind === 'half' && e.minute === 45)) {
       halftimeInjected = true;
       events.push({ minute: 45, kind: halftimeBatch === 'decision' ? 'card' : 'info', text: 'QA: düdükten sonraki aynı adım olayı.' });
@@ -171,6 +188,13 @@ function Harness({ done }: { done: (report: string[]) => void }) {
           // Devre olayının, aynı step'te onu izleyen olaylar olsa da bir kez açıldığını
           // gerçek bileşenle sınarken konuşma sırasında saatin durduğunu da doğrula.
           const dialogText = Array.from(dom.window.document.querySelectorAll('[role="dialog"]')).map((el) => el.textContent ?? '').join(' ');
+          if (cancelledGoal && !cancelledChecked && dialogText.includes('QA: GOL İPTAL')) {
+            const pitchKind = dom.window.document.querySelector('[aria-label="pitch-stub"]')?.getAttribute('data-event-kind');
+            const falseGoalBanner = Array.from(dom.window.document.querySelectorAll('[role="status"]')).some((el) => el.textContent?.includes('QA: GOL İPTAL'));
+            const handled = dialogText.includes('VAR İncelemesi') && pitchKind === 'var' && !falseGoalBanner && cancelledAudio.includes('var') && !cancelledAudio.includes('goal');
+            log.push(handled ? '✅ İptal gol canlı sahada ve seslerde VAR kararıdır; gol kutlaması açılmaz' : `❌ İptal gol yanlış sunuldu: saha=${pitchKind}, ses=${cancelledAudio.join(',')}, sahte-banner=${falseGoalBanner}`);
+            cancelledChecked = true;
+          }
           if (halftimeBatch && /QA: düdükten sonraki aynı adım olayı/.test(dialogText)) batchDecisionSeen = true;
           if (halftimeBatch && /Devre Arası · Soyunma Odası/.test(dialogText)) {
             halftimeDialogs++;
@@ -205,6 +229,7 @@ function Harness({ done }: { done: (report: string[]) => void }) {
           if (/Maç Sonu Röportajına Geç/.test(body)) { finished = true; break; }
           await tick(200);
         }
+        if (cancelledGoal && (!cancelledInjected || !cancelledChecked)) log.push('❌ İptal gol sınaması canlı ekranda görünmedi');
         if (halftimeBatch) {
           log.push(halftimeInjected && halftimeDialogs === 1 && successfulTalks.length === 1
             ? '✅ Aynı adımdaki sonraki olay devre konuşmasını gizlemedi; konuşma yalnız bir kez açıldı'

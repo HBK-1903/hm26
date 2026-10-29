@@ -98,6 +98,9 @@ html.m26-rm *, html.m26-rm *::before, html.m26-rm *::after {
 /* v0.9.8 GameIcon çift renk PNG: tema sınıfına göre gösterim (açık tema=koyu yeşil ikon, koyu tema=krem ikon; SVG fallback currentColor ile otomatik uyumlu) */
 html:not(.m26-dark) .gi-ivory { display: none; }
 html.m26-dark .gi-dark { display: none; }
+/* The match console stays dark in both themes, so always use its light icons. */
+html:not(.m26-dark) .match-console .gi-ivory { display: block; }
+html:not(.m26-dark) .match-console .gi-dark { display: none; }
 
 /* Wave 9 · Yerel Lig Romantizmi — keyboard-visible controls and shared type rhythm */
 :where(button, a, input, select, textarea, [role="button"], [role="switch"], [tabindex]:not([tabindex="-1"])):focus-visible {

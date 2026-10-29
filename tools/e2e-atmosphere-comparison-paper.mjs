@@ -129,6 +129,7 @@ try {
   check('Arama ve Enter ile başka kulüpten gerçek ikinci oyuncu seçilir', !!(await desk.getByTestId('comparison-player-2').getAttribute('data-player-id')) && (await table.innerText()).includes('Sakarya Vadi SK'));
   const tableText = await table.innerText();
   check('Yedi ölçüt ve aylık bin TL maaş yan yana görünür', ['GEN', 'POT', 'Yaş', 'Maaş', 'bin/ay', 'Kondisyon', 'Doğal mevki', 'Kulüp'].every((label) => tableText.includes(label)) && await table.locator('tbody tr').count() === 7);
+  check('İki oyuncunun tarafı ve alternatif mevkileri yan yana görünür', (await desk.getByTestId('comparison-position-1').innerText()).includes('Taraf:') && (await desk.getByTestId('comparison-position-2').innerText()).includes('Diğer:'));
   box = await layout(desk);
   check('320 px karşılaştırma diyaloğu taşmaz', fits(box), JSON.stringify(box));
   await screenshot('05-comparison-320');
@@ -136,6 +137,9 @@ try {
   box = await layout(desk);
   check('390 px karşılaştırma diyaloğu taşmaz', fits(box), JSON.stringify(box));
   await screenshot('06-comparison-390');
+  await desk.getByRole('button', { name: '2. oyuncu değiştir' }).click();
+  await desk.getByLabel('2. oyuncu ara').fill('Kanat');
+  check('Karşılaştırmada Türkçe mevki adıyla oyuncu aranabilir', await desk.getByTestId('comparison-candidate').count() > 0);
   await page.keyboard.press('Escape');
   check('Escape karşılaştırmayı kapatır ve kadroya döner', await dialog.count() === 0 && await page.getByRole('heading', { name: 'Kadro', exact: true }).isVisible());
   const savedAfter = await readSave();
@@ -164,8 +168,19 @@ try {
   const cached = await page.evaluate(async () => !!(await caches.match('/assets/match/dugout-background.webp')));
   await context.setOffline(true);
   const offlineImage = await page.evaluate(async () => { try { const response = await fetch('/assets/match/dugout-background.webp'); return response.ok && (await response.blob()).size > 10000; } catch { return false; } });
-  await context.setOffline(false);
   check('Kulübe sahnesinin yerel görseli çevrimdışı önbellekten yüklenir', cached && offlineImage);
+  // Reload the real saved career without network, not merely an in-memory component.
+  await page.goto(base, { waitUntil: 'networkidle' });
+  await page.getByRole('button', { name: /Devam Et/ }).first().click();
+  await page.getByRole('button', { name: 'Anladım' }).first().click({ timeout: 2000 }).catch(() => {});
+  await page.getByTestId('hub-weekly-paper').click();
+  check('Kayıt yüklenerek gazete internet olmadan açılır', await paper.isVisible() && (await paper.innerText()).includes('Gerçek Transfer'));
+  await nav('Kadro').click();
+  await page.getByRole('button', { name: 'Karşılaştır', exact: true }).click();
+  await desk.getByTestId('comparison-candidate').first().click();
+  check('İnternetsiz karşılaştırmada kayıtlı oyuncu seçilebilir', !!(await desk.getByTestId('comparison-player-1').getAttribute('data-player-id')));
+  await page.keyboard.press('Escape');
+  await context.setOffline(false);
 
   // An away match: observe the actual engine event, then freeze the same animated scene.
   await toStart();
@@ -178,9 +193,39 @@ try {
   const scene = page.getByTestId('live-atmosphere');
   check('Deplasman maçında Kulübe & Tribün gerçek sahne olarak açılır', await scene.isVisible() && target.awayId === 'denizli_yesilova' && await scene.locator('[aria-label^="YEDEK:"]').count() >= 1);
   check('Altı maç konsolu sekmesi ve manuel maç akışı korunur', await page.getByRole('tablist', { name: 'Maç konsolu sekmeleri' }).getByRole('tab').count() === 6 && await page.getByRole('button', { name: 'Maçı duraklat' }).isVisible());
+  const consoleIcons = await page.getByRole('tablist', { name: 'Maç konsolu sekmeleri' }).evaluate((nav) => {
+    const root = document.documentElement, original = root.classList.contains('m26-dark');
+    const valid = (dark) => {
+      root.classList.toggle('m26-dark', dark);
+      return [...nav.querySelectorAll('button')].every((button) => {
+        const light = button.querySelector('.gi-ivory'), darkIcon = button.querySelector('.gi-dark');
+        if (light && darkIcon) return getComputedStyle(light).display !== 'none' && getComputedStyle(darkIcon).display === 'none';
+        const svg = button.querySelector('svg');
+        return !!svg && svg.getAttribute('stroke') === 'currentColor';
+      });
+    };
+    try { return { light: valid(false), dark: valid(true) }; }
+    finally { root.classList.toggle('m26-dark', original); }
+  });
+  check('Koyu maç konsolu simgeleri açık ve koyu temada görünür', consoleIcons.light && consoleIcons.dark, JSON.stringify(consoleIcons));
   box = await layout(scene);
   check('320 px hareketli kulübe sahnesi taşmaz', fits(box), JSON.stringify(box));
   await screenshot('08-dugout-idle-320');
+  const visibleBench = scene.getByRole('group', { name: 'Sahnede görünen yedekler' });
+  const firstBenchName = (await scene.locator('[aria-label^="YEDEK:"]').first().getAttribute('aria-label')).replace(/^YEDEK:\s*/, '');
+  check('Sahnede görünen gerçek yedekler isimleriyle okunabilir', (await visibleBench.innerText()).includes(firstBenchName));
+  await page.getByRole('button', { name: 'Maçı duraklat' }).click();
+  await page.getByRole('tab', { name: 'Oyuncu Değişikliği' }).click();
+  const subPanel = page.getByRole('tabpanel', { name: 'Oyuncu Değişikliği' });
+  const subGroups = subPanel.locator('.grid.grid-cols-2.gap-1');
+  await subGroups.nth(0).getByRole('button').first().click();
+  await subGroups.nth(1).getByRole('button').first().click();
+  await subPanel.getByRole('button', { name: 'Onayla', exact: true }).click();
+  await page.waitForFunction((name) => {
+    const list = document.querySelector('[aria-label="Sahnede görünen yedekler"]');
+    return !!list && !list.textContent.includes(name);
+  }, firstBenchName, { timeout: 10000 });
+  check('Gerçek oyuncu değişikliği sonrası kulübe isimleri güncellenir', !(await visibleBench.innerText()).includes(firstBenchName));
   await page.getByRole('button', { name: '4 kat hız' }).click();
   let saw = false;
   const deadline = Date.now() + 30000;
@@ -214,7 +259,33 @@ try {
     const frozen2 = await scene.locator('.live-atmosphere').screenshot();
     check('Duraklatma maç saatini ve animasyon sahnesini dondurur', beforeClock === await page.getByRole('timer').innerText() && frozen1.equals(frozen2) && animations.length > 0 && animations.every((a) => a.state === 'paused'), JSON.stringify(animations.slice(0, 3)));
     await screenshot('09-dugout-reaction-paused-320');
-    const sourceText = await scene.locator('.live-atmosphere__event span').innerText();
+    const eventCard = scene.locator('.live-atmosphere__event');
+    await eventCard.scrollIntoViewIfNeeded();
+    const footerGeometry = () => page.evaluate(() => {
+      const a = document.querySelector('.live-atmosphere__event').getBoundingClientRect();
+      const button = document.querySelector('button[aria-label="Kenar Talimatı"]');
+      const b = button.getBoundingClientRect();
+      return { overlaps: a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top, buttonInFooter: !!button.closest('footer') };
+    });
+    let geometry = await footerGeometry();
+    check('320 px olay kartını kenar talimatı düğmesi örtmez', !geometry.overlaps && geometry.buttonInFooter, JSON.stringify(geometry));
+    const iconContrast = await page.getByRole('button', { name: 'Kenar Talimatı' }).evaluate((button) => {
+      const icon = button.querySelector('svg');
+      const rgb = (color) => (color.match(/\d+(?:\.\d+)?/g) ?? []).slice(0, 3).map(Number);
+      const luminance = (values) => values.reduce((sum, n, i) => {
+        const c = n / 255, linear = c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+        return sum + linear * [0.2126, 0.7152, 0.0722][i];
+      }, 0);
+      if (!icon || icon.getAttribute('stroke') !== 'currentColor') return 0;
+      const foreground = luminance(rgb(getComputedStyle(icon).color));
+      const background = luminance(rgb(getComputedStyle(button).backgroundColor));
+      return (Math.max(foreground, background) + 0.05) / (Math.min(foreground, background) + 0.05);
+    });
+    check('Kenar talimatı simgesi koyu zeminde okunaklı', iconContrast >= 3, `kontrast=${iconContrast.toFixed(2)}`);
+    const sourceText = await eventCard.locator('span').innerText();
+    const history = scene.getByTestId('live-reaction-history');
+    await history.locator('summary').click();
+    check('Son tepkiler açılabilir ve gerçek maç olayını korur', await history.getAttribute('open') !== null && (await history.innerText()).includes(sourceText));
     await page.getByRole('tab', { name: 'Spiker ve Maç Günlüğü' }).click();
     check('Sahnedeki olay aynı gerçek maç günlüğünde bulunur', (await page.getByRole('log', { name: 'Maç olay akışı' }).innerText()).includes(sourceText));
     await page.getByRole('tab', { name: 'Canlı Saha' }).click();
@@ -228,6 +299,9 @@ try {
     await page.setViewportSize({ width: 390, height: 844 });
     box = await layout(scene);
     check('390 px duraklatılmış sahne taşmaz', fits(box), JSON.stringify(box));
+    await eventCard.scrollIntoViewIfNeeded();
+    geometry = await footerGeometry();
+    check('390 px olay kartını kenar talimatı düğmesi örtmez', !geometry.overlaps && geometry.buttonInFooter, JSON.stringify(geometry));
     await screenshot('11-dugout-390');
     const resume = page.getByRole('button', { name: 'Maça devam et' });
     if (await resume.count()) await resume.click();

@@ -4,6 +4,7 @@ import { Club, Player, TacticPlan, CareerSettings } from '../types';
 import { MatchInput, MatchResult, MatchStateEvent } from './engine';
 import { ZONE_XY } from './zones';
 import { DemoMatchEvent, DemoMatchResult, ShotDot } from '../store/game';
+import { isConfirmedGoal } from './matchPresentation';
 
 const KIND_MAP: Record<string, DemoMatchEvent['kind']> = {
   info: 'info', goal: 'goal', save: 'save', card: 'card', sub: 'sub',
@@ -15,19 +16,23 @@ const KIND_MAP: Record<string, DemoMatchEvent['kind']> = {
 // Do not derive the final result from React's asynchronously updated visible feed:
 // the last batch and the remainder of a recovered match might not be rendered yet.
 export function matchEventsToDemo(events: readonly MatchStateEvent[]): DemoMatchEvent[] {
-  return events.map((e) => ({
-    minute: e.minute,
-    text: e.text,
-    kind: KIND_MAP[e.kind] ?? 'info',
-    side: e.side,
-    path: e.path,
-    ...(e.playerId ? { playerId: e.playerId } : {}),
-    ...(e.scorerId ? { scorerId: e.scorerId } : {}),
-    ...(e.assisterId ? { assisterId: e.assisterId } : {}),
-    ...(e.anim ? { anim: e.anim } : {}),
-    ...(e.visualEvent ? { visualEvent: e.visualEvent } : {}),
-    ...(e.visualActors ? { visualActors: e.visualActors } : {}),
-  }));
+  return events.map((e) => {
+    const event: DemoMatchEvent = {
+      minute: e.minute,
+      text: e.text,
+      kind: KIND_MAP[e.kind] ?? 'info',
+      side: e.side,
+      path: e.path,
+      ...(e.playerId ? { playerId: e.playerId } : {}),
+      ...(e.scorerId ? { scorerId: e.scorerId } : {}),
+      ...(e.assisterId ? { assisterId: e.assisterId } : {}),
+      ...(e.anim ? { anim: e.anim } : {}),
+      ...(e.visualEvent ? { visualEvent: e.visualEvent } : {}),
+      ...(e.visualActors ? { visualActors: e.visualActors } : {}),
+    };
+    // A contradictory/cancelled goal is a VAR decision, never a live goal cue.
+    return event.kind === 'goal' && !isConfirmedGoal(event) ? { ...event, kind: 'var' } : event;
+  });
 }
 
 export function matchEngineToDemo(res: MatchResult): DemoMatchResult & { engine: MatchResult } {

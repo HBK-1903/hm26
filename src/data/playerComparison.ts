@@ -48,6 +48,23 @@ const POSITION: Record<string, string> = {
   GK: 'Kaleci', CB: 'Stoper', FB: 'Bek', WB: 'Kanat bek', DM: 'Defansif orta saha',
   CM: 'Merkez orta saha', AM: 'Ofansif orta saha', WG: 'Kanat', ST: 'Santrfor',
 };
+const SIDE: Record<string, string> = { L: 'Sol', C: 'Merkez', R: 'Sağ', ANY: 'Herhangi' };
+
+/** Existing preferred side and secondary positions; never infer missing legacy fields. */
+export function comparisonPositionDetails(player: Player | null): { side: string; secondary: string } {
+  if (!player) return { side: '—', secondary: '—' };
+  const side = SIDE[player.side] ?? '—';
+  if (!Array.isArray(player.secondary)) return { side, secondary: '—' };
+  const positions = [...new Set(player.secondary.filter((group): group is Player['group'] => typeof group === 'string' && !!group))];
+  return { side, secondary: positions.length ? positions.map((group) => POSITION[group] ?? group).join(', ') : player.secondary.length ? '—' : 'Yok' };
+}
+
+export function comparisonPositionSearchText(player: Player): string {
+  const details = comparisonPositionDetails(player);
+  const extraCodes = Array.isArray(player.secondary) ? player.secondary.join(' ') : '';
+  return `${player.group ?? ''} ${POSITION[player.group] ?? ''} ${extraCodes} ${details.secondary} ${details.side}`;
+}
+
 const numeric = (value: unknown): number | null => typeof value === 'number' && Number.isFinite(value) ? value : null;
 const numberText = (value: unknown): string => {
   const n = numeric(value);

@@ -75,6 +75,7 @@ try {
   run('Matchday preparation regression (jsdom)', 'npm', ['run', 'qa:wave5:ui'], 180_000);
   run('Batched halftime event and decision flow (jsdom)', 'npm', ['run', 'qa:live:halftime'], 180_000);
   run('Match finish, last-whistle reaction and manual interview (jsdom)', 'npm', ['run', 'qa:match-finish'], 180_000, { HM26_FINAL_BATCH: 'card' });
+  run('Cancelled goal live presentation, audio and match finish (jsdom)', 'npm', ['run', 'qa:match-finish'], 180_000, { HM26_CANCELLED_GOAL: '1' });
   run('Match finish recovery after simulated engine failure (jsdom)', 'npm', ['run', 'qa:match-finish'], 180_000, { HM26_FAULT: 'finish' });
   run('Matchday progression and end-day regression (jsdom)', 'npm', ['run', 'qa:dayflow'], 180_000);
 

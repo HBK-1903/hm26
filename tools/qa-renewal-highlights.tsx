@@ -37,7 +37,9 @@ import { MatchHighlights } from '../src/components/match/MatchHighlights';
 import { evaluateRenewalOffer, renewalDemand } from '../src/data/contractNegotiation';
 import { managerRenewalLine, playerRenewalLine, renewalSignedLine, ALL_TRANSFER_VOICES } from '../src/data/transferVoices';
 import { archivedHighlightEvents, makeHighlightReel, recordedPath } from '../src/engine/highlights';
-import { EV_GOAL, EV_RED, EV_VAR, SIDE_HOME, SIDE_AWAY } from '../src/engine/matchEvents';
+import { compactMatchEvents, EV_GOAL, EV_RED, EV_SAVE, EV_VAR, SIDE_HOME, SIDE_AWAY } from '../src/engine/matchEvents';
+import { matchEventsToDemo } from '../src/engine/adapter';
+import { eventTeamSide } from '../src/engine/matchPresentation';
 import { clubById } from '../src/data/clubs';
 import type { Career, DemoFixture, MatchArchiveEntry } from '../src/types';
 
@@ -245,22 +247,60 @@ check('Eksik gol akışında ara skor uydurulmaz', !incomplete.scoreIsComplete &
 check('Geçersiz veya tarafı bilinmeyen yol çizilmez', recordedPath({ ...events[0], path: ['L-D', 'fake'] }) === null && recordedPath({ ...events[0], side: undefined }) === null && reel.moments[3].path === null);
 check('Birinci yol geçersizse yalnız geçerli anim yolu kullanılır', JSON.stringify(recordedPath({ ...events[0], path: ['bad'], anim: { eventType: 'goal', path: ['C-M', 'C-A'] } })) === JSON.stringify([{ x: 50, y: 50 }, { x: 50, y: 15 }]));
 check('İptal yazılı çelişkili gol olayı skor üretmez', makeHighlightReel([{ minute: 3, kind: 'goal', side: 'home', text: 'Gol iptal edildi.' }], 0, 0).moments[0].score?.home === 0);
+const cancelledGoals: DemoMatchEvent[] = [
+  { minute: 3, kind: 'goal', side: 'home', text: 'GOL İPTAL' },
+  { minute: 5, kind: 'goal', side: 'away', text: 'GOOOL!', anim: { eventType: 'goal', outcome: 'overturned' } },
+];
+const cancelledReel = makeHighlightReel(cancelledGoals, 0, 0);
+check('Türkçe büyük harfli iptal ve VAR motor kararı gol sayılmaz', cancelledReel.scoreIsComplete && cancelledReel.moments.every((m) => m.kind === 'var' && m.score?.home === 0 && m.score?.away === 0));
+const adaptedCancelled = matchEventsToDemo([
+  { minute: 3, kind: 'goal', side: 'home', text: 'GOL İPTAL' },
+  { minute: 5, kind: 'goal', side: 'away', text: 'GOOOL!', anim: { eventType: 'goal', outcome: 'overturned' } },
+  { minute: 7, kind: 'goal', side: 'home', text: 'Gerçek gol!' },
+]);
+check('İptal edilen gol canlı saha, ses ve akışa gol değil VAR olayı olarak aktarılır', adaptedCancelled.map((event) => event.kind).join(',') === 'var,var,goal' && adaptedCancelled[0].text === 'GOL İPTAL');
+const compactCancelled = compactMatchEvents([...cancelledGoals, { minute: 7, kind: 'goal', side: 'home', text: 'Gerçek gol!' }, { minute: 8, kind: 'card', side: 'away', text: 'KIRMIZI KART' }]);
+check('Kayıt biçimi değişmeden iptal VAR, gerçek gol gol, büyük harfli kart kırmızı arşivlenir', compactCancelled.map((row) => row[1]).join(',') === `${EV_VAR},${EV_VAR},${EV_GOAL},${EV_RED}`);
+const homeId = career.clubId, awayId = 'sakarya_vadi';
+const homeAttackSave: DemoMatchEvent = { minute: 6, kind: 'save', side: 'home', text: 'Kaleci kurtardı', path: ['L-D', 'C-A'], anim: { eventType: 'shot', attackingTeamId: homeId, outcome: 'save' } };
+const awayAttackSave: DemoMatchEvent = { minute: 7, kind: 'save', side: 'away', text: 'Ev sahibi kaleci kurtardı', path: ['L-D', 'C-A'], anim: { eventType: 'shot', attackingTeamId: awayId, outcome: 'save' } };
+const setPieceSave: DemoMatchEvent = { minute: 8, kind: 'save', side: 'away', playerId: 'kaleci', text: 'Penaltıyı kurtardı' };
+const unclearSave: DemoMatchEvent = { minute: 9, kind: 'save', side: 'home', text: 'Eski kurtarış' };
+const saves = makeHighlightReel([homeAttackSave, awayAttackSave, setPieceSave, unclearSave], 0, 0, { homeId, awayId }).moments;
+check('Özette açık oyun kurtarışını yapan takım ile şut yolu iki yönde doğru ayrılır', saves[0].side === 'away' && saves[0].pathSide === 'home' && saves[0].path?.[0].x === 20 && saves[1].side === 'home' && saves[1].pathSide === 'away' && saves[1].path?.[0].x === 80);
+check('Özette duran top kurtarışında kaleci tarafı korunur; belirsiz eski kayıt tahmin edilmez', saves[2].side === 'away' && saves[3].side === undefined);
+const unknownArchiveSave = archivedHighlightEvents([[6, EV_SAVE, SIDE_HOME]], () => undefined);
+check('Eski arşivde açık oyun/duran top ayrımı kayıpsa kurtaran takım uydurulmaz', makeHighlightReel(unknownArchiveSave, 0, 0, { homeId, awayId }).moments[0].side === undefined);
 const archiveEvents = archivedHighlightEvents([[10, EV_GOAL, SIDE_HOME, player.id], [20, EV_VAR, SIDE_AWAY], [40, EV_RED, SIDE_HOME], [45, 999, 0]], (id) => id === player.id ? player.name : undefined);
 check('Arşiv yalnız gerçek tür, dakika, taraf ve bilinen oyuncuyu çözer', archiveEvents.length === 3 && archiveEvents[0].text === `Gol · ${player.name}` && archiveEvents[1].text === 'VAR incelemesi / kararı' && archiveEvents[2].text === 'Kırmızı kart' && archiveEvents.every((e) => !e.path && !e.anim));
 check('Eski ve boş arşiv olayları güvenli boş liste verir', archivedHighlightEvents(undefined, () => undefined).length === 0 && archivedHighlightEvents([], () => undefined).length === 0);
 
 await mount('none', baseline);
-let realMatches = 0, exactSources = true, consistentScores = true;
+let realMatches = 0, exactSources = true, consistentScores = true, realSaves = 0, actualSavesCorrect = true;
 for (const awayId of ['sakarya_vadi', 'mugla_gokova', 'aydin_efe', 'balikesir_korfez', 'izmir_kordon']) {
   if (!g.squads[awayId]) continue;
   const actual = g.buildDemoMatch(career.clubId, awayId, g.tactics[0].name);
-  const actualReel = makeHighlightReel(actual.events, actual.hg, actual.ag);
-  exactSources &&= actualReel.moments.every((moment) => actual.events.some((event) => event.minute === moment.minute && event.text === moment.text && event.side === moment.side));
+  const actualReel = makeHighlightReel(actual.events, actual.hg, actual.ag, { homeId: career.clubId, awayId });
+  exactSources &&= actualReel.moments.every((moment) => actual.events.some((event) => event.minute === moment.minute && event.text === moment.text && (eventTeamSide(event, career.clubId, awayId) ?? undefined) === moment.side));
+  for (const source of actual.events.filter((event) => event.kind === 'save' && event.anim?.attackingTeamId)) {
+    const moment = actualReel.moments.find((item) => item.kind === 'save' && item.minute === source.minute && item.text === source.text);
+    const expected = source.anim?.attackingTeamId === career.clubId ? 'away' : 'home';
+    realSaves++;
+    actualSavesCorrect &&= !!moment && moment.side === expected && moment.pathSide === source.side;
+  }
   consistentScores &&= actualReel.scoreIsComplete && (!actualReel.moments.length || actualReel.moments.at(-1)?.score?.home === actual.hg && actualReel.moments.at(-1)?.score?.away === actual.ag);
   realMatches++;
 }
 check('Gerçek motor maçlarında özet yalnız kayıtlı olaylardan üretilir', realMatches >= 3 && exactSources, `${realMatches} maç`);
 check('Gerçek motor maçlarında son olay skoru gerçek sonuçla uyuşur', consistentScores);
+check('Gerçek motor kurtarışlarında özet hücum ekibini kaleci takımı sanmaz', actualSavesCorrect && realSaves > 0, `${realSaves} açık oyun kurtarışı`);
+
+highlightsEvents = [homeAttackSave];
+await mount('highlights', baseline);
+check('Özet ekranında kurtarışı yapan takım ve hücum edenin yolu ayrı gösterilir', q('[data-testid="highlight-event"]')?.textContent?.includes('Sakarya Vadi SK') && q('[data-testid="highlight-attacking-route"]')?.textContent?.includes('Denizli Yeşilova SK') && q('[data-testid="highlights-route"]')?.getAttribute('data-points') === '20,82 50,15');
+highlightsEvents = [unclearSave];
+await mount('highlights', baseline);
+check('Belirsiz eski kurtarış ekranı yanlış kulüp adı yerine takım bilgisi yok der', q('[data-testid="highlight-event"]')?.textContent?.includes('Takım bilgisi yok') && !!q('[data-testid="highlight-no-position"]'));
 
 highlightsEvents = events;
 await mount('highlights', baseline);

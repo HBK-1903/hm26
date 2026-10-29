@@ -24,9 +24,9 @@ import { SquadScreen } from '../src/screens/Squad';
 import { MarketScreen } from '../src/screens/Market';
 import { NewsroomScreen } from '../src/screens/Newsroom';
 import { LiveAtmosphere } from '../src/components/match/LiveAtmosphere';
-import { comparisonCandidates, comparisonClubName, comparisonSearchKey, comparisonValues, currentMarketFreeAgents, marketRefreshDays } from '../src/data/playerComparison';
+import { comparisonCandidates, comparisonClubName, comparisonPositionDetails, comparisonPositionSearchText, comparisonSearchKey, comparisonValues, currentMarketFreeAgents, marketRefreshDays } from '../src/data/playerComparison';
 import { buildWeeklyIssue } from '../src/data/weeklyPaper';
-import { liveReactionForEvent, reactionFromBatch } from '../src/engine/liveReaction';
+import { liveReactionForEvent, reactionFromBatch, recentLiveReactions } from '../src/engine/liveReaction';
 import { MatchSession } from '../src/engine/session';
 import { buildEngineInput, matchEventsToDemo } from '../src/engine/adapter';
 import { clubById } from '../src/data/clubs';
@@ -80,6 +80,13 @@ check('Tarafı belirsiz kurtarışta sevinç veya takım uydurulmaz', liveReacti
 check('Kart her iki takımda da gerçek taraf ve temkinli tepki taşır', liveReactionForEvent(event('card', 'away', { text: 'Direkt kırmızı kart' }), 'away', opponentId, career.clubId)?.title === 'KIRMIZI KART · TAKIMIMIZ' && liveReactionForEvent(event('card', 'home'), 'away', opponentId, career.clubId)?.mood === 'tense');
 check('VAR, şans, antrenör notu ve iptal edilmiş gol kutlama üretmez', ['var', 'chance', 'coach', 'info'].every((kind) => !liveReactionForEvent(event(kind as DemoMatchEvent['kind'], 'home'), 'home', career.clubId, opponentId)) && !liveReactionForEvent(event('goal', 'home', { text: 'Gol iptal edildi.' }), 'home', career.clubId, opponentId));
 check('Aynı olay partisinin son satırı bilgi olsa da gerçek kurtarış bulunur', reactionFromBatch([openSave, event('info', 'home')], 'away', opponentId, career.clubId)?.event === openSave);
+const overturned = event('goal', 'home', { text: 'GOOOL!', anim: { eventType: 'goal', outcome: 'overturned' } });
+check('VAR sonucu ve büyük İ ile yazılmış iptal golü de kutlama üretmez', !liveReactionForEvent(overturned, 'home', career.clubId, opponentId) && !liveReactionForEvent(event('goal', 'home', { text: 'GOL İPTAL' }), 'home', career.clubId, opponentId));
+check('Kırmızı kart motor kararı veya Türkçe büyük harflerden doğru anlaşılır', liveReactionForEvent(event('card', 'home', { text: 'Oyundan çıktı', anim: { eventType: 'card', outcome: 'red-direct' } }), 'home', career.clubId, opponentId)?.title.startsWith('KIRMIZI KART') && liveReactionForEvent(event('card', 'away', { text: 'KIRMIZI KART' }), 'home', career.clubId, opponentId)?.title.startsWith('KIRMIZI KART'));
+check('Geçersiz taraf ya da bilinmeyen hücum kulübü takım uydurmaz', liveReactionForEvent(event('goal', 'neutral' as any), 'home', career.clubId, opponentId)?.eventSide === null && liveReactionForEvent(event('save', 'home', { playerId: own.id, anim: { eventType: 'shot', attackingTeamId: 'bilinmeyen' } }), 'home', career.clubId, opponentId)?.eventSide === null);
+const card = event('card', 'away', { text: 'Sarı kart' });
+const reactionHistory = recentLiveReactions([goalHome, event('info', 'home'), openSave, card, overturned], 'home', career.clubId, opponentId);
+check('Aynı adımda gelen birden çok gerçek olay son tepkilerde sırasıyla korunur', reactionHistory.length === 3 && reactionHistory[0].event === card && reactionHistory[1].event === openSave && reactionHistory[2].event === goalHome && recentLiveReactions([goalHome], 'home', career.clubId, opponentId, 0).length === 0);
 
 // The reaction adapter reads real MatchSession batches, without consuming RNG or changing any match data.
 let parity = true, sourceExact = true, realReactions = 0, openPlaySaves = 0;
@@ -119,6 +126,11 @@ const missing = { ...own, ratings: {} as any, potential: undefined, wage: undefi
 check('Eski/eksik GEN, POT, maaş ve kondisyon sıfır yerine bilinmiyor', [0, 1, 3, 4].every((index) => comparisonValues(missing)[index] === '—'));
 const vals = comparisonValues({ ...own, wage: 150, fitness: 87 });
 check('Maaş birimi aylık bin TL ve kondisyon yüzdesi doğru', vals[3] === '₺150 bin/ay' && vals[4] === '%87');
+const flexible = { ...own, group: 'WG' as const, side: 'L' as const, secondary: ['AM', 'ST', 'AM'] as ('AM' | 'ST')[] };
+const positionDetails = comparisonPositionDetails(flexible);
+check('Karşılaştırmada mevcut tercih edilen taraf ve alternatif mevkiler görünür', positionDetails.side === 'Sol' && positionDetails.secondary === 'Ofansif orta saha, Santrfor');
+check('Eksik eski mevki bilgileri tahmin edilmez, gerçekten boş alternatif Yok gösterilir', comparisonPositionDetails({ ...own, side: undefined, secondary: undefined } as any).side === '—' && comparisonPositionDetails({ ...own, side: undefined, secondary: undefined } as any).secondary === '—' && comparisonPositionDetails({ ...own, secondary: [] }).secondary === 'Yok');
+check('Türkçe mevki, alternatif mevki ve taraf araması gerçek kayıtları kullanır', ['Kanat', 'Ofansif orta saha', 'Santrfor', 'Sol'].every((word) => comparisonSearchKey(comparisonPositionSearchText(flexible)).includes(comparisonSearchKey(word))));
 
 const fixture = (day: number, homeId = career.clubId, awayId = opponentId, hg?: number, ag?: number, played = true): DemoFixture => ({ day, homeId, awayId, hg, ag, played, round: 1, comp: 'lig', league: 'gecit' });
 const report = (f: DemoFixture, day: number, seasonNo: number): MatchArchiveEntry => ({
@@ -163,6 +175,7 @@ await change(q<HTMLInputElement>('[aria-label="2. oyuncu ara"]')!, 'Sakarya Vadi
 await click(q<HTMLButtonElement>('[data-testid="comparison-candidate"]'), 'İkinci oyuncu');
 check('İki gerçek oyuncu ve yedi ölçüt yan yana görünür', all('[data-testid="comparison-table"] tbody tr').length === 7 && body().includes('Sakarya Vadi SK') && q('[data-testid="comparison-player-2"]')?.getAttribute('data-player-id') !== chosenId);
 check('Maaş ve doğal mevki karşılaştırma tablosunda gösterilir', body().includes('bin/ay') && body().includes('Doğal mevki') && body().includes('Kondisyon'));
+check('Her iki oyuncunun kayıtlı tarafı ve alternatif mevkileri tabloda gösterilir', [1, 2].every((index) => { const text = q(`[data-testid="comparison-position-${index}"]`)?.textContent ?? ''; return text.includes('Taraf:') && text.includes('Diğer:'); }));
 await click(q<HTMLButtonElement>('[role="dialog"] [aria-label="Kapat"]'), 'Karşılaştırmayı kapat');
 await act(async () => { await g.saveNow(); });
 const afterComparison = (await readSave(career.slot))?.blob as SaveBlob & Record<string, any>;
@@ -184,15 +197,27 @@ check('Bilinmeyen sezon sınırı gazetenin üzerinde dürüstçe açıklanır',
 check('Basın Odasının eski beş bölümü korunur ve Gazete ayrıca açılır', ['Manşet', 'Gazete', 'Lig Nabzı', 'Haftanın 11’i', 'Hakemler', 'Taraftar'].every((label) => !!buttonText(label)));
 
 atmosphereProps = { club: clubById(career.clubId), manager: career.manager, bench: g.mySquad.slice(1, 4), managerSuspended: false,
-  reaction: liveReactionForEvent(goalHome, 'home', career.clubId, opponentId), reactionSequence: 1, paused: false, done: false, reducedMotion: false };
+  reaction: liveReactionForEvent(goalHome, 'home', career.clubId, opponentId), recentReactions: reactionHistory, reactionSequence: 1, paused: false, done: false, reducedMotion: false };
 await mount('atmosphere', baseline);
 check('Sahne gerçek menajer ve mevcut yedek oyuncuları içerir', !!q('[aria-label="MENAJER: Test Menajer"]') && all('[aria-label^="YEDEK:"]').length === 3 && q('[data-testid="live-atmosphere"]')?.getAttribute('data-reaction') === 'goal');
+check('Sahnedeki yedeklerin gerçek adları gözle okunabilir', atmosphereProps.bench.every((p) => q('[aria-label="Sahnede görünen yedekler"]')?.textContent?.includes(p.name)));
+check('Son tepkiler çoklu gerçek olayları yeniden incelemeye sunar', all('[data-testid="live-reaction-history"] li').length === 3 && q('[data-testid="live-reaction-history"]')?.textContent?.includes(card.text) && q('[data-testid="live-reaction-history"]')?.textContent?.includes(openSave.text));
 atmosphereProps = { ...atmosphereProps, managerSuspended: true, paused: true };
 await mount('atmosphere', baseline);
 check('Cezalı menajer tribünde, duraklatılmış sahne donmuş olarak etiketlenir', !!q('[aria-label="MENAJER · TRİBÜNDE: Test Menajer"]') && q('[data-testid="live-atmosphere"]')?.getAttribute('data-motion') === 'paused');
 atmosphereProps = { ...atmosphereProps, reducedMotion: true, paused: false };
 await mount('atmosphere', baseline);
 check('Azaltılmış hareket ve metinli gerçek olay sahnede gösterilir', q('[data-testid="live-atmosphere"]')?.getAttribute('data-motion') === 'reduced' && body().includes('Gerçek maç olayı'));
+const subSession = new MatchSession(buildEngineInput({ homeClub: clubById(career.clubId), awayClub: clubById(opponentId), homeSquad: g.squads[career.clubId], awaySquad: g.squads[opponentId], homeTactic: g.tactics[0], seed: 1406, settings: career.settings, userSide: 'home' }));
+const incoming = subSession.getBench('home')[0], outgoing = subSession.getSlots('home')[0];
+const queued = !!incoming && !!outgoing && subSession.queueSub('home', outgoing.player.id, incoming.id);
+const subEvents = subSession.step();
+atmosphereProps = { ...atmosphereProps, bench: subSession.getBench('home') };
+await mount('atmosphere', baseline);
+check('Gerçek değişiklik uygulanınca sahnedeki yedek listesi motorla güncellenir', queued && subEvents.some((e) => e.kind === 'sub') && !atmosphereProps.bench.some((p) => p.id === incoming.id) && !q('[aria-label="Sahnede görünen yedekler"]')?.textContent?.includes(incoming.name) && atmosphereProps.bench.slice(0, 3).every((p) => q('[aria-label="Sahnede görünen yedekler"]')?.textContent?.includes(p.name)));
+atmosphereProps = { ...atmosphereProps, bench: [] };
+await mount('atmosphere', baseline);
+check('Yedek olmadığında isim uydurulmaz ve boş durum görünür', body().includes('Kayıtlı yedek yok') && !q('[aria-label="Sahnede görünen yedekler"]'));
 
 await act(async () => root.unmount());
 console.log(`\n${passed}/${passed + failures.length} geçti`);

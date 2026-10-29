@@ -15,7 +15,7 @@ export const MatchHighlights: React.FC<{
   home: Club; away: Club; homeGoals: number; awayGoals: number;
   events: readonly DemoMatchEvent[]; archived?: boolean; reduceMotion?: boolean;
 }> = ({ home, away, homeGoals, awayGoals, events, archived = false, reduceMotion = false }) => {
-  const reel = useMemo(() => makeHighlightReel(events, homeGoals, awayGoals), [events, homeGoals, awayGoals]);
+  const reel = useMemo(() => makeHighlightReel(events, homeGoals, awayGoals, { homeId: home.id, awayId: away.id }), [events, homeGoals, awayGoals, home.id, away.id]);
   const [index, setIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
   const selected = reel.moments[Math.min(index, reel.moments.length - 1)];
@@ -60,8 +60,8 @@ export const MatchHighlights: React.FC<{
           </g>
           {coordinates && <g key={index} className="highlights__route" data-testid="highlights-route" data-points={points}>
             {coordinates.length > 1 && <polyline points={points} fill="none" stroke="#0b241b" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" opacity=".65" />}
-            {coordinates.length > 1 && <polyline className="highlights__route-line" points={points} fill="none" stroke={selected?.side === 'away' ? '#83d8ff' : '#ffde7e'} strokeWidth="1.3" strokeLinejoin="round" strokeLinecap="round" pathLength="100" />}
-            {coordinates.map((point, i) => <circle key={i} cx={point.x} cy={point.y} r={i === coordinates.length - 1 ? 2.5 : 1.25} fill={i === coordinates.length - 1 ? '#fff' : selected?.side === 'away' ? '#83d8ff' : '#ffde7e'} stroke="#123927" strokeWidth=".65" />)}
+            {coordinates.length > 1 && <polyline className="highlights__route-line" points={points} fill="none" stroke={selected?.pathSide === 'away' ? '#83d8ff' : '#ffde7e'} strokeWidth="1.3" strokeLinejoin="round" strokeLinecap="round" pathLength="100" />}
+            {coordinates.map((point, i) => <circle key={i} cx={point.x} cy={point.y} r={i === coordinates.length - 1 ? 2.5 : 1.25} fill={i === coordinates.length - 1 ? '#fff' : selected?.pathSide === 'away' ? '#83d8ff' : '#ffde7e'} stroke="#123927" strokeWidth=".65" />)}
           </g>}
         </svg>
       </div>
@@ -71,9 +71,10 @@ export const MatchHighlights: React.FC<{
     {archived && <p className="highlights__note">Arşivde olay türü ve dakika saklanır; özgün anlatım ve konum kaydı saklanmaz.</p>}
     {!reel.scoreIsComplete && <p className="highlights__note" data-testid="highlights-score-note">Gol olayları sonuçla tam eşleşmediği için yalnız maç sonu skoru gösteriliyor.</p>}
     {!selected ? <div className="highlights__empty" data-testid="highlights-empty">Bu maç için gösterilebilecek olay kaydı yok.</div> : <>
-      <div className="highlights__event" data-testid="highlight-event" aria-live="polite">
+      <div className="highlights__event" data-testid="highlight-event" data-acting-side={selected.side ?? 'unknown'} data-path-side={selected.pathSide ?? 'unknown'} aria-live="polite">
         <div className="highlights__event-meta"><span>{selected.minute}′ · {LABELS[selected.kind]}</span><span>{team?.name ?? 'Takım bilgisi yok'}</span></div>
         <p>{selected.text}</p>
+        {selected.kind === 'save' && coordinates && selected.pathSide && <div className="highlights__missing" data-testid="highlight-attacking-route">Top yolu: {selected.pathSide === 'home' ? home.name : away.name} hücumu.</div>}
         {!coordinates && <div className="highlights__missing" data-testid="highlight-no-position">Bu anın konum kaydı yok.</div>}
       </div>
       <div className="highlights__controls" role="group" aria-label="Özet oynatma kontrolleri">

@@ -149,6 +149,18 @@ try {
   check('Geri kontrolü önceki olayı geri getirir', await event.innerText() === first);
   const routeOrMissing = await page.getByTestId('highlights-route').count() > 0 || await page.getByTestId('highlight-no-position').isVisible();
   check('Konum sadece kayıt varsa çizilir; yoksa açıkça belirtilir', routeOrMissing);
+  let sawSavedAttack = false, saveSideCorrect = false;
+  for (let i = 0; i < eventCount; i++) {
+    const item = page.getByTestId('highlight-timeline-item').nth(i);
+    if (!/KURTARIŞ/.test(await item.getAttribute('aria-label') ?? '')) continue;
+    await item.click();
+    if (!(await page.getByTestId('highlights-route').count())) continue;
+    const acting = await event.getAttribute('data-acting-side'), path = await event.getAttribute('data-path-side');
+    sawSavedAttack = true;
+    saveSideCorrect = ['home', 'away'].includes(acting) && ['home', 'away'].includes(path) && acting !== path && await page.getByTestId('highlight-attacking-route').isVisible();
+    break;
+  }
+  check('Gerçek özet kurtarışında kaleci takımı ve hücum yolu ayrı gösterilir', sawSavedAttack && saveSideCorrect);
   // Look for an actual multi-zone route before testing the animation preference.
   let hasAnimatedRoute = false;
   for (let i = 0; i < eventCount - 1; i++) {

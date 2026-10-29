@@ -2,6 +2,7 @@
 // gol dakika profili türetimi. Yeni hesaplama yok; yalnız arşivde saklanan gerçek olaylar.
 import type { CompactMatchEvent, MatchArchiveEntry } from '../types';
 import type { DemoMatchEvent } from '../store/game';
+import { isConfirmedGoal, isRedCard } from './matchPresentation';
 
 // Tür kodları (CompactMatchEvent şemasıyla senkron)
 export const EV_GOAL = 0;
@@ -29,12 +30,11 @@ export function compactMatchEvents(events: readonly DemoMatchEvent[]): CompactMa
     const minute = Math.max(0, Math.min(120, Math.round(e.minute)));
     const side = sideCode(e.side);
     if (e.kind === 'goal') {
-      out.push([minute, EV_GOAL, side, e.scorerId ?? e.playerId]);
+      // Reuse an existing VAR code for an overturned goal; no archive schema changes.
+      if (isConfirmedGoal(e)) out.push([minute, EV_GOAL, side, e.scorerId ?? e.playerId]);
+      else out.push([minute, EV_VAR, side]);
     } else if (e.kind === 'card') {
-      const outcome = e.anim?.outcome;
-      const isRed = outcome === 'red' || outcome === 'red-direct'
-        || (outcome === undefined && /kırmızı/i.test(e.text));
-      out.push([minute, isRed ? EV_RED : EV_YELLOW, side, e.playerId]);
+      out.push([minute, isRedCard(e) ? EV_RED : EV_YELLOW, side, e.playerId]);
     } else if (e.kind === 'sub') {
       out.push([minute, EV_SUB, side]);
     } else if (e.kind === 'save') {

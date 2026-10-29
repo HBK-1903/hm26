@@ -3,13 +3,17 @@ import type { DemoMatchEvent } from '../store/game';
 import type { CompactMatchEvent } from '../types';
 import { ZONE_XY, type ZoneId } from './zones';
 import { EV_GOAL, EV_YELLOW, EV_RED, EV_SUB, EV_SAVE, EV_VAR, EV_INJURY, SIDE_HOME, SIDE_AWAY } from './matchEvents';
+import { eventTeamSide, isConfirmedGoal, type MatchSide } from './matchPresentation';
 
 export type HighlightKind = 'goal' | 'chance' | 'save' | 'card' | 'sub' | 'injury' | 'var';
 export interface HighlightMoment {
   minute: number;
   kind: HighlightKind;
   text: string;
-  side?: 'home' | 'away';
+  /** The acting team, e.g. the goalkeeper's team for a save. */
+  side?: MatchSide;
+  /** Recorded route belongs to the attacking side, which may differ from the actor. */
+  pathSide?: MatchSide;
   path: { x: number; y: number }[] | null;
   score: { home: number; away: number } | null;
 }
@@ -30,12 +34,8 @@ export function recordedPath(event: DemoMatchEvent): { x: number; y: number }[] 
   return null;
 }
 
-const isConfirmedGoal = (event: DemoMatchEvent) => event.kind === 'goal'
-  && !['offside', 'overturned', 'cancelled'].includes(event.anim?.outcome ?? '')
-  && !/gol(?:ü)?\s+iptal|iptal\s+edil/i.test(event.text ?? '');
-
 /** Score progression is shown only when ALL confirmed goals agree with the final score. */
-export function makeHighlightReel(events: readonly DemoMatchEvent[], finalHome: number, finalAway: number): HighlightReel {
+export function makeHighlightReel(events: readonly DemoMatchEvent[], finalHome: number, finalAway: number, clubs?: { homeId: string; awayId: string }): HighlightReel {
   const ordered = events
     .map((event, index) => ({ event, index }))
     .filter(({ event }) => important.has(event.kind) && Number.isFinite(event.minute) && event.minute >= 0)
@@ -59,8 +59,10 @@ export function makeHighlightReel(events: readonly DemoMatchEvent[], finalHome: 
     }
     return {
       minute: event.minute, kind: (event.kind === 'goal' && !isConfirmedGoal(event) ? 'var' : event.kind) as HighlightKind,
-      text: event.text || 'Maç olayı', side: event.side === 'home' || event.side === 'away' ? event.side : undefined, path: recordedPath(event),
-      score: scoreIsComplete ? { home, away } : null,
+      text: event.text || 'Maç olayı',
+      side: eventTeamSide(event, clubs?.homeId, clubs?.awayId) ?? undefined,
+      pathSide: event.side === 'home' || event.side === 'away' ? event.side : undefined,
+      path: recordedPath(event), score: scoreIsComplete ? { home, away } : null,
     };
   });
   return { moments, scoreIsComplete };

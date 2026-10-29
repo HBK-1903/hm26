@@ -1,5 +1,5 @@
 // HM26 v0.9.11 — TV yayın skorbug, Phaser saha motoru, canlı telemetri ve kenar yönetimi.
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { DemoFixture, TacticPlan, TableRow } from '../types';
 import type { EngineShot, MatchStats } from '../engine/engine';
 import type { HeatPoint, PitchEvent, PitchRuntime, TeamDots } from '../components/assets/PhaserPitch';
@@ -27,7 +27,8 @@ import { Suspense } from 'react';
 import { lazyWithRecovery } from '../utils/lazyWithRecovery';
 import { PitchFallback } from '../components/assets/PitchFallback';
 import { audio } from '../audio/engine';
-import { reactionFromBatch, type LiveReaction } from '../engine/liveReaction';
+import { reactionFromBatch, recentLiveReactions, type LiveReaction } from '../engine/liveReaction';
+import { isRedCard } from '../engine/matchPresentation';
 import { LiveAtmosphere } from '../components/match/LiveAtmosphere';
 // Phaser 1MB+ — yalnızca maçta yüklenir (§1.3 Hafif prensibi: ana pakette tutmaz)
 const PhaserPitch = lazyWithRecovery(
@@ -150,6 +151,10 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onE
   const momentum = projection.momentum;
   const currentEvent = eventsShown[eventsShown.length - 1];
   const lastGoal = [...eventsShown].reverse().find((e) => e.kind === 'goal');
+  // Keep several recent real cues visible even when one simulation step contains
+  // more than one notable event or playback is too fast for every animation.
+  const recentReactions = useMemo(() => recentLiveReactions(eventsShown, mySide, fixture.homeId, fixture.awayId),
+    [eventsShown, mySide, fixture.homeId, fixture.awayId]);
   // Read only newly displayed real events, including a final batch that also
   // contains the whistle. The scene freezes at full time but retains that cue.
   useEffect(() => {
@@ -359,7 +364,7 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onE
 
   const pitchEvent: PitchEvent | null = currentEvent ? {
     path: currentEvent.path as any, kind: (['goal', 'save', 'card', 'var'].includes(currentEvent.kind) ? currentEvent.kind : 'chance') as PitchEvent['kind'],
-    side: currentEvent.side, color: currentEvent.kind === 'card' ? (/kırmızı/i.test(currentEvent.text ?? '') ? '#ef4444' : '#f3c64e') : undefined,
+    side: currentEvent.side, color: currentEvent.kind === 'card' ? (isRedCard(currentEvent) ? '#ef4444' : '#f3c64e') : undefined,
     actors: currentEvent.anim?.actors ?? currentEvent.visualActors ?? pitchRuntime.activeIds,
     actionType: currentEvent.anim?.eventType ?? currentEvent.visualEvent ?? (derbyMatch && currentEvent.kind === 'card' ? 'brawl' : undefined),
     highBall: pitchRuntime.z > 0, minute: currentEvent.minute, sequence: eventsShown.length, reduceMotion: reducedMotion, brawl: derbyMatch && currentEvent.kind === 'card',
@@ -559,7 +564,7 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onE
               <button type="button" onClick={() => setPitchView('atmosphere')} aria-pressed={pitchView === 'atmosphere'} className={`min-h-[40px] flex items-center justify-center gap-1.5 rounded-lg text-[10.5px] font-bold ${pitchView === 'atmosphere' ? 'bg-[#354a39] text-[#f6dfaa]' : 'text-[#c2d0c2]'}`}><span className="w-3.5 h-3.5"><ICONS.squad /></span>Kulübe & Tribün{reaction && <span className="text-[#f6cf78]" aria-label="Yeni tepki">●</span>}</button>
             </div>
             {pitchView === 'pitch' ? Pitch : <LiveAtmosphere club={g.myClub} manager={g.career.manager} bench={session.getBench(mySide)} managerSuspended={managerSuspendedAtStart}
-              reaction={reaction?.cue ?? null} reactionSequence={reaction?.sequence ?? reactionSequence.current} paused={paused} done={done} reducedMotion={reducedMotion} />}
+              reaction={reaction?.cue ?? null} recentReactions={recentReactions} reactionSequence={reaction?.sequence ?? reactionSequence.current} paused={paused} done={done} reducedMotion={reducedMotion} />}
             {pitchView === 'pitch' && currentEvent && <div className="w-full max-w-[330px] rounded-lg border border-[#53665a] bg-[#1a2720] px-2.5 py-1.5 text-[10.5px] leading-snug text-[#f4f2e8]"><span className="num font-black text-[#f2cf70] mr-1.5">{currentEvent.minute}′</span>{currentEvent.text}</div>}
             {pitchView === 'pitch' && <div className="w-full max-w-[330px] flex gap-2 items-center">
               <button onClick={() => setHeatEnabled((value) => !value)} aria-pressed={heatEnabled} className={`min-h-[44px] flex-1 rounded-xl border px-3 text-[11px] font-bold ${heatEnabled ? 'border-[#d18d51] bg-[#46351f] text-[#ffe0a0]' : 'border-line bg-surface text-primary'}`}>🔥 {heatEnabled ? 'Isı Haritası Açık' : 'Isı Haritası'}</button>
@@ -653,18 +658,20 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onE
         </section>
       </main>
 
-      <nav className="shrink-0 border-t border-line bg-[#111b16] px-1.5 pt-1.5 pb-[max(6px,env(safe-area-inset-bottom))]" role="tablist" aria-label="Maç konsolu sekmeleri">
+      <nav className="match-console shrink-0 border-t border-line bg-[#111b16] px-1.5 pt-1.5 pb-[max(6px,env(safe-area-inset-bottom))]" role="tablist" aria-label="Maç konsolu sekmeleri">
         <div className="flex gap-1 overflow-x-auto no-scrollbar">
           {LIVE_CONSOLE_TABS.map((tab) => <button key={tab.id} id={`match-tab-${tab.id}`} role="tab" aria-selected={activeTab === tab.id} aria-controls={`match-panel-${tab.id}`} aria-label={tab.label} title={tab.label} onClick={() => setActiveTab(tab.id)} className={`shrink-0 min-w-[59px] min-h-[48px] px-1.5 rounded-lg flex flex-col items-center justify-center gap-0.5 border text-[10px] font-bold ${activeTab === tab.id ? 'bg-[#2b3b2f] border-[#9fbc77] text-[#f5e4ae]' : 'bg-transparent border-transparent text-[#c3cfc4]'}`}><GameIcon id={tab.icon} className="w-4 h-4" /><span>{tab.short}</span></button>)}
         </div>
       </nav>
 
-      {!done && <button onClick={() => setShowTouchline(true)} className="absolute right-3 bottom-[118px] z-30 min-h-[44px] rounded-full border border-[#c19245] bg-[#463519] text-[#ffe09b] text-[10px] font-black shadow-lg px-3" aria-label="Kenar Talimatı">⚡ Kenar Talimatı</button>}
       <footer className="shrink-0 px-3 py-2 bg-[#111b16] border-t border-line/50">
         {!done ? (
-          <div className="w-full !min-h-[42px] flex items-center justify-center gap-2 rounded-xl border border-line bg-surface text-muted text-[11px] font-bold" aria-live="polite">
-            <span className="w-1.5 h-1.5 rounded-full bg-danger animate-pulse" />
-            Maç canlı — düdükten sonra özeti inceleyebilir, hazır olunca röportaja geçebilirsin
+          <div className="flex items-stretch gap-2">
+            <div className="min-w-0 flex-1 min-h-[44px] flex items-center justify-center gap-2 rounded-xl border border-line bg-surface px-2 text-muted text-[10px] leading-tight font-bold" aria-live="polite">
+              <span className="w-1.5 h-1.5 shrink-0 rounded-full bg-danger animate-pulse" />
+              <span>Maç canlı · Düdükten sonra röportaja sen geçersin</span>
+            </div>
+            <button type="button" onClick={() => setShowTouchline(true)} className="shrink-0 min-h-[44px] flex items-center justify-center gap-1.5 rounded-xl border border-[#c19245] bg-[#463519] text-[#ffe09b] text-[10px] leading-tight font-black px-2.5" aria-label="Kenar Talimatı"><span className="w-4 h-4" aria-hidden="true"><ICONS.tactics /></span><span>Kenar<br />Talimatı</span></button>
           </div>
         ) : (
           <Btn variant="amber" className="w-full !min-h-[46px] !text-[11px]" onClick={() => { if (!finResult) finalizeFromSession(); setPhase('interview'); }}>Maç Sonu Röportajına Geç →</Btn>
