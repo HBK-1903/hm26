@@ -58,6 +58,7 @@ try {
     ['Pitch formation, team colors and motion cadence', ['tsx', 'tools/qa-pitch-motion.ts']],
     ['Live engine projection and speed parity', ['tsx', 'tools/qa-live-projection-wave10.ts']],
     ['Shared UI notification timing', ['tsx', 'tools/qa-ui-smoothness.tsx']],
+    ['New career advanced world settings', ['tsx', 'tools/qa-career-world.tsx']],
     ['Transfer presentation rules, voices and local artwork', ['tsx', 'tools/qa-transfer-scene.ts']],
   ];
   for (const [name, args] of core) run(name, 'npx', ['--yes', ...args], name.includes('simulation') ? 300_000 : 180_000);
@@ -86,6 +87,7 @@ try {
   else if (!previewReady) rows.push({ name: 'Playwright preview server', code: 1, stdout: '', stderr: 'Could not start or reach http://127.0.0.1:4173' });
   else {
     const ui = [
+      ['New career advanced world settings and save E2E', 'tools/e2e-career-world.mjs'],
       ['Embedded asset rendering E2E', 'tools/e2e-assets.mjs'],
       ['Icon system E2E', 'tools/e2e-icons.mjs'],
       ['Statistics and career history E2E', 'tools/e2e-stats.mjs'],
