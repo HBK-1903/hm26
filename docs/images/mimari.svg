@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 400" width="1400" height="400" role="img" aria-labelledby="title desc">
+  <title id="title">HM26 teknik mimari özeti</title>
+  <desc id="desc">React arayüzü oyun durumuyla, oyun durumu IndexedDB ve simülasyon motoruyla çalışır. Phaser canlı sahayı çizer; servis çalışanı üretimde uygulama kaynaklarını önbellekler.</desc>
+  <rect width="1400" height="400" rx="24" fill="#f7f2e7"/>
+  <text x="40" y="42" fill="#596b5b" font-family="Arial, sans-serif" font-weight="700" font-size="19" letter-spacing="2">MİMARİYE KISA BAKIŞ</text>
+  <g font-family="Arial, sans-serif">
+    <g transform="translate(40 72)">
+      <rect width="300" height="118" rx="16" fill="#163c32"/>
+      <text x="20" y="31" fill="#d6ad6d" font-size="14" font-weight="700" letter-spacing="1">ARAYÜZ</text>
+      <text x="20" y="65" fill="#fcf5e6" font-size="22" font-weight="700">React + TypeScript</text>
+      <text x="20" y="93" fill="#d4e3d7" font-size="15">Ekranlar, kontroller, bileşenler</text>
+    </g>
+    <g transform="translate(380 72)">
+      <rect width="300" height="118" rx="16" fill="#163c32"/>
+      <text x="20" y="31" fill="#d6ad6d" font-size="14" font-weight="700" letter-spacing="1">OYUN DURUMU</text>
+      <text x="20" y="65" fill="#fcf5e6" font-size="22" font-weight="700">GameProvider</text>
+      <text x="20" y="93" fill="#d4e3d7" font-size="15">Kadro, takvim, ekonomi</text>
+    </g>
+    <g transform="translate(720 72)">
+      <rect width="300" height="118" rx="16" fill="#163c32"/>
+      <text x="20" y="31" fill="#d6ad6d" font-size="14" font-weight="700" letter-spacing="1">SİMÜLASYON</text>
+      <text x="20" y="65" fill="#fcf5e6" font-size="22" font-weight="700">Maç ve dünya motoru</text>
+      <text x="20" y="93" fill="#d4e3d7" font-size="15">Kararlar, olaylar ve sonuçlar</text>
+    </g>
+    <g transform="translate(1060 72)">
+      <rect width="300" height="118" rx="16" fill="#163c32"/>
+      <text x="20" y="31" fill="#d6ad6d" font-size="14" font-weight="700" letter-spacing="1">CANLI SAHA</text>
+      <text x="20" y="65" fill="#fcf5e6" font-size="22" font-weight="700">Phaser 2D</text>
+      <text x="20" y="93" fill="#d4e3d7" font-size="15">Maç sırasında yüklenen sunum</text>
+    </g>
+    <g transform="translate(40 235)">
+      <rect width="300" height="118" rx="16" fill="#805337"/>
+      <text x="20" y="31" fill="#f0d393" font-size="14" font-weight="700" letter-spacing="1">ÜRETİM ÖNBELLEĞİ</text>
+      <text x="20" y="65" fill="#fff7e9" font-size="22" font-weight="700">Servis çalışanı</text>
+      <text x="20" y="93" fill="#f4e6d1" font-size="15">Uygulama kabuğu ve varlıklar</text>
+    </g>
+    <g transform="translate(380 235)">
+      <rect width="300" height="118" rx="16" fill="#805337"/>
+      <text x="20" y="31" fill="#f0d393" font-size="14" font-weight="700" letter-spacing="1">KALICI KAYIT</text>
+      <text x="20" y="65" fill="#fff7e9" font-size="22" font-weight="700">IndexedDB</text>
+      <text x="20" y="93" fill="#f4e6d1" font-size="15">Üç yuva · JSON yedek</text>
+    </g>
+    <g transform="translate(720 235)">
+      <rect width="640" height="118" rx="16" fill="#efe5d2"/>
+      <text x="22" y="45" fill="#294a3c" font-size="19" font-weight="700">Oyun durumu cihazda saklanır.</text>
+      <text x="22" y="77" fill="#596b5b" font-size="16">Çevrimdışı kullanım için ilk kurulum ve önbelleğe alma gerekir.</text>
+    </g>
+  </g>
+  <g fill="none" stroke="#b7884b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M348 131h24m-5-6 5 6-5 6m-14-12-5 6 5 6"/>
+    <path d="M688 131h24m-5-6 5 6-5 6m-14-12-5 6 5 6"/>
+    <path d="M1028 131h24m-5-6 5 6-5 6"/>
+    <path d="M530 198v29m-6-5 6 5 6-5m-12-19 6-5 6 5"/>
+    <path d="M190 227v-29m-6 5 6-5 6 5" stroke-dasharray="4 5"/>
+  </g>
+</svg>

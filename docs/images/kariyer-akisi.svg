@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1500 276" width="1500" height="276" role="img" aria-labelledby="title desc">
+  <title id="title">HM26 kariyer döngüsü</title>
+  <desc id="desc">Menajer ve kulüp seçimi, kadro ve taktik, kulüp ve transfer kararları, maç, ardından sonuç ve yeni gün.</desc>
+  <rect width="1500" height="276" rx="24" fill="#f7f2e7"/>
+  <text x="42" y="42" fill="#596b5b" font-family="Arial, sans-serif" font-weight="700" font-size="19" letter-spacing="2">KARİYER DÖNGÜSÜ</text>
+  <g font-family="Arial, sans-serif">
+    <g transform="translate(42 66)">
+      <rect width="262" height="148" rx="16" fill="#163c32"/>
+      <text x="20" y="31" fill="#d6ad6d" font-size="14" font-weight="700" letter-spacing="1.2">01 / KUR</text>
+      <text x="20" y="68" fill="#fcf5e6" font-size="23" font-weight="700">Menajer ve kulüp</text>
+      <text x="20" y="99" fill="#d4e3d7" font-size="16">Dönemini, zorluğunu</text>
+      <text x="20" y="121" fill="#d4e3d7" font-size="16">ve kulübünü seç.</text>
+    </g>
+    <g transform="translate(337 66)">
+      <rect width="262" height="148" rx="16" fill="#163c32"/>
+      <text x="20" y="31" fill="#d6ad6d" font-size="14" font-weight="700" letter-spacing="1.2">02 / PLANLA</text>
+      <text x="20" y="68" fill="#fcf5e6" font-size="23" font-weight="700">Kadro ve taktik</text>
+      <text x="20" y="99" fill="#d4e3d7" font-size="16">İlk 11'i belirle,</text>
+      <text x="20" y="121" fill="#d4e3d7" font-size="16">oyun planlarını hazırla.</text>
+    </g>
+    <g transform="translate(632 66)">
+      <rect width="262" height="148" rx="16" fill="#163c32"/>
+      <text x="20" y="31" fill="#d6ad6d" font-size="14" font-weight="700" letter-spacing="1.2">03 / YÖNET</text>
+      <text x="20" y="68" fill="#fcf5e6" font-size="23" font-weight="700">Kulüp ve transfer</text>
+      <text x="20" y="99" fill="#d4e3d7" font-size="16">Bütçeyi, görüşmeleri</text>
+      <text x="20" y="121" fill="#d4e3d7" font-size="16">ve tesisleri yönet.</text>
+    </g>
+    <g transform="translate(927 66)">
+      <rect width="262" height="148" rx="16" fill="#163c32"/>
+      <text x="20" y="31" fill="#d6ad6d" font-size="14" font-weight="700" letter-spacing="1.2">04 / OYNA</text>
+      <text x="20" y="68" fill="#fcf5e6" font-size="23" font-weight="700">Maç günü</text>
+      <text x="20" y="99" fill="#d4e3d7" font-size="16">Canlı yönet</text>
+      <text x="20" y="121" fill="#d4e3d7" font-size="16">veya hızlı simüle et.</text>
+    </g>
+    <g transform="translate(1222 66)">
+      <rect width="236" height="148" rx="16" fill="#805337"/>
+      <text x="20" y="31" fill="#f0d393" font-size="14" font-weight="700" letter-spacing="1.2">05 / İLERLE</text>
+      <text x="20" y="68" fill="#fff7e9" font-size="23" font-weight="700">Yeni gün</text>
+      <text x="20" y="99" fill="#f4e6d1" font-size="16">Sonucu kaydet,</text>
+      <text x="20" y="121" fill="#f4e6d1" font-size="16">kariyerine devam et.</text>
+    </g>
+  </g>
+  <g fill="none" stroke="#b7884b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M312 140h16m-6-6 6 6-6 6"/>
+    <path d="M607 140h16m-6-6 6 6-6 6"/>
+    <path d="M902 140h16m-6-6 6 6-6 6"/>
+    <path d="M1197 140h16m-6-6 6 6-6 6"/>
+  </g>
+  <text x="42" y="250" fill="#596b5b" font-family="Arial, sans-serif" font-size="16">Her yeni gün, kulübün için yeni kararlar getirir.</text>
+</svg>
