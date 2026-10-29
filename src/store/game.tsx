@@ -17,7 +17,7 @@ import { compactMatchEvents } from '../engine/matchEvents';
 import { seasonSummary } from '../engine/teamInsights';
 import { CLINIC_COST_M, clinicRemainingDays, needleOutcome } from '../engine/medical';
 import { Cup, CupTie, buildCup, buildFriendlies, buildLeagueFixtures, cupGroupTable, dayToDate, inWindow, weekdayOf, ACADEMY_INTAKE_DAY } from '../data/calendar';
-import { writeSave, writeSaveRetry, SaveBlob, SAVE_VERSION } from './persist';
+import { writeSave, writeSaveRetry, SaveBlob, SaveConflictError, SAVE_VERSION } from './persist';
 import { applyComfortSettings } from '../utils/comfort';
 import { consumeManagerBan, registerManagerYellow as registerManagerYellowRule } from '../engine/discipline';
 import { normalizeSellOnClauses, withSellOnClause, calculateSellOnSettlement, type SellOnSettlement } from '../data/transferNegotiation';
@@ -133,7 +133,10 @@ interface GameState extends PersistedState {
   nextFixture: DemoFixture | null;
   unread: number;
   effectiveStrength: (clubId: string) => number;
-  saveNow: (silent?: boolean) => Promise<void>;
+  saveNow: (silent?: boolean) => Promise<boolean>;
+  saveError: string | null;
+  snapshotForBackup: () => SaveBlob;
+  restoreBackup: (blob: SaveBlob) => Promise<boolean>;
 }
 
 interface GameActions {
@@ -210,9 +213,10 @@ const INJURY_TYPES: { type: PlayerInjury['type']; name: string; sev: 'hafif' | '
   { type: 'kirik', name: 'Taraksız Kemiği Kırığı', sev: 'ciddi', days: [30, 60], risk: false },
 ];
 
-export function GameProvider({ career: initialCareer, snapshot, children }: {
+export function GameProvider({ career: initialCareer, snapshot, initialUpdatedAt, children }: {
   career: Career;
   snapshot?: SaveBlob | null;
+  initialUpdatedAt?: number;
   onExitToMenu?: () => void;
   children: React.ReactNode;
 }) {
@@ -228,6 +232,8 @@ export function GameProvider({ career: initialCareer, snapshot, children }: {
       return {
         ...px,
         leagueOf: fallbackLeagueOf, table: fallbackTable, cup: fallbackCup,
+        seasonNo: Number.isSafeInteger(px.seasonNo) && px.seasonNo >= 1 ? px.seasonNo : 1,
+        seasonHistory: Array.isArray(px.seasonHistory) ? px.seasonHistory : [],
         international: normalizeInternationalSeason(pxAny.international, fallbackIntl),
         internationalArchive: Array.isArray(pxAny.internationalArchive) ? pxAny.internationalArchive as InternationalArchiveEntry[] : [],
         playerClub: (pxAny.playerClub as Record<string, string>) ?? {},
@@ -301,6 +307,15 @@ export function GameProvider({ career: initialCareer, snapshot, children }: {
 
   const stateRef = useRef(st);
   const clinicInFlightRef = useRef(new Set<string>()); // klinik çift tıklama kilidi
+  // Serialise writes within this session; an import locks and drains the queue before replacing a slot.
+  const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const deferredSaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // null = new empty slot; undefined = legacy caller with no metadata revision available.
+  const saveRevisionRef = useRef<number | null | undefined>(snapshot ? initialUpdatedAt : null);
+  const restoreLockRef = useRef(false);
+  const mountedRef = useRef(true);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
   stateRef.current = st;
   useEffect(() => { applyComfortSettings(st.career.settings); }, []); // girişte konfor ayarları uygulanır
 
@@ -401,26 +416,65 @@ export function GameProvider({ career: initialCareer, snapshot, children }: {
   const unread = st.inbox.filter((m) => !m.read).length;
 
   // ── Kaydetme (§3.3: gün sonu / maç sonu / transfer / sezon / çıkış) ──
-  const saveNow = useCallback(async () => {
+  const snapshotForBackup = useCallback((): SaveBlob => {
     const s = stateRef.current;
-    const { career: _omitCareer, ...rest } = s;
-    void _omitCareer;
-    const full = {
-      ...rest,
-      career: s.career,
-      version: SAVE_VERSION,
-      day: s.career.day,
-    } as unknown as SaveBlob;
-    // FIX P1/3: ilk kayıt day-1'da retry'li; sonrası sessiz ama aerobik. Böylece soğuk profil ilk kurulumu kaybolmaz.
+    return JSON.parse(JSON.stringify({ ...s, version: SAVE_VERSION, day: s.career.day })) as SaveBlob;
+  }, []);
+
+  const saveNow = useCallback(async (): Promise<boolean> => {
+    if (!mountedRef.current || restoreLockRef.current) return false;
+    const s = stateRef.current;
+    let full: SaveBlob;
+    try {
+      // Capture the state at request time so delayed writes cannot observe later mutations.
+      full = snapshotForBackup();
+    } catch {
+      if (mountedRef.current) setSaveError('Kariyer kaydedilemedi. Sayfayı kapatmadan yeniden dene.');
+      return false;
+    }
     const isFirstWrite = s.career.day === 1 && s.fixtures.every((f) => !f.played);
-    if (isFirstWrite) {
-      const res = await writeSaveRetry(full, 3);
-      if (!res) {
-        // retry da tükendiyse kullanıcıya haber ver — global unhandled yerine toast yerine console+a11y göstergesinde
-        console.error('[save] İlk kariyer kaydı 3 denemede de yazılamadı — sayfa yenilenebilir.');
+    const task = saveQueueRef.current.then(async () => {
+      // A restore supersedes saves that had not started yet.
+      if (!mountedRef.current || restoreLockRef.current) return false;
+      try {
+        const options = { expectedUpdatedAt: saveRevisionRef.current };
+        const saved = isFirstWrite ? await writeSaveRetry(full, 3, options) : await writeSave(full, options);
+        if (!saved) throw new Error('save-retries-exhausted');
+        saveRevisionRef.current = saved.updatedAt;
+        if (mountedRef.current) setSaveError(null);
+        return true;
+      } catch (error) {
+        console.error('[save] Kariyer kaydedilemedi:', error);
+        if (mountedRef.current) setSaveError(error instanceof SaveConflictError ? error.message : 'Kariyer kaydedilemedi. Cihazın depolama alanını ve izinlerini kontrol et; sayfayı kapatmadan yeniden dene.');
+        return false;
       }
-    } else {
-      await writeSave(full).catch(() => {});
+    });
+    saveQueueRef.current = task.then(() => undefined);
+    return task;
+  }, [snapshotForBackup]);
+
+  // Group related settings/budget/inbox changes from the same interaction into one save.
+  const scheduleSave = useCallback(() => {
+    if (deferredSaveRef.current) clearTimeout(deferredSaveRef.current);
+    deferredSaveRef.current = setTimeout(() => { deferredSaveRef.current = null; void saveNow(); }, 200);
+  }, [saveNow]);
+  useEffect(() => () => { if (deferredSaveRef.current) clearTimeout(deferredSaveRef.current); }, []);
+
+  const restoreBackup = useCallback(async (blob: SaveBlob): Promise<boolean> => {
+    if (restoreLockRef.current) return false;
+    restoreLockRef.current = true;
+    // Any already-started write finishes before the replacement. Later autosaves/pagehide stay locked.
+    await saveQueueRef.current;
+    try {
+      await writeSave({ ...blob, career: { ...blob.career, slot: stateRef.current.career.slot } }, { expectedUpdatedAt: saveRevisionRef.current });
+      if (mountedRef.current) setSaveError(null);
+      // Keep locked until reload so the old in-memory career cannot overwrite the imported save.
+      return true;
+    } catch (error) {
+      console.error('[save] Yedek içe aktarılamadı:', error);
+      restoreLockRef.current = false;
+      if (mountedRef.current) setSaveError(error instanceof SaveConflictError ? error.message : 'Yedek kaydedilemedi; mevcut kariyer değiştirilmedi. Depolama alanını ve izinlerini kontrol et.');
+      return false;
     }
   }, []);
 
@@ -436,9 +490,10 @@ export function GameProvider({ career: initialCareer, snapshot, children }: {
   // Çıkışta kaydet
   useEffect(() => {
     const h = () => { void saveNow(); };
+    const onVisibility = () => { if (document.visibilityState === 'hidden') h(); };
     window.addEventListener('pagehide', h);
-    window.addEventListener('visibilitychange', () => document.visibilityState === 'hidden' && h());
-    return () => { window.removeEventListener('pagehide', h); };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => { window.removeEventListener('pagehide', h); document.removeEventListener('visibilitychange', onVisibility); };
   }, [saveNow]);
 
   // ── Örnek gol dağılımı + dünya/zorluk ayarları (§8.4, §10.9) ──
@@ -1382,11 +1437,13 @@ export function GameProvider({ career: initialCareer, snapshot, children }: {
 
   const setInbox = useCallback((fn: (m: InboxMsg[]) => InboxMsg[]) => {
     setSt((s) => ({ ...s, inbox: fn(s.inbox) }));
-  }, []);
+    scheduleSave();
+  }, [scheduleSave]);
 
   const setCareer = useCallback((fn: (c: Career) => Career) => {
     setSt((s) => ({ ...s, career: fn(s.career) }));
-  }, []);
+    scheduleSave();
+  }, [scheduleSave]);
 
   const updateMarketShortlist = useCallback((playerIds: string[], players: Player[]) => {
     const s = stateRef.current;
@@ -1419,7 +1476,8 @@ export function GameProvider({ career: initialCareer, snapshot, children }: {
 
   const setBudget = useCallback((fn: (b: { tb: number; wbExtra?: number }) => { tb: number; wbExtra?: number }) => {
     setSt((s) => ({ ...s, budget: fn(s.budget) }));
-  }, []);
+    scheduleSave();
+  }, [scheduleSave]);
 
   const resolveCultureIssue = useCallback((issueId: string, choice: CultureChoice): { ok: boolean; reason?: string } => {
     const s = stateRef.current;
@@ -1895,7 +1953,7 @@ export function GameProvider({ career: initialCareer, snapshot, children }: {
   const value: GameState & GameActions = {
     ...st,
     myClub, myLeague, mySquad, squads, nextFixture, unread,
-    effectiveStrength, saveNow,
+    effectiveStrength, saveNow, saveError, snapshotForBackup, restoreBackup,
     advanceDay, buildDemoMatch, playLeagueMatch, updateTactic, setInbox, setCareer, updateMarketShortlist, recordManagerYellow, consumeManagerSuspension, setBudget, addSquadPlayer, clearSeasonFinale,
     setTrainingFocus, signAcademyCandidate, passAcademyCandidate, acceptJob,
     buyPlayer, clinicTreat, setRiskPlay, applyRiskOutcome, setMentor, respondOffer, toggleTransferList, playerOf, clubOfPlayer, quoteRenewal, renewContract,

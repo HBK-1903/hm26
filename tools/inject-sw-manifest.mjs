@@ -1,13 +1,13 @@
-// HM26 — BUG-SW-03: build sonrası dist envanterini sw.js __PRECACHE__ yerine yerleştirir.
-// Kullanım: npm run build zincirinde otomatik çağrılır (vite build'ten sonra).
-import { readdirSync, statSync, readFileSync, writeFileSync } from 'fs';
-import { join, relative } from 'path';
+// Build sonrası içerik karması ve dist envanterini service worker'a enjekte eder.
+// İsteğe bağlı dizin argümanı, aynı işlemi izole test fikstürlerinde sınamaya yarar.
+import { createHash } from 'node:crypto';
+import { readdirSync, statSync, readFileSync, writeFileSync } from 'node:fs';
+import { join, relative, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const DIST = new URL('../dist', import.meta.url).pathname;
+const DIST = process.argv[2] ? resolve(process.argv[2]) : fileURLToPath(new URL('../dist', import.meta.url));
 const skip = new Set(['hm26-cloudflare.zip', '_redirects', '_headers']);
-// Sistem/mağaza seviyesi varlıklar app-shell precache'ine girmez:
-//  - /splash/*      → iOS apple-touch-startup-image (açılıştan önce OS tarafından okunur)
-//  - /screenshots/* → Android kurulum diyaloğu/mağaza tanıtım görselleri
+// OS/mağaza varlıkları app-shell yükünü artırmasın.
 const PRECACHE_EXCLUDE_PREFIXES = ['/splash/', '/screenshots/'];
 const files = [];
 (function walk(dir) {
@@ -20,13 +20,24 @@ const files = [];
     files.push(rel);
   }
 })(DIST);
+files.sort();
 
-// SPA kökü hem '/' hem '/index.html' olarak önbellekte
-const precache = ['/', ...files.filter((f) => f !== '/index.html' && f !== '/sw.js')];
+const precache = ['/', ...files.filter((file) => file !== '/index.html' && file !== '/sw.js')];
 const swPath = join(DIST, 'sw.js');
 let sw = readFileSync(swPath, 'utf8');
-const anchor = 'const PRECACHE = __PRECACHE__;';
-if (!sw.includes(anchor)) throw new Error('PRECACHE çapası bulunamadı — yeniden enjekte mi çalıştı?');
-sw = sw.replace(anchor, 'const PRECACHE = ' + JSON.stringify(precache) + ';');
+const manifestAnchor = 'const PRECACHE = __PRECACHE__;';
+const versionAnchor = "const BUILD_VERSION = '__BUILD_VERSION__';";
+if (!sw.includes(manifestAnchor) || !sw.includes(versionAnchor)) throw new Error('SW enjeksiyon çapası bulunamadı — yeniden enjekte mi çalıştı?');
+
+// Stable filenames can change content too. Hash the worker template, HTML and every
+// precached file (not just the file list) so two releases never share a cache.
+const hash = createHash('sha256');
+for (const file of files) {
+  hash.update(file).update('\0');
+  hash.update(createHash('sha256').update(readFileSync(join(DIST, file.slice(1)))).digest());
+}
+const version = hash.digest('hex').slice(0, 16);
+sw = sw.replace(manifestAnchor, 'const PRECACHE = ' + JSON.stringify(precache) + ';');
+sw = sw.replace(versionAnchor, `const BUILD_VERSION = '${version}';`);
 writeFileSync(swPath, sw);
-console.log('SW precache: ' + precache.length + ' dosya enjekte edildi');
+console.log(`SW precache: ${precache.length} dosya, sürüm ${version}`);

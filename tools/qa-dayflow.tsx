@@ -4,6 +4,7 @@
 // maç sonu analizi → "Sonucu Kaydet — Ana Merkez" → Hub → "Sonraki Gün" zinciri ·
 // röportaj sonrası "Kaydet ve Günü Bitir" kısayolu (kaydet + gün ilerletme + özet sheet).
 // Gerçek AppShell üzerinde oynatılır.
+import 'fake-indexeddb/auto';
 import { JSDOM } from 'jsdom';
 const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', { url: 'http://localhost/', pretendToBeVisual: true });
 (globalThis as any).window = dom.window;

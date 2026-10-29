@@ -1,7 +1,17 @@
 // HM26 — Sürüm kimliği + sürüm notları (Dalga 7: PWA daveti/sürüm notu)
-export const APP_VERSION = '0.9.13';
+export const APP_VERSION = '1.0.0';
 
 export const CHANGELOG: { v: string; lines: string[] }[] = [
+  {
+    v: '1.0.0',
+    lines: [
+      '⚽ HM26 tam sürüm: kulübünü yönet, transferlerini ve maç günlerini yaşa, kariyer hikâyeni oluştur.',
+      '🎬 Maç günü geliş ve ödül sahneleri, kulübe tepkileri, karşılaştırmalar ve haftalık gazete eklendi.',
+      '🤝 Sesli sözleşme yenileme, transfer pazarlığı, piyasa ve kadro ekranları geliştirildi.',
+      '💾 Yedekler yüklenmeden doğrulanır; kayıt hataları ve başka sekmeyle çakışmalar bildirilir. Eski kayıt sürümleri desteklenir.',
+      '📱 Çevrimdışı güncellemeler sürüme özel önbellek kullanır; yeni sürüm onayınla açılır.',
+    ],
+  },
   {
     v: '0.9.13',
     lines: [

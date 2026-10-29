@@ -47,8 +47,10 @@ Pages → **Connect to Git** → depoyu seç; build komutu `npm run build`, çı
 - **Service worker sürümleme artık otomatiktir.** `tools/inject-sw-manifest.mjs`
   her build'de `dist` envanterini `sw.js` içine enjekte eder; dosya içeriği her
   yayında değiştiği için tarayıcı yeni worker'ı fark eder. `public/sw.js`
-  içinde elle etiket değiştirme gerekmez (geçmişteki `manager26-v058-v1` notu
-  kaldırılmıştır). Cache adı yalnız kabuk stratejisi değiştiğinde elle yükseltilir.
+  içinde elle etiket değiştirme gerekmez. Cache adı, worker ve çevrimdışı paket
+  içeriğinden türetilen sürüme özeldir; bekleyen güncelleme eski cache'i değiştirmez.
+  Etkinleştirmede önceki sürüm, başka açık sekmelerin eski hash'li kodlarını
+  tamamlayabilmesi için tutulur.
 - `_headers`, `sw.js` ve `manifest.json` için `no-cache` zorlar; istemci kaydı
   `updateViaCache: 'none'` ile açılır. Yeni sürüm, kullanıcı uygulama içi
   "Güncelle" bandını onaylayana kadar bekler.

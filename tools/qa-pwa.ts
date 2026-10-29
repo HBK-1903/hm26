@@ -44,10 +44,12 @@ pass('Cloudflare no-cache headers for service worker and manifest');
 
 const workerSource = read('public/sw.js');
 assert.ok(workerSource.includes('const PRECACHE = __PRECACHE__;'), 'Injector anchor must remain unchanged');
-assert.ok(workerSource.includes("e.data.type === 'SKIP_WAITING'"), 'Worker must accept user-approved activation');
+assert.match(workerSource, /(?:e|event)\.data\.type === 'SKIP_WAITING'/, 'Worker must accept user-approved activation');
 assert.ok(!workerSource.includes('.then(() => self.skipWaiting())'), 'Worker must wait for the user on updates');
 const builtWorker = read('dist/sw.js');
 assert.ok(!builtWorker.includes('__PRECACHE__'), 'Build must inject the precache manifest');
+assert.ok(!builtWorker.includes('__BUILD_VERSION__'), 'Build must inject a content-derived version');
+assert.match(builtWorker, /const BUILD_VERSION = '[0-9a-f]{16}';/);
 assert.match(builtWorker, /const PRECACHE = \[/);
 for (const path of ['/manifest.json', '/icons/icon-192.png', '/icons/icon-512.png']) {
   assert.ok(builtWorker.includes(JSON.stringify(path)), `Precache is missing ${path}`);

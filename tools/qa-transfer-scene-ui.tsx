@@ -38,7 +38,7 @@ import React, { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Simulate } from 'react-dom/test-utils';
 import { GameProvider, useGame } from '../src/store/game';
-import { readSave, SAVE_VERSION, writeSave, type SaveBlob } from '../src/store/persist';
+import { deleteSave, readSave, SAVE_VERSION, writeSave, type SaveBlob } from '../src/store/persist';
 import { OfferFlow } from '../src/screens/Market';
 import { genFreeAgent, playerValue } from '../src/data/gen';
 import { clubByIdSafe } from '../src/data/clubs';
@@ -99,7 +99,13 @@ const mount = async (props: TestProps, day = 1, resetProvider = false) => {
   if (resetProvider) providerKey++;
   await act(async () => root.render(<GameProvider key={providerKey} career={{ ...career, day }}><Harness {...props} /></GameProvider>));
 };
-const fresh = async (day = 1) => { await mount({}, day, true); buyCalls = 0; done = []; homeCalls = 0; cancels = 0; };
+const fresh = async (day = 1) => {
+  // A new career requires an actually empty slot, just as the real slot picker does.
+  await act(async () => root.render(<></>));
+  await deleteSave(career.slot);
+  await mount({}, day, true);
+  buyCalls = 0; done = []; homeCalls = 0; cancels = 0;
+};
 const free = (id: string, gen: number, foreign = false): Player => {
   const template = genFreeAgent(831, 'kok', 2, 'FA');
   return { ...template, id: `fa_${id}`, clubId: 'FA', name: `Test ${id}`, foreign, wage: 100, ratings: { ...template.ratings, gen }, kitNumber: undefined };

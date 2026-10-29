@@ -1,7 +1,7 @@
 {
   "name": "manager26",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,6 +9,11 @@
     "preview": "vite preview",
     "qa:features": "tsx tools/qa-features-v099.ts",
     "qa:save-meta": "tsx tools/qa-save-metadata.ts",
+    "qa:save-integrity": "node --import tsx --loader ./tools/qa-live-loader.mjs tools/qa-save-integrity.tsx",
+    "qa:save-integrity:browser": "node tools/e2e-save-integrity.mjs",
+    "qa:sw-manifest": "node tools/qa-sw-manifest.mjs",
+    "qa:sw-update:browser": "node tools/e2e-sw-update.mjs",
+    "qa:game-update:browser": "node tools/e2e-update-game.mjs",
     "qa:security-skill": "node tools/qa-security-skill.mjs",
     "qa:security-skill:validators": "node --test .agents/skills/security-audit/validate-findings.test.cjs .agents/skills/security-audit/validate-coverage-ledger.test.cjs",
     "qa:agency-roles": "node tools/qa-agency-roles.mjs",
@@ -96,6 +101,6 @@
     "tailwindcss": "^3.4.17",
     "tsx": "^4.23.15",
     "typescript": "^5.7.3",
-    "vite": "^5.4.11"
+    "vite": "^6.4.5"
   }
 }

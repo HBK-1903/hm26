@@ -1,4 +1,5 @@
 // QA: gerçek LiveMatch bileşenini jsdom'da maç sonuna kadar sürer (HM26_CLUB/HM26_SEED/HM26_TARGET_COMP/HM26_FAULT env)
+import 'fake-indexeddb/auto';
 import { JSDOM } from 'jsdom';
 const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', { url: 'http://localhost/', pretendToBeVisual: true });
 (globalThis as any).window = dom.window;

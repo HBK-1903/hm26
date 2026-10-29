@@ -2,6 +2,7 @@
 // Çalıştır: npx --yes tsx tools/qa.ts
 import { CLUBS } from '../src/data/clubs';
 import { genSquad } from '../src/data/gen';
+import { buildCup } from '../src/data/calendar';
 import { simulateMatch, aiDefaultTactic } from '../src/engine/engine';
 import { MatchSession } from '../src/engine/session';
 
@@ -91,8 +92,8 @@ function makeSampleBlob(): { blob: SaveBlob; meta: SaveMeta } {
     version: SAVE_VERSION, day: 42,
     career: { slot: 1, manager: { name: 'Test Hoca', portrait: 0, background: 'analist', era: 'yerlesik', difficulty: 'dengeli', challengePoints: 40 }, clubId: 'denizli_yesilova', seed: 20260803, day: 42, week: 6, settings: { goalPace: 'dengeli', randomness: 'normal', marketRefresh: 'dengeli', boardPressure: 'orta', injuryRate: 'normal', textSize: 'normal', highContrast: false, reduceMotion: false, matchSpeed: 'normal', suggestions: true }, pending: { marketShortlist: [], activeProject: null } },
     table: { zirve: [], gecit: [], kok: [] },
-    fixtures: [], friendlies: [], cup: { fixtures: [], rounds: [], champion: null },
-    inbox: [], tactics: [], seasonHistory: [], removedPlayers: [], seasonNo: 1, leagueOf: {},
+    fixtures: [], friendlies: [], cup: buildCup(20260803),
+    inbox: [], tactics: [{ id: 'p1', name: 'Ana Plan', formation: '4-3-3', plan: 'dengeli', setPieces: {} }], seasonHistory: [], removedPlayers: [], seasonNo: 1, leagueOf: {},
     playerPatch: {}, budget: { tb: 10 }, pendingBids: [], incomingOffers: [], counterDoneDay: -1, freeAgents: [], transferLog: [], oppMatchDays: {}, seasonFinale: null,
   } as unknown as SaveBlob;
   const meta: SaveMeta = { slot: 1, clubName: 'Denizli Yeşilova SK', managerName: 'Test Hoca', day: 42, updatedAt: Date.now(), version: SAVE_VERSION };

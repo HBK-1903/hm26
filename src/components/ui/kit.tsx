@@ -81,7 +81,7 @@ export const Badge: React.FC<{ kind: 'ok' | 'warn' | 'danger' | 'info' | 'specia
   return <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-[11px] font-bold font-body ${map[kind]} ${className}`}>{children}</span>;
 };
 
-export const Sheet: React.FC<{ open: boolean; onClose: () => void; title?: string; children: React.ReactNode; tall?: boolean }> = ({ open, onClose, title, children, tall = false }) => {
+export const Sheet: React.FC<{ open: boolean; onClose: () => void; title?: string; children: React.ReactNode; tall?: boolean; dismissible?: boolean }> = ({ open, onClose, title, children, tall = false, dismissible = true }) => {
   const trapRef = useFocusTrap<HTMLDivElement>(open);
   const titleId = React.useId();
   const closeRef = React.useRef(onClose);
@@ -92,7 +92,7 @@ export const Sheet: React.FC<{ open: boolean; onClose: () => void; title?: strin
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') { event.preventDefault(); closeRef.current(); }
+      if (event.key === 'Escape' && dismissible) { event.preventDefault(); closeRef.current(); }
     };
     document.addEventListener('keydown', onKeyDown);
     return () => {
@@ -100,16 +100,16 @@ export const Sheet: React.FC<{ open: boolean; onClose: () => void; title?: strin
       document.removeEventListener('keydown', onKeyDown);
       if (previous?.isConnected) window.setTimeout(() => previous.focus(), 0);
     };
-  }, [open]);
+  }, [open, dismissible]);
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50" role="dialog" aria-modal="true" aria-labelledby={title ? titleId : undefined} aria-label={title ? undefined : 'Açılır panel'}>
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px]" onClick={onClose} aria-hidden="true" />
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px]" onClick={dismissible ? onClose : undefined} aria-hidden="true" />
       <div ref={trapRef} tabIndex={-1} className={`absolute bottom-0 left-0 right-0 max-w-[430px] mx-auto bg-elevated rounded-t-3xl border-t border-line ${tall ? 'max-h-[93dvh]' : 'max-h-[82dvh]'} flex flex-col m26-in`}>
         <div className="flex items-center justify-between px-5 pt-4 pb-3">
           <div className="w-10 h-1.5 rounded-full bg-line mx-auto absolute left-1/2 -translate-x-1/2 top-2" aria-hidden="true" />
           {title && <h2 id={titleId} className="font-display text-[17px] text-primary mt-2">{title}</h2>}
-          <button type="button" onClick={onClose} className="min-w-touch min-h-touch -mr-2 flex items-center justify-center text-secondary text-xl ml-auto" aria-label="Kapat">×</button>
+          {dismissible && <button type="button" onClick={onClose} className="min-w-touch min-h-touch -mr-2 flex items-center justify-center text-secondary text-xl ml-auto" aria-label="Kapat">×</button>}
         </div>
         <div className="overflow-y-auto no-scrollbar px-5 pb-8 safe-b">{children}</div>
       </div>

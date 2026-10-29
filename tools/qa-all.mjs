@@ -43,6 +43,8 @@ try {
   if (!existsSync(`${root}/node_modules/.bin/tsc`)) run('Install locked dependencies', 'npm', ['ci'], 300_000);
   run('Production build + TypeScript + offline manifest', 'npm', ['run', 'build'], 300_000);
   run('PWA headers, manifest, icons and update lifecycle', 'npm', ['run', 'qa:pwa'], 120_000);
+  run('Content-derived service-worker build identity', 'npm', ['run', 'qa:sw-manifest'], 60_000);
+  run('Save integrity, legacy migration and transaction conflicts (jsdom)', 'npm', ['run', 'qa:save-integrity'], 120_000);
   run('Project-local security skill installation checks (not an audit)', 'npm', ['run', 'qa:security-skill'], 60_000);
   run('Agency development role installation checks (not independent agents)', 'npm', ['run', 'qa:agency-roles'], 60_000);
 
@@ -108,6 +110,9 @@ try {
       ['Icon system E2E', 'tools/e2e-icons.mjs'],
       ['Statistics and career history E2E', 'tools/e2e-stats.mjs'],
       ['Save-slot delete flow E2E', 'tools/e2e-slots.mjs'],
+      ['Backup, storage failure, legacy migration and stale-tab E2E', 'tools/e2e-save-integrity.mjs'],
+      ['Service-worker two-release and offline isolation E2E', 'tools/e2e-sw-update.mjs'],
+      ['Save-before-update and multi-tab game update E2E', 'tools/e2e-update-game.mjs'],
       ['Full profile → starting XI E2E', 'tools/e2e-xi-full.mjs'],
       ['Out-of-position warning E2E', 'tools/e2e-xi-warn.mjs'],
       ['Bench-first tactical flow E2E', 'tools/e2e-benchfirst.mjs'],

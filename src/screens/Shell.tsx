@@ -186,6 +186,12 @@ export const AppShell: React.FC<{ pendingScreen: Screen | null; setPendingScreen
           </button>
         </div>
       </header>
+      {g.saveError && (
+        <div role="alert" className="shrink-0 flex items-center gap-2 border-b border-danger/40 bg-danger/10 px-3 py-2 text-[12px] font-semibold text-danger">
+          <span className="flex-1">{g.saveError} Güncel durumu Yedekleme bölümünden dosyaya indirebilirsin.</span>
+          <button type="button" className="min-h-touch underline" onClick={() => { void g.saveNow(); }}>Tekrar Dene</button>
+        </div>
+      )}
 
       {/* İçerik */}
       <div className="flex-1 min-h-0 relative">
