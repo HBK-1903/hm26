@@ -10,7 +10,16 @@ export function transferVoiceVolume(): number {
   return Math.max(0, Math.min(1, master)) * Math.max(0, Math.min(1, fx));
 }
 
-/** Tek seferde bir replik; engellenen ses oynatımı metin ve kullanıcı akışını engellemez. */
+function releasePlayer(player: HTMLAudioElement) {
+  player.onplaying = null;
+  player.onwaiting = null;
+  player.onpause = null;
+  player.onended = null;
+  player.onerror = null;
+  try { player.pause(); } catch { /* medya API'si olmayabilir */ }
+}
+
+/** Tek seferde bir replik; ses yüklenirken veya engellendiğinde yalnız altyazı görünür. */
 export function useTransferSpeech() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [muted, setMuted] = useState(false);
@@ -19,11 +28,7 @@ export function useTransferSpeech() {
   const stop = useCallback(() => {
     const current = audioRef.current;
     audioRef.current = null;
-    if (current) {
-      current.onended = null;
-      current.onerror = null;
-      try { current.pause(); } catch { /* medya API'si olmayabilir */ }
-    }
+    if (current) releasePlayer(current);
     setSpeaking(null);
   }, []);
   const play = useCallback((line: TransferVoiceLine) => {
@@ -34,15 +39,23 @@ export function useTransferSpeech() {
       const player = new window.Audio(line.src);
       audioRef.current = player;
       player.volume = transferVoiceVolume();
+      // play() bir yükleme isteğidir; gerçek oynatma ancak "playing" ile başlar.
+      // Eski bir kaydın geç gelen olayları yeni konuşmacıyı etkileyemez.
+      player.onplaying = () => { if (audioRef.current === player) setSpeaking(line.speaker); };
+      const silence = () => { if (audioRef.current === player) setSpeaking(null); };
       const finish = () => {
-        if (audioRef.current === player) { audioRef.current = null; setSpeaking(null); }
+        if (audioRef.current !== player) return;
+        audioRef.current = null;
+        releasePlayer(player);
+        setSpeaking(null);
       };
+      player.onwaiting = silence;
+      player.onpause = silence;
       player.onended = finish;
       player.onerror = finish;
-      setSpeaking(line.speaker);
       const started = player.play();
       if (started && typeof started.catch === 'function') void started.catch(finish);
-    } catch { setSpeaking(null); }
+    } catch { stop(); }
   }, [muted, stop]);
   const toggle = useCallback(() => {
     stop();
@@ -52,11 +65,7 @@ export function useTransferSpeech() {
   useEffect(() => () => {
     const current = audioRef.current;
     audioRef.current = null;
-    if (current) {
-      current.onended = null;
-      current.onerror = null;
-      try { current.pause(); } catch { /* noop */ }
-    }
+    if (current) releasePlayer(current);
   }, []);
   return { muted, lastLine, speaking, play, toggle, stop, clear };
 }

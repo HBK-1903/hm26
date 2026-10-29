@@ -55,11 +55,16 @@ try {
     ['League/cup balance simulation (4,000 matches)', ['tsx', 'tools/masssim.ts']],
     ['Medical, protest, penalty, shout and telemetry QA', ['tsx', 'tools/qa-features-v099.ts']],
     ['Pitch Wave 1 geometry and goal-line clearance QA (6 checks)', ['tsx', 'tools/qa-pitch-v0912.ts']],
+    ['Pitch formation, team colors and motion cadence', ['tsx', 'tools/qa-pitch-motion.ts']],
+    ['Live engine projection and speed parity', ['tsx', 'tools/qa-live-projection-wave10.ts']],
+    ['Shared UI notification timing', ['tsx', 'tools/qa-ui-smoothness.tsx']],
     ['Transfer presentation rules, voices and local artwork', ['tsx', 'tools/qa-transfer-scene.ts']],
   ];
   for (const [name, args] of core) run(name, 'npx', ['--yes', ...args], name.includes('simulation') ? 300_000 : 180_000);
   run('Transfer negotiation and save integration (jsdom)', 'npm', ['run', 'qa:transfer:scene:ui'], 180_000);
   run('Batched halftime event and decision flow (jsdom)', 'npm', ['run', 'qa:live:halftime'], 180_000);
+  run('Match finish and manual interview flow (jsdom)', 'npm', ['run', 'qa:match-finish'], 180_000);
+  run('Matchday progression and end-day regression (jsdom)', 'npm', ['run', 'qa:dayflow'], 180_000);
 
   const browserProbe = spawnSync(process.execPath, ['-e', "import('playwright').then(({ chromium }) => console.log(chromium.executablePath()))"], { cwd: root, encoding: 'utf8' });
   const chromiumExecutable = clean(browserProbe.stdout ?? '').split('\n').filter(Boolean).at(-1) ?? '';
@@ -92,6 +97,7 @@ try {
       ['Transfer theatre, signing and offline media E2E', 'tools/e2e-transfer-scene.mjs'],
       ['Market filters and match-flow E2E', 'tools/e2e-v099.mjs'],
       ['Live scorebug, feed, accessible Phaser pitch and action E2E (v0.9.12)', 'tools/e2e-live-v0911.mjs'],
+      ['Deterministic Phaser motion and pause E2E', 'tools/e2e-pitch-motion.mjs'],
       ['PWA offline shell + cached bundles E2E (v0.9.12)', 'tools/e2e-offline-v0911.mjs'],
     ];
     for (const [name, script] of ui) run(name, process.execPath, [script], 240_000);

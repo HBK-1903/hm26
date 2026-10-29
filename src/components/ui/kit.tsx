@@ -150,10 +150,13 @@ export const RatingChip: React.FC<{ value: number; label: string; showCrown?: bo
 import { useState as useTState } from 'react';
 export const useToast = () => {
   const [msg, setMsg] = useTState<{ text: string; kind: 'ok' | 'warn' } | null>(null);
-  const show = (text: string, kind: 'ok' | 'warn' = 'ok') => {
+  const timer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  React.useEffect(() => () => { if (timer.current !== null) clearTimeout(timer.current); }, []);
+  const show = React.useCallback((text: string, kind: 'ok' | 'warn' = 'ok') => {
+    if (timer.current !== null) clearTimeout(timer.current);
     setMsg({ text, kind });
-    setTimeout(() => setMsg(null), 2600);
-  };
+    timer.current = setTimeout(() => { timer.current = null; setMsg(null); }, 2600);
+  }, []);
   const ToastView = msg ? (
     <div role="status" aria-live="polite" className={`fixed left-1/2 -translate-x-1/2 bottom-6 z-[70] px-4 py-2.5 rounded-card text-[13px] font-bold shadow-lg m26-in ${msg.kind === 'ok' ? 'bg-ok text-base' : 'bg-danger text-base'}`}>
       {msg.text}

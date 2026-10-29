@@ -15,12 +15,21 @@ Object.defineProperty(globalThis, 'navigator', { value: dom.window.navigator, co
 dom.window.matchMedia = (() => ({ matches: false, media: '', onchange: null, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {}, dispatchEvent() { return false; } })) as any;
 (globalThis as any).matchMedia = dom.window.matchMedia;
 const audioPlays: { src: string; volume: number }[] = [];
+const audioInstances: MockAudio[] = [];
 let rejectAudio = false;
+let deferAudio = false;
 class MockAudio {
-  src: string; volume = 1; onended: (() => void) | null = null; onerror: (() => void) | null = null;
-  constructor(src: string) { this.src = src; }
-  play() { audioPlays.push({ src: this.src, volume: this.volume }); return rejectAudio ? Promise.reject(new Error('autoplay blocked')) : Promise.resolve(); }
-  pause() { audioPauses++; }
+  src: string; volume = 1;
+  onplaying: (() => void) | null = null; onwaiting: (() => void) | null = null; onpause: (() => void) | null = null;
+  onended: (() => void) | null = null; onerror: (() => void) | null = null;
+  constructor(src: string) { this.src = src; audioInstances.push(this); }
+  play() {
+    audioPlays.push({ src: this.src, volume: this.volume });
+    if (rejectAudio) return Promise.reject(new Error('autoplay blocked'));
+    if (!deferAudio) queueMicrotask(() => this.onplaying?.());
+    return Promise.resolve();
+  }
+  pause() { audioPauses++; this.onpause?.(); }
 }
 let audioPauses = 0;
 (dom.window as any).Audio = MockAudio;
@@ -108,12 +117,38 @@ check('Serbest oyuncu için kulüp aşaması atlanabilir, henüz transfer yok', 
 await clickId('transfer-send-seller');
 check('Serbest oyuncu doğrudan sözleşme masasına geçti', stage() === 'player' && scene() === 'negotiation');
 await setInput('Aylık maaş teklifi', 100);
+deferAudio = true;
 await clickId('transfer-reply-player-calm');
 const selectedText = q('[data-testid="transfer-reply-player-calm"] .transfer-reply__label')?.textContent?.replace(/[“”]/g, '') ?? '';
 const playedLine = ALL_TRANSFER_VOICES.find((line) => line.src === audioPlays.at(-1)?.src);
 check('Seçilen replik, oynatılan kaynak ve görünür altyazı eşleşiyor', !!playedLine && playedLine.text === selectedText && (q('[data-testid="transfer-subtitle"]')?.textContent ?? '').includes(playedLine.text));
+const theatreSpeaker = () => q('[data-testid="transfer-theatre"]')?.getAttribute('data-speaking');
+const activePuppets = () => dom.window.document.querySelectorAll('[data-testid="transfer-theatre"] .transfer-puppet.is-talking').length;
+const firstVoice = audioInstances.at(-1)!;
+check('Ses yüklenirken yalnız altyazı görünür, karakter henüz konuşmaz', theatreSpeaker() === 'none' && activePuppets() === 0);
+await act(async () => firstVoice.onplaying?.());
+check('Ses gerçekten başlayınca yalnız menajer konuşur', theatreSpeaker() === 'manager' && activePuppets() === 1 && q('[data-testid="transfer-theatre"] .transfer-puppet--manager')?.getAttribute('data-talking') === 'true');
+await act(async () => firstVoice.onwaiting?.());
+check('Ara belleğe alma sırasında dudak hareketi durur', theatreSpeaker() === 'none' && activePuppets() === 0);
+await act(async () => firstVoice.onplaying?.());
+const latePlaying = firstVoice.onplaying, lateEnd = firstVoice.onended;
+await clickId('transfer-reply-player-calm');
+const replacementVoice = audioInstances.at(-1)!;
+await act(async () => { latePlaying?.(); lateEnd?.(); });
+check('Önceki repliğin geç gelen olayları yeni repliği başlatmaz veya bitirmez', theatreSpeaker() === 'none' && replacementVoice !== firstVoice);
+await act(async () => replacementVoice.onplaying?.());
+check('Yeni replik yalnız kendi oynatma olayıyla başlar', theatreSpeaker() === 'manager' && activePuppets() === 1);
 await clickId('transfer-send-player');
 check('Düşük maaş teklifi oyuncudan ret alıyor, imza yok', stage() === 'player' && /en az ₺/.test(body()) && !byId('transfer-review') && gRef.transferLog.length === beforeStarLog);
+const playerVoice = audioInstances.at(-1)!;
+await act(async () => playerVoice.onplaying?.());
+check('Oyuncu yanıtında doğru yüz konuşur', theatreSpeaker() === 'player' && q('[data-testid="transfer-theatre"] .transfer-puppet--opponent')?.getAttribute('data-talking') === 'true' && activePuppets() === 1);
+await act(async () => playerVoice.onpause?.());
+check('Dışarıdan duraklatılan ses yüz animasyonunu da durdurur', theatreSpeaker() === 'none');
+await act(async () => playerVoice.onplaying?.());
+await act(async () => playerVoice.onended?.());
+check('Replik bitince yüz tekrar dinlenme durumuna geçer', theatreSpeaker() === 'none' && activePuppets() === 0);
+deferAudio = false;
 await clickId('transfer-reply-player-witty');
 await clickId('transfer-send-player');
 const demandAfterWitty = (body().match(/güncel beklentisi ₺(\d+)B/) ?? [])[1];
