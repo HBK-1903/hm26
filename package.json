@@ -53,6 +53,8 @@
     "qa:pitch:motion": "tsx tools/qa-pitch-motion.ts",
     "qa:pitch:motion:browser": "node tools/e2e-pitch-motion.mjs",
     "qa:ui:smoothness": "tsx tools/qa-ui-smoothness.tsx",
+    "qa:career:world": "tsx tools/qa-career-world.tsx",
+    "qa:career:world:browser": "node tools/e2e-career-world.mjs",
     "qa:transfer:wave11": "tsx tools/qa-transfer-wave11.ts",
     "qa:transfer:scene": "tsx tools/qa-transfer-scene.ts",
     "qa:transfer:scene:ui": "node --import tsx --loader ./tools/qa-live-loader.mjs tools/qa-transfer-scene-ui.tsx",

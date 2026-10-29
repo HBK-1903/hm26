@@ -62,7 +62,7 @@ export const Wizard: React.FC<{ slot: number; onDone: (c: Career) => void; onBac
 
       <div className="flex-1 overflow-y-auto no-scrollbar px-5 pb-4" key={step}>
         {step === 0 && <StepManager draft={draft} setDraft={setDraft} />}
-        {step === 1 && <StepEra draft={draft} setDraft={setDraft} />}
+        {step === 1 && <StepEra draft={draft} setDraft={setDraft} settings={settings} setSettings={setSettings} />}
         {step === 2 && <StepDifficulty draft={draft} setDraft={setDraft} settings={settings} setSettings={setSettings} />}
         {step === 3 && <StepClub leagueTab={leagueTab} setLeagueTab={setLeagueTab} clubId={clubId} setClubId={setClubId} />}
         {step === 4 && club && <StepBrief club={club} draft={draft} phase={briefPhase} setPhase={setBriefPhase} />}
@@ -135,9 +135,52 @@ const StepManager: React.FC<{ draft: ManagerDraft; setDraft: (d: ManagerDraft) =
   </div>
 );
 
-const StepEra: React.FC<{ draft: ManagerDraft; setDraft: (d: ManagerDraft) => void }> = ({ draft, setDraft }) => (
-  <div className="m26-in space-y-2">
-    <p className="text-secondary text-[13px] leading-snug mb-3">Dünya Dönemi kulüplerin güç dengesi ve piyasa hareketliliğini belirler. Alt parametreler Özel Kariyerde değiştirilebilir.</p>
+type SettingsSetter = React.Dispatch<React.SetStateAction<CareerSettings>>;
+type WorldSettingKey = 'goalPace' | 'randomness' | 'injuryRate' | 'marketRefresh';
+
+// These are existing career settings already consumed by the match and world systems.
+// Both wizard steps use the same definitions and state; no new save fields are needed.
+const WORLD_SETTINGS: { [K in WorldSettingKey]: {
+  label: string; description: string; options: readonly (readonly [CareerSettings[K], string])[];
+} } = {
+  goalPace: { label: 'Gol ritmi', description: 'Maçlardaki gol olasılığını etkiler.', options: [['dusuk', 'Düşük'], ['dengeli', 'Dengeli'], ['yuksek', 'Yüksek']] },
+  randomness: { label: 'Şaşırtıcılık / rastgelelik', description: 'Maçlardaki sürpriz düzeyini belirler.', options: [['low', 'Tahmin edilebilir'], ['normal', 'Dengeli'], ['high', 'Kaotik']] },
+  injuryRate: { label: 'Sakatlık sıklığı', description: 'Maç sonrası sakatlık riskini değiştirir.', options: [['dusuk', 'Düşük'], ['normal', 'Normal'], ['yuksek', 'Yüksek']] },
+  marketRefresh: { label: 'Piyasa yenilenme ritmi', description: 'Fırsatlar sırasıyla 30, 14 veya 7 günde yenilenir.', options: [['sakin', 'Sakin'], ['dengeli', 'Dengeli'], ['yogun', 'Yoğun']] },
+};
+
+const SettingOption: React.FC<{ label: string; value: string; options: readonly (readonly [string, string])[]; onPick: (v: string) => void; locked?: boolean; description?: string }> = ({ label, value, options, onPick, locked, description }) => (
+  <div role="group" aria-label={label} className="px-4 py-3 border-b border-line/40 last:border-0">
+    <div className="text-[13px] mb-2">
+      <span className="text-primary font-semibold">{label} {locked && <span className="text-muted text-[10.5px]">🔒 kariyerde kilitli</span>}</span>
+      {description && <p className="text-secondary text-[11.5px] mt-1 leading-snug">{description}</p>}
+    </div>
+    <div className="flex gap-1.5">
+      {options.map(([v, text]) => (
+        <button type="button" key={v} onClick={() => onPick(v)} aria-pressed={value === v}
+          className={`flex-1 min-w-0 min-h-touch px-1 rounded-lg text-[12px] leading-tight font-bold border transition-colors ${value === v ? 'bg-amber/15 border-amber text-amber' : 'bg-base border-line text-secondary'}`}>
+          {text}
+        </button>
+      ))}
+    </div>
+  </div>
+);
+
+const WorldSettingOption: React.FC<{ field: WorldSettingKey; settings: CareerSettings; setSettings: SettingsSetter; explain?: boolean }> = ({ field, settings, setSettings, explain = false }) => {
+  const option = WORLD_SETTINGS[field];
+  return <SettingOption label={option.label} value={settings[field]} options={option.options} locked description={explain ? option.description : undefined}
+    onPick={(value) => setSettings((current) => ({ ...current, [field]: value as CareerSettings[typeof field] }))} />;
+};
+
+const StepEra: React.FC<{ draft: ManagerDraft; setDraft: (d: ManagerDraft) => void; settings: CareerSettings; setSettings: SettingsSetter }> = ({ draft, setDraft, settings, setSettings }) => {
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const settingsToggle = React.useRef<HTMLButtonElement>(null);
+  React.useEffect(() => {
+    if (advancedOpen) settingsToggle.current?.scrollIntoView?.({ block: 'start', behavior: 'auto' });
+  }, [advancedOpen]);
+
+  return <div className="m26-in space-y-2">
+    <p className="text-secondary text-[13px] leading-snug mb-3">Dünya Dönemi kulüplerin güç dengesini belirler. Maç ve piyasa ayrıntılarını istersen aşağıdan ayrıca seçebilirsin.</p>
     {ERAS.map((e) => (
       <Card key={e.id} onClick={() => setDraft({ ...draft, era: e.id })} className={draft.era === e.id ? 'border-amber' : ''}>
         <div className="flex items-center justify-between">
@@ -149,27 +192,20 @@ const StepEra: React.FC<{ draft: ManagerDraft; setDraft: (d: ManagerDraft) => vo
         </div>
       </Card>
     ))}
-    <button className="w-full min-h-touch text-secondary text-[13px] underline underline-offset-2 mt-1">Gelişmiş dünya ayarını aç (Aşama 1)</button>
-  </div>
-);
-
-const StepDifficulty: React.FC<{ draft: ManagerDraft; setDraft: (d: ManagerDraft) => void; settings: CareerSettings; setSettings: (s: CareerSettings) => void }> = ({ draft, setDraft, settings, setSettings }) => {
-  const [open, setOpen] = useState<string | null>(null);
-  const Option: React.FC<{ label: string; value: string; options: [string, string][]; onPick: (v: string) => void; locked?: boolean }> = ({ label, value, options, onPick, locked }) => (
-    <div className="px-4 py-3 border-b border-line/40 last:border-0">
-      <div className="flex items-center justify-between text-[13px] mb-2">
-        <span className="text-primary font-semibold">{label} {locked && <span className="text-muted text-[10.5px]">🔒 kariyerde kilitli</span>}</span>
-      </div>
-      <div className="flex gap-1.5">
-        {options.map(([v, t]) => (
-          <button key={v} onClick={() => onPick(v)}
-            className={`flex-1 min-h-[40px] rounded-lg text-[12px] font-bold border transition-colors ${value === v ? 'bg-amber/15 border-amber text-amber' : 'bg-base border-line text-secondary'}`}>
-            {t}
-          </button>
-        ))}
-      </div>
+    <button ref={settingsToggle} type="button" onClick={() => setAdvancedOpen((open) => !open)} aria-expanded={advancedOpen} aria-controls="world-advanced-settings"
+      className="w-full min-h-touch scroll-mt-1 px-4 rounded-xl border border-line bg-surface flex items-center justify-between gap-3 text-primary text-[13px] font-bold text-left">
+      <span>{advancedOpen ? 'Gelişmiş dünya ayarlarını kapat' : 'Gelişmiş dünya ayarlarını aç'}</span>
+      <span aria-hidden="true" className="text-muted">{advancedOpen ? '▲' : '▼'}</span>
+    </button>
+    <div id="world-advanced-settings" role="region" aria-label="Gelişmiş dünya ayarları" hidden={!advancedOpen} className="bg-surface border border-line rounded-xl overflow-hidden">
+      <p className="px-4 py-3 text-secondary text-[12px] leading-snug border-b border-line/40">Bu seçimler zorluktan bağımsızdır ve kariyer başladıktan sonra değiştirilemez.</p>
+      {(['goalPace', 'randomness', 'injuryRate', 'marketRefresh'] as const).map((field) => <WorldSettingOption key={field} field={field} settings={settings} setSettings={setSettings} explain />)}
     </div>
-  );
+  </div>;
+};
+
+const StepDifficulty: React.FC<{ draft: ManagerDraft; setDraft: (d: ManagerDraft) => void; settings: CareerSettings; setSettings: SettingsSetter }> = ({ draft, setDraft, settings, setSettings }) => {
+  const [open, setOpen] = useState<string | null>(null);
   return (
     <div className="m26-in space-y-2">
       <div className="flex items-center justify-between mb-1">
@@ -204,28 +240,24 @@ const StepDifficulty: React.FC<{ draft: ManagerDraft; setDraft: (d: ManagerDraft
               {open === key && (
                 <div className="border-t border-line/50">
                   {key === 'ikisler' && <>
-                    <Option label="Gol ritmi" value={settings.goalPace} locked options={[['dusuk', 'Düşük'], ['dengeli', 'Dengeli'], ['yuksek', 'Yüksek']]}
-                      onPick={(v) => setSettings({ ...settings, goalPace: v as CareerSettings['goalPace'] })} />
-                    <Option label="Maç hızı varsayılanı" value={settings.matchSpeed} options={[['yavas', 'Yavaş'], ['normal', 'Normal'], ['hizli', 'Hızlı']]}
-                      onPick={(v) => setSettings({ ...settings, matchSpeed: v as CareerSettings['matchSpeed'] })} />
+                    <WorldSettingOption field="goalPace" settings={settings} setSettings={setSettings} />
+                    <SettingOption label="Maç hızı varsayılanı" value={settings.matchSpeed} options={[['yavas', 'Yavaş'], ['normal', 'Normal'], ['hizli', 'Hızlı']]}
+                      onPick={(v) => setSettings((current) => ({ ...current, matchSpeed: v as CareerSettings['matchSpeed'] }))} />
                   </>}
                   {key === 'dunya' && <>
-                    <Option label="Şaşırtıcılık / rastgelelik" value={settings.randomness} locked options={[['low', 'Tahmin edilebilir'], ['normal', 'Dengeli'], ['high', 'Kaotik']]}
-                      onPick={(v) => setSettings({ ...settings, randomness: v as CareerSettings['randomness'] })} />
-                    <Option label="Sakatlık sıklığı" value={settings.injuryRate} options={[['dusuk', 'Düşük'], ['normal', 'Normal'], ['yuksek', 'Yüksek']]}
-                      onPick={(v) => setSettings({ ...settings, injuryRate: v as CareerSettings['injuryRate'] })} />
+                    <WorldSettingOption field="randomness" settings={settings} setSettings={setSettings} />
+                    <WorldSettingOption field="injuryRate" settings={settings} setSettings={setSettings} />
                   </>}
                   {key === 'piyasa' && <>
-                    <Option label="Piyasa yenilenme ritmi" value={settings.marketRefresh} options={[['sakin', 'Sakin'], ['dengeli', 'Dengeli'], ['yogun', 'Yoğun']]}
-                      onPick={(v) => setSettings({ ...settings, marketRefresh: v as CareerSettings['marketRefresh'] })} />
-                    <Option label="Yönetim baskısı" value={settings.boardPressure} options={[['dusuk', 'Düşük'], ['orta', 'Orta'], ['yuksek', 'Yüksek']]}
-                      onPick={(v) => setSettings({ ...settings, boardPressure: v as CareerSettings['boardPressure'] })} />
+                    <WorldSettingOption field="marketRefresh" settings={settings} setSettings={setSettings} />
+                    <SettingOption label="Yönetim baskısı" value={settings.boardPressure} options={[['dusuk', 'Düşük'], ['orta', 'Orta'], ['yuksek', 'Yüksek']]}
+                      onPick={(v) => setSettings((current) => ({ ...current, boardPressure: v as CareerSettings['boardPressure'] }))} />
                   </>}
                   {key === 'konfor' && <>
-                    <Option label="Metin boyutu" value={settings.textSize} options={[['kucuk', 'Küçük'], ['normal', 'Normal'], ['buyuk', 'Büyük']]}
-                      onPick={(v) => setSettings({ ...settings, textSize: v as CareerSettings['textSize'] })} />
-                    <Option label="Akış önerileri" value={settings.suggestions ? 'evet' : 'hayir'} options={[['evet', 'Açık'], ['hayir', 'Kapalı']]}
-                      onPick={(v) => setSettings({ ...settings, suggestions: v === 'evet' })} />
+                    <SettingOption label="Metin boyutu" value={settings.textSize} options={[['kucuk', 'Küçük'], ['normal', 'Normal'], ['buyuk', 'Büyük']]}
+                      onPick={(v) => setSettings((current) => ({ ...current, textSize: v as CareerSettings['textSize'] }))} />
+                    <SettingOption label="Akış önerileri" value={settings.suggestions ? 'evet' : 'hayir'} options={[['evet', 'Açık'], ['hayir', 'Kapalı']]}
+                      onPick={(v) => setSettings((current) => ({ ...current, suggestions: v === 'evet' }))} />
                   </>}
                 </div>
               )}
