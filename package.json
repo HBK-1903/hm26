@@ -64,6 +64,8 @@
     "qa:market-squad:browser": "node tools/e2e-market-squad-polish.mjs",
     "qa:renewal-highlights:ui": "node --import tsx --loader ./tools/qa-live-loader.mjs tools/qa-renewal-highlights.tsx",
     "qa:renewal-highlights:browser": "node tools/e2e-renewal-highlights.mjs",
+    "qa:atmosphere-paper:ui": "node --import tsx --loader ./tools/qa-live-loader.mjs tools/qa-atmosphere-comparison-paper.tsx",
+    "qa:atmosphere-paper:browser": "node tools/e2e-atmosphere-comparison-paper.mjs",
     "qa:academy:wave12": "tsx tools/qa-academy-wave12.ts",
     "qa:newsroom:wave13": "tsx tools/qa-newsroom-wave13.ts",
     "qa:culture:wave14": "tsx tools/qa-culture-wave14.ts",

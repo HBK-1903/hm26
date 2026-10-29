@@ -9,7 +9,7 @@ import { clubById, LEAGUES } from '../data/clubs';
 import { InstallBanner } from '../components/ui/InstallBanner';
 import { opponentScout } from '../engine/scout';
 
-export const Hub: React.FC<{ go: (s: Screen) => void }> = ({ go }) => {
+export const Hub: React.FC<{ go: (s: Screen) => void; onOpenWeekly?: () => void }> = ({ go, onOpenWeekly }) => {
   const g = useGame();
   const [trainingOpen, setTrainingOpen] = useState(false);
   const next = g.nextFixture;
@@ -220,6 +220,13 @@ export const Hub: React.FC<{ go: (s: Screen) => void }> = ({ go }) => {
             <Icon id="settings" className="w-4 h-4 text-muted" />
           </button>
         )}
+        <button type="button" onClick={() => onOpenWeekly ? onOpenWeekly() : go('newsroom')} data-testid="hub-weekly-paper"
+          className="w-full min-h-[72px] text-left rounded-card border border-[#bd9a5c] overflow-hidden relative flex items-center gap-3 px-3 py-2.5"
+          style={{ background: "linear-gradient(90deg,rgba(20,36,25,.97),rgba(20,36,25,.72)),url('/assets/transfer/stadium.webp') center/cover" }}>
+          <span className="w-10 h-10 rounded-lg border border-[#cfb57f]/70 bg-[#e9ddc1] flex items-center justify-center text-[#4a3d29] shrink-0" aria-hidden="true"><span className="w-5 h-5"><Icon id="news" className="w-5 h-5" /></span></span>
+          <span className="flex-1 min-w-0"><span className="block text-[#e1c992] text-[9px] font-black tracking-wider">YENİ SAYI · GÜN {g.career.day}</span><span className="block text-[#fff6df] text-[13px] font-bold">Haftanın Futbol Gazetesi</span><span className="block text-[#e1dccd] text-[10px]">Sonuçlar · transferler · form</span></span>
+          <span className="text-[#f5d690] font-black" aria-hidden="true">→</span>
+        </button>
         <button onClick={() => go('newsroom')} className="w-full text-left bg-surface border border-line rounded-card p-3 flex items-center gap-2.5 m26-in">
           <span className="w-9 h-9 rounded-lg border border-line bg-amber/5 flex items-center justify-center text-amber shrink-0"><Icon id="news" className="w-[18px] h-[18px]" /></span>
           <span className="flex-1 min-w-0">

@@ -60,17 +60,21 @@ try {
     ['Shared UI notification timing', ['tsx', 'tools/qa-ui-smoothness.tsx']],
     ['New career advanced world settings', ['tsx', 'tools/qa-career-world.tsx']],
     ['Transfer presentation rules, voices and local artwork', ['tsx', 'tools/qa-transfer-scene.ts']],
+    ['Newsroom saved-evidence regression', ['tsx', 'tools/qa-newsroom-wave13.ts']],
+    ['Market refresh, shortlist and press-room links', ['tsx', 'tools/qa-market-improvements.ts']],
   ];
   for (const [name, args] of core) run(name, 'npx', ['--yes', ...args], name.includes('simulation') ? 300_000 : 180_000);
   run('Transfer negotiation and save integration (jsdom)', 'npm', ['run', 'qa:transfer:scene:ui'], 180_000);
   run('Sale negotiation, settlement and save integration (jsdom)', 'npm', ['run', 'qa:sale:ui'], 180_000);
   run('Market potential, rotation, match plan and legacy saves (jsdom)', 'npm', ['run', 'qa:market-squad:ui'], 180_000);
   run('Contract renewal and recorded match highlights (jsdom)', 'npm', ['run', 'qa:renewal-highlights:ui'], 180_000);
+  run('Live reactions, player comparison and weekly paper (jsdom)', 'npm', ['run', 'qa:atmosphere-paper:ui'], 180_000);
+  run('Newsroom and fan atmosphere regression (jsdom)', 'npm', ['run', 'qa:wave7:ui'], 180_000);
   run('Tactics editor regression (jsdom)', 'npm', ['run', 'qa:wave2:ui'], 180_000);
   run('Squad rotation and health regression (jsdom)', 'npm', ['run', 'qa:wave3:ui'], 180_000);
   run('Matchday preparation regression (jsdom)', 'npm', ['run', 'qa:wave5:ui'], 180_000);
   run('Batched halftime event and decision flow (jsdom)', 'npm', ['run', 'qa:live:halftime'], 180_000);
-  run('Match finish and manual interview flow (jsdom)', 'npm', ['run', 'qa:match-finish'], 180_000);
+  run('Match finish, last-whistle reaction and manual interview (jsdom)', 'npm', ['run', 'qa:match-finish'], 180_000, { HM26_FINAL_BATCH: 'card' });
   run('Match finish recovery after simulated engine failure (jsdom)', 'npm', ['run', 'qa:match-finish'], 180_000, { HM26_FAULT: 'finish' });
   run('Matchday progression and end-day regression (jsdom)', 'npm', ['run', 'qa:dayflow'], 180_000);
 
@@ -106,6 +110,7 @@ try {
       ['Transfer theatre, signing and offline media E2E', 'tools/e2e-transfer-scene.mjs'],
       ['Market potential, rotation and sale negotiation E2E', 'tools/e2e-market-squad-polish.mjs'],
       ['Contract renewal and recorded match highlights E2E', 'tools/e2e-renewal-highlights.mjs'],
+      ['Live reactions, player comparison and weekly paper E2E', 'tools/e2e-atmosphere-comparison-paper.mjs'],
       ['Market filters and match-flow E2E', 'tools/e2e-v099.mjs'],
       ['Live scorebug, feed, accessible Phaser pitch and action E2E (v0.9.12)', 'tools/e2e-live-v0911.mjs'],
       ['Deterministic Phaser motion and pause E2E', 'tools/e2e-pitch-motion.mjs'],

@@ -40,11 +40,14 @@ MatchSession.prototype.toResult = function observedResult() {
 
 // Arıza enjeksiyonu: HM26_FAULT=retry|finish → 8. step çağrısında tek seferlik istisna fırlat.
 // HM26_HALFTIME_BATCH=trailing|decision: devre düdüğünden sonra aynı adımda başka olay üret.
+// HM26_FINAL_BATCH=card: son düdükle aynı adımda bir kartı gösterim partisine ekle.
 const faultMode = process.env.HM26_FAULT;
 const halftimeBatch = process.env.HM26_HALFTIME_BATCH;
+const finalBatch = process.env.HM26_FINAL_BATCH;
 let halftimeInjected = false;
+let finalInjected = false;
 const successfulTalks: string[] = [];
-if (faultMode || halftimeBatch) {
+if (faultMode || halftimeBatch || finalBatch) {
   const origStep = MatchSession.prototype.step;
   let calls = 0;
   MatchSession.prototype.step = function patchedStep(...args: any[]) {
@@ -57,6 +60,11 @@ if (faultMode || halftimeBatch) {
     if (halftimeBatch && events.some((e) => e.kind === 'half' && e.minute === 45)) {
       halftimeInjected = true;
       events.push({ minute: 45, kind: halftimeBatch === 'decision' ? 'card' : 'info', text: 'QA: düdükten sonraki aynı adım olayı.' });
+    }
+    if (finalBatch && this.done && !finalInjected) {
+      finalInjected = true;
+      const whistle = events.findIndex((e) => e.kind === 'half' && e.minute >= 90);
+      events.splice(whistle < 0 ? events.length : whistle, 0, { minute: this.getMinute(), kind: 'card', side: 'home', text: 'QA: son adım kartı.' });
     }
     return events;
   };
@@ -135,6 +143,7 @@ function Harness({ done }: { done: (report: string[]) => void }) {
         await clickByText([/Saha/]);
 
         // Otomatik karar kapatıcı + maç sonu bekleyici
+        if (finalBatch) await clickByText([/Kulübe & Tribün/]);
         await clickByText([/4 kat hız/]);
         const startedAt = Date.now();
         let finished = false;
@@ -204,6 +213,12 @@ function Harness({ done }: { done: (report: string[]) => void }) {
         }
         log.push(finished ? '✅ Maç tamamlandı, röportaja geçiş butonu belirdi (otomatik geçiş yok)' : '❌ 60sn içinde maç tamamlanmadı (donmuş olabilir)');
         if (!finished) { done(log); return; }
+        if (finalBatch) {
+          const scene = dom.window.document.querySelector('[data-testid="live-atmosphere"]');
+          log.push(finalInjected && scene?.getAttribute('data-reaction') === 'card' && scene.getAttribute('data-motion') === 'paused' && scene.textContent?.includes('QA: son adım kartı.')
+            ? '✅ Son düdükle aynı adımda gelen gerçek olay türü donmuş sahnede korunur'
+            : '❌ Son düdükle aynı adımda gelen tepki sahnede kayboldu');
+        }
 
         // Düdük sonrası otomatik geçiş olmamalı: kısa bekleyişte hâlâ canlı ekrandayız
         await tick(400);

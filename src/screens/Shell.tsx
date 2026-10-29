@@ -59,6 +59,7 @@ export const AppShell: React.FC<{ pendingScreen: Screen | null; setPendingScreen
   const [moreOpen, setMoreOpen] = useState(false);
   const [blockedReason, setBlockedReason] = useState<string | null>(null);
   const [lastSummary, setLastSummary] = useState<string[] | null>(null);
+  const [newsInitialTab, setNewsInitialTab] = useState<'headlines' | 'weekly'>('headlines');
   // A live match and its report are transient until the manager saves the result.
   const matchInProgress = useRef(false);
   const setMatchInProgress = useCallback((active: boolean) => { matchInProgress.current = active; }, []);
@@ -115,12 +116,13 @@ export const AppShell: React.FC<{ pendingScreen: Screen | null; setPendingScreen
   }, [setPendingScreen]);
 
   const current: Screen = pendingScreen ?? screen;
-  const go = (s: Screen) => {
+  const go = (s: Screen, newsTab: 'headlines' | 'weekly' = 'headlines') => {
     if (matchInProgress.current && s !== 'matchPrep') {
       if (!window.confirm(UNSAVED_MATCH_WARNING)) return;
       matchInProgress.current = false;
     }
     setPendingScreen(null);
+    if (s === 'newsroom') setNewsInitialTab(newsTab);
     setScreen(s);
     setMoreOpen(false);
     // RISK-01: gerçek ekran geçişi tarayıcı geçmişine yazılır — geri tuşu siteden çıkarmaz
@@ -189,7 +191,7 @@ export const AppShell: React.FC<{ pendingScreen: Screen | null; setPendingScreen
       <div className="flex-1 min-h-0 relative">
         {/* FIX P0/3: ekran-seviye hata sınırı — bölüm çökerse hub canlı kalır */}
         <ScreenBoundary key={current} screenName={current} onBackToHub={() => { setPendingScreen('hub'); setScreen('hub'); }}>
-          {current === 'hub' && <Hub go={go} />}
+          {current === 'hub' && <Hub go={go} onOpenWeekly={() => go('newsroom', 'weekly')} />}
           {current === 'squad' && <SquadScreen goXI={goXI} />}
           {current === 'tactics' && <TacticsScreen pendingXI={pendingXI ? (g.playerOf(pendingXI) ?? null) : null} onClearXI={() => setPendingXI(null)} />}
           {current === 'market' && <MarketScreen go={go} />}
@@ -197,7 +199,7 @@ export const AppShell: React.FC<{ pendingScreen: Screen | null; setPendingScreen
           {current === 'comps' && <CompsScreen />}
           {current === 'inbox' && <InboxScreen go={go} />}
           {current === 'stats' && <StatsHub />}
-          {current === 'newsroom' && <NewsroomScreen />}
+          {current === 'newsroom' && <NewsroomScreen initialTab={newsInitialTab} />}
           {current === 'matchPrep' && <MatchPrep go={go} onEndDay={endDayFromMatch} onMatchSessionChange={setMatchInProgress} />}
           {(current === 'careerProfile' || current === 'settings' || current === 'backup') && <PlaceholderScreen id={current} />}
         </ScreenBoundary>

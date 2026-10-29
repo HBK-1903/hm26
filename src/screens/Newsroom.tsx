@@ -12,6 +12,8 @@ import { fanPulse, type PulseTone } from '../engine/atmosphere';
 import { normalizeMyMatches } from '../engine/teamInsights';
 import { buildPressProfile } from '../engine/pressProfile';
 import { buildLeagueLuckSnapshot } from '../engine/analytics';
+import { buildWeeklyIssue } from '../data/weeklyPaper';
+import { WeeklyPaper } from '../components/WeeklyPaper';
 
 const NEWS_TAG_STYLE: Record<MatchNewsTag, { label: string; cls: string }> = {
   derbi: { label: 'Derbi', cls: 'bg-danger/15 text-danger border-danger/40' },
@@ -30,6 +32,7 @@ const OUTCOME_LABEL = { win: 'Galibiyet sonrası', draw: 'Beraberlik sonrası', 
 
 const TABS = [
   { v: 'headlines', label: 'Manşet' },
+  { v: 'weekly', label: 'Gazete' },
   { v: 'pulse', label: 'Lig Nabzı' },
   { v: 'xi', label: 'Haftanın 11’i' },
   { v: 'referees', label: 'Hakemler' },
@@ -40,9 +43,9 @@ type NewsTab = typeof TABS[number]['v'];
 const STRICTNESS: Record<'lenient' | 'balanced' | 'strict', string> = { lenient: 'Yumuşak', balanced: 'Dengeli', strict: 'Katı' };
 const GROUP_LABEL: Record<string, string> = { GK: 'KL', CB: 'STP', FB: 'BK', WB: 'KB', DM: 'DOS', CM: 'MOS', AM: 'OOS', WG: 'KNT', ST: 'SN' };
 
-export const NewsroomScreen: React.FC = () => {
+export const NewsroomScreen: React.FC<{ initialTab?: 'headlines' | 'weekly' }> = ({ initialTab = 'headlines' }) => {
   const g = useGame();
-  const [tab, setTab] = useState<NewsTab>('headlines');
+  const [tab, setTab] = useState<NewsTab>(initialTab);
   const allFixtures = useMemo(() => [
     ...g.fixtures,
     ...g.friendlies,
@@ -51,6 +54,10 @@ export const NewsroomScreen: React.FC = () => {
     ...internationalFixtures(g.international?.cups ?? []),
   ], [g.fixtures, g.friendlies, g.cup, g.international]);
   const headlines = useMemo(() => buildHeadlines(allFixtures, (id) => clubByIdSafe(id)?.short ?? id), [allFixtures]);
+  const weeklyIssue = useMemo(() => buildWeeklyIssue({
+    day: g.career.day, seasonNo: g.seasonNo, myClubId: g.career.clubId,
+    fixtures: allFixtures, reports: g.matchReports, transfers: g.transferLog,
+  }), [g.career.day, g.seasonNo, g.career.clubId, allFixtures, g.matchReports, g.transferLog]);
   const matchNews = useMemo(
     () => buildMatchNews(
       g.matchReports ?? [],
@@ -89,12 +96,16 @@ export const NewsroomScreen: React.FC = () => {
           </div>
           <Crest club={g.myClub} size={42} />
         </div>
-        <Seg ariaLabel="Basın odası bölümleri" className="mt-3" options={TABS.map((item) => ({ v: item.v, label: item.label }))} value={tab} onChange={(value) => setTab(value as NewsTab)} />
+        <Seg ariaLabel="Basın odası bölümleri" className="mt-3 overflow-x-auto no-scrollbar [&>button]:flex-none [&>button]:px-3 [&>button]:whitespace-nowrap" options={TABS.map((item) => ({ v: item.v, label: item.label }))} value={tab} onChange={(value) => setTab(value as NewsTab)} />
       </header>
 
       <main className="flex-1 min-h-0 overflow-y-auto no-scrollbar px-4 py-3 space-y-2.5">
+        {tab === 'weekly' && <WeeklyPaper issue={weeklyIssue} myClubId={g.career.clubId} />}
         {tab === 'headlines' && (
           <>
+            <button type="button" onClick={() => setTab('weekly')} className="w-full min-h-[54px] flex items-center gap-3 text-left rounded-xl border border-amber/40 bg-amber/5 px-3 py-2">
+              <GameIcon id="news" className="w-5 h-5 text-amber" /><span className="flex-1"><b className="block text-primary text-[12px]">Haftanın futbol gazetesi</b><span className="block text-secondary text-[10px]">Gerçek sonuçlar, transferler ve takım formu</span></span><span className="text-amber font-bold">→</span>
+            </button>
             {/* Maç raporlarından türetilen kanıta dayalı hikâyeler — yalnız gerçek arşiv */}
             {matchNews.length > 0 && (
               <Card className="!p-0 overflow-hidden" >

@@ -18,7 +18,7 @@ import type { ConsoleTab } from './liveMatchConsole';
 import { clubById as clubByIdLive } from '../data/clubs';
 import { Btn, Badge, Sheet } from '../components/ui/kit';
 import { Crest } from '../components/assets/Crest';
-import { GameIcon } from '../components/icons';
+import { GameIcon, ICONS } from '../components/icons';
 import { clubById } from '../data/clubs';
 import { MatchReport } from './MatchReport';
 import { PostMatchInterview } from './PostMatchInterview';
@@ -27,6 +27,8 @@ import { Suspense } from 'react';
 import { lazyWithRecovery } from '../utils/lazyWithRecovery';
 import { PitchFallback } from '../components/assets/PitchFallback';
 import { audio } from '../audio/engine';
+import { reactionFromBatch, type LiveReaction } from '../engine/liveReaction';
+import { LiveAtmosphere } from '../components/match/LiveAtmosphere';
 // Phaser 1MB+ — yalnızca maçta yüklenir (§1.3 Hafif prensibi: ana pakette tutmaz)
 const PhaserPitch = lazyWithRecovery(
   () => import('../components/assets/PhaserPitch').then((m) => ({ default: m.PhaserPitch })),
@@ -51,6 +53,10 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onE
   const [speed, setSpeed] = useState<PresentationSpeed>('x2');
   const [paused, setPaused] = useState(false);
   const [activeTab, setActiveTab] = useState<ConsoleTab>('pitch');
+  const [pitchView, setPitchView] = useState<'pitch' | 'atmosphere'>('pitch');
+  const [reaction, setReaction] = useState<{ cue: LiveReaction; sequence: number } | null>(null);
+  const reactionSeen = useRef(0);
+  const reactionSequence = useRef(0);
   const [heatEnabled, setHeatEnabled] = useState(false);
   const [heatTeam, setHeatTeam] = useState<'all' | 'home' | 'away'>('all');
   const [heatSamples, setHeatSamples] = useState<HeatPoint[]>([]);
@@ -61,7 +67,7 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onE
   const [decision, setDecision] = useState<DemoMatchEvent | null>(null);
   const [showSubPicker, setShowSubPicker] = useState(false);
   const [showTacticPicker, setShowTacticPicker] = useState(false);
-  // Akış: canlı maç → (otomatik) röportaj → maç sonu analizi. Maçtan erken çıkış yok; kullanıcı akışı sonuna kadar kalır.
+  // Akış: canlı maç → kullanıcı isteğiyle röportaj → maç sonu analizi.
   const [phase, setPhase] = useState<'live' | 'interview' | 'report'>('live');
   const interviewChoiceRef = useRef<InterviewOption | null>(null);
   const feedRef = useRef<HTMLDivElement>(null);
@@ -144,6 +150,20 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onE
   const momentum = projection.momentum;
   const currentEvent = eventsShown[eventsShown.length - 1];
   const lastGoal = [...eventsShown].reverse().find((e) => e.kind === 'goal');
+  // Read only newly displayed real events, including a final batch that also
+  // contains the whistle. The scene freezes at full time but retains that cue.
+  useEffect(() => {
+    if (eventsShown.length < reactionSeen.current) reactionSeen.current = 0;
+    const fresh = eventsShown.slice(reactionSeen.current);
+    reactionSeen.current = eventsShown.length;
+    const cue = reactionFromBatch(fresh, mySide, fixture.homeId, fixture.awayId);
+    if (cue) setReaction({ cue, sequence: ++reactionSequence.current });
+  }, [eventsShown, mySide, fixture.homeId, fixture.awayId]);
+  useEffect(() => {
+    if (!reaction || paused || done) return;
+    const timeout = window.setTimeout(() => setReaction(null), 4000);
+    return () => window.clearTimeout(timeout);
+  }, [reaction, paused, done]);
   const pitchRuntime: PitchRuntime = projection.ball;
   const playerRating = (slot: any) => {
     const row = liveStats.playerRows?.[slot.player.id];
@@ -534,16 +554,21 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onE
       <main className="flex-1 min-h-0 overflow-hidden">
         <section id={`match-panel-${activeTab}`} role="tabpanel" aria-label={LIVE_CONSOLE_TABS.find((tab) => tab.id === activeTab)?.label} className="h-full min-h-0 overflow-y-auto no-scrollbar">
           {activeTab === 'pitch' && <div className="relative min-h-full px-3 pt-2 pb-3 flex flex-col items-center gap-2">
-            {Pitch}
-            {currentEvent && <div className="w-full max-w-[330px] rounded-lg border border-[#53665a] bg-[#1a2720] px-2.5 py-1.5 text-[10.5px] leading-snug text-[#f4f2e8]"><span className="num font-black text-[#f2cf70] mr-1.5">{currentEvent.minute}′</span>{currentEvent.text}</div>}
-            <div className="w-full max-w-[330px] flex gap-2 items-center">
+            <div className="w-full max-w-[330px] grid grid-cols-2 gap-1 rounded-xl border border-line bg-[#17251d] p-1" role="group" aria-label="Saha görünümü">
+              <button type="button" onClick={() => setPitchView('pitch')} aria-pressed={pitchView === 'pitch'} className={`min-h-[40px] flex items-center justify-center gap-1.5 rounded-lg text-[10.5px] font-bold ${pitchView === 'pitch' ? 'bg-[#354a39] text-[#f6dfaa]' : 'text-[#c2d0c2]'}`}><span className="w-3.5 h-3.5"><ICONS.ball /></span>Saha</button>
+              <button type="button" onClick={() => setPitchView('atmosphere')} aria-pressed={pitchView === 'atmosphere'} className={`min-h-[40px] flex items-center justify-center gap-1.5 rounded-lg text-[10.5px] font-bold ${pitchView === 'atmosphere' ? 'bg-[#354a39] text-[#f6dfaa]' : 'text-[#c2d0c2]'}`}><span className="w-3.5 h-3.5"><ICONS.squad /></span>Kulübe & Tribün{reaction && <span className="text-[#f6cf78]" aria-label="Yeni tepki">●</span>}</button>
+            </div>
+            {pitchView === 'pitch' ? Pitch : <LiveAtmosphere club={g.myClub} manager={g.career.manager} bench={session.getBench(mySide)} managerSuspended={managerSuspendedAtStart}
+              reaction={reaction?.cue ?? null} reactionSequence={reaction?.sequence ?? reactionSequence.current} paused={paused} done={done} reducedMotion={reducedMotion} />}
+            {pitchView === 'pitch' && currentEvent && <div className="w-full max-w-[330px] rounded-lg border border-[#53665a] bg-[#1a2720] px-2.5 py-1.5 text-[10.5px] leading-snug text-[#f4f2e8]"><span className="num font-black text-[#f2cf70] mr-1.5">{currentEvent.minute}′</span>{currentEvent.text}</div>}
+            {pitchView === 'pitch' && <div className="w-full max-w-[330px] flex gap-2 items-center">
               <button onClick={() => setHeatEnabled((value) => !value)} aria-pressed={heatEnabled} className={`min-h-[44px] flex-1 rounded-xl border px-3 text-[11px] font-bold ${heatEnabled ? 'border-[#d18d51] bg-[#46351f] text-[#ffe0a0]' : 'border-line bg-surface text-primary'}`}>🔥 {heatEnabled ? 'Isı Haritası Açık' : 'Isı Haritası'}</button>
               <label className="min-h-[44px] flex items-center gap-1 rounded-xl border border-line bg-surface px-2 text-[9px] text-secondary">Takım
                 <select value={heatTeam} onChange={(event) => setHeatTeam(event.target.value as 'all' | 'home' | 'away')} aria-label="Isı haritası takım filtresi" className="max-w-[82px] bg-transparent text-primary text-[10px]">
                   <option value="all">İkisi</option><option value="home">{home.short}</option><option value="away">{away.short}</option>
                 </select>
               </label>
-            </div>
+            </div>}
           </div>}
 
           {activeTab === 'ratings' && <div className="p-3 space-y-3">

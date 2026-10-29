@@ -3,8 +3,9 @@ import React, { useMemo, useState } from 'react';
 import { Player } from '../types';
 import { useGame } from '../store/game';
 import { Card, Badge, Sheet, Btn, RatingChip, useToast, useFocusTrap } from '../components/ui/kit';
-import { ICONS } from '../components/icons';
+import { GameIcon, ICONS } from '../components/icons';
 import { PlayerPortrait } from '../components/assets/Portrait';
+import { ComparisonDesk } from '../components/players/ComparisonDesk';
 import { autoLineup, FORMATION_SLOTS } from '../engine/profiles';
 import { engineToBoard } from '../engine/lineupOrder';
 import { Crest } from '../components/assets/Crest';
@@ -27,6 +28,7 @@ export const SquadScreen: React.FC<{ goXI: (p: Player) => void }> = ({ goXI }) =
   // The desk is intentionally collapsed on entry so the squad remains usable on small screens.
   const [rotationOpen, setRotationOpen] = useState(false);
   const [quick, setQuick] = useState<Player | null>(null);
+  const [compare, setCompare] = useState<Player | 'empty' | null>(null);
   const [mentorSel, setMentorSel] = useState('');
   const [full, setFull] = useState<Player | null>(null);
   const fullTrapRef = useFocusTrap<HTMLDivElement>(!!full);
@@ -76,9 +78,10 @@ export const SquadScreen: React.FC<{ goXI: (p: Player) => void }> = ({ goXI }) =
   return (
     <div className="h-full flex flex-col">
       <div className="px-4 pt-4 pb-2">
-        <div className="mb-3">
-          <h1 className="text-primary font-bold text-[22px] tracking-tight">Kadro</h1>
-          <p className="text-muted text-[11px] mt-0.5">{g.myClub.name} · Oyuncularını tanı</p>
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <div className="min-w-0"><h1 className="text-primary font-bold text-[22px] tracking-tight">Kadro</h1>
+            <p className="text-muted text-[11px] mt-0.5">{g.myClub.name} · Oyuncularını tanı</p></div>
+          <button type="button" onClick={() => setCompare('empty')} className="shrink-0 min-h-[44px] flex items-center gap-1.5 rounded-xl border border-amber/35 bg-amber/5 px-3 text-amber text-[11px] font-bold"><GameIcon id="market" className="w-4 h-4" />Karşılaştır</button>
         </div>
         <div className="grid grid-cols-3 bg-surface border border-line rounded-xl py-2.5 mb-2">
           <div className="text-center border-r border-line/60"><div className="num text-primary font-extrabold text-[18px]">{g.mySquad.length}</div><div className="text-muted text-[9px] mt-0.5">OYUNCU</div></div>
@@ -256,6 +259,7 @@ export const SquadScreen: React.FC<{ goXI: (p: Player) => void }> = ({ goXI }) =
               )}
               <Btn variant="secondary" className="!text-[12.5px]" onClick={() => { setFull(quick); setQuick(null); }}>Sözleşmeyi İncele</Btn>
               <Btn variant="amber" className="!text-[12.5px]" onClick={() => { setFull(quick); setQuick(null); }}>Tam Profili Aç</Btn>
+              <Btn variant="secondary" className="!text-[12.5px] col-span-2" onClick={() => { setQuick(null); setCompare(quick); }}><GameIcon id="market" className="w-4 h-4" />Bu Oyuncuyu Karşılaştır</Btn>
             </div>
           </div>
         )}
@@ -500,9 +504,11 @@ export const SquadScreen: React.FC<{ goXI: (p: Player) => void }> = ({ goXI }) =
           <div className="p-4 border-t border-line/50 grid grid-cols-2 gap-2">
             <Btn variant="secondary" onClick={() => { goXI(full); setFull(null); }}>İlk 11'e Al</Btn>
             <Btn variant="amber" onClick={() => setFull(null)}>Tamam</Btn>
+            <Btn variant="secondary" className="col-span-2" onClick={() => { setFull(null); setCompare(full); }}><GameIcon id="market" className="w-4 h-4" />Bu Oyuncuyu Karşılaştır</Btn>
           </div>
         </div>
       )}
+      {compare !== null && <ComparisonDesk initialPlayer={compare === 'empty' ? null : compare} onClose={() => setCompare(null)} />}
       {ToastView}
     </div>
   );

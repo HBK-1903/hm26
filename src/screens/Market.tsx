@@ -6,8 +6,10 @@ import { GameIcon, ICONS } from '../components/icons';
 import { PlayerPortrait } from '../components/assets/Portrait';
 import { Crest } from '../components/assets/Crest';
 import { clubById, clubByIdSafe } from '../data/clubs';
-import { genFreeAgent, playerValue } from '../data/gen';
+import { playerValue } from '../data/gen';
 import { resolveMarketShortlist, selectClubOpportunities } from '../data/marketOpportunities';
+import { currentMarketFreeAgents, marketRefreshDays } from '../data/playerComparison';
+import { ComparisonDesk } from '../components/players/ComparisonDesk';
 import { FOREIGN_QUOTA } from '../data/market';
 import { inWindow } from '../data/calendar';
 import { counterCashAsk, sellOnCredit, transferLeakRisk, transferOfferLeaks } from '../data/transferNegotiation';
@@ -24,9 +26,9 @@ const G_SHORT: Record<string, string> = { GK: 'Kaleci', CB: 'Stoper', FB: 'Bek',
 
 // Stable rows retain keyboard focus when the shortlist changes; memoization also
 // avoids repainting dozens of portraits for unrelated filter changes.
-const MarketPlayerRow = React.memo(function MarketPlayerRow({ player, reason, price, inShort, alreadyOwn, onLoanNow, inWindow, onShort, onOffer, onLoan }: {
+const MarketPlayerRow = React.memo(function MarketPlayerRow({ player, reason, price, inShort, alreadyOwn, onLoanNow, inWindow, onShort, onOffer, onLoan, onCompare }: {
   player: Player; reason: string; price: number; inShort: boolean; alreadyOwn: boolean; onLoanNow: boolean; inWindow: boolean;
-  onShort: (player: Player) => void; onOffer: (player: Player) => void; onLoan: (player: Player) => void;
+  onShort: (player: Player) => void; onOffer: (player: Player) => void; onLoan: (player: Player) => void; onCompare: (player: Player) => void;
 }) {
   const isFree = player.id.startsWith('fa_') || player.clubId === 'FA';
   const seller = isFree ? null : clubByIdSafe(player.clubId) ?? null;
@@ -71,6 +73,8 @@ const MarketPlayerRow = React.memo(function MarketPlayerRow({ player, reason, pr
           <Btn variant="secondary" className="!min-h-[44px] !text-[12px] !px-3" onClick={() => onLoan(player)}>🔁</Btn>
         )}
       </div>
+      <button type="button" onClick={() => onCompare(player)} aria-label={`${player.name} karşılaştır`}
+        className="mt-2 w-full min-h-[40px] flex items-center justify-center gap-1.5 rounded-lg border border-line bg-base/60 text-secondary text-[11px] font-bold"><GameIcon id="market" className="w-4 h-4" />Oyuncuyu karşılaştır</button>
     </article>
   );
 });
@@ -90,6 +94,7 @@ export const MarketScreen: React.FC<{ go?: (s: Screen) => void }> = ({ go }) => 
   const [freeOnly, setFreeOnly] = useState(false);
   const [valF, setValF] = useState('all'); // all | u1 | 1_3 | 3p (₺M)
   const [moreOpen, setMoreOpen] = useState(false);
+  const [compare, setCompare] = useState<Player | 'empty' | null>(null);
   const openOffers = g.incomingOffers.filter((o) => o.state === 'open').length;
   const { show, ToastView } = useToast();
 
@@ -97,7 +102,7 @@ export const MarketScreen: React.FC<{ go?: (s: Screen) => void }> = ({ go }) => 
   const wageCapB = Math.round(((g.myClub.wageBudget + (g.budget?.wbExtra ?? 0)) * 1000)); // ₺B/ay tavan
   const wageHeadroomB = wageCapB - wageUseB;
   const inWin = inWindow(g.career.day);
-  const cycle = g.career.settings.marketRefresh === 'sakin' ? 30 : g.career.settings.marketRefresh === 'yogun' ? 7 : 14;
+  const cycle = marketRefreshDays(g.career.settings.marketRefresh);
 
   // §11.1: refresh bazında seed'li tarama; kulüp başına en fazla bir hedef ve çevrimler arasında rotasyon.
   const market = useMemo(() => {
@@ -118,11 +123,10 @@ export const MarketScreen: React.FC<{ go?: (s: Screen) => void }> = ({ go }) => 
       pool.push({ p, reason: 'Bosman: sözleşmesi bitti — bedelsiz', league: g.myLeague, rankScore: p.ratings.gen * 0.6 + 12 - index });
     });
     // Serbest oyuncu arşivi de genişletildi; her yenilemede oyuncu profilleri değişir, shortlist snapshot'ları etkilenmez.
-    for (let i = 0; i < 12; i++) {
-      const fa = genFreeAgent(g.career.seed + cycleNo * 977, g.myLeague, i, 'free');
-      if (pool.some((item) => item.p.id === fa.id)) continue;
+    currentMarketFreeAgents(g.career.seed, cycleNo, g.myLeague).forEach((fa, i) => {
+      if (pool.some((item) => item.p.id === fa.id)) return;
       pool.push({ p: fa, reason: i < 3 ? 'Menajeri agresif satıyor — bedelsiz' : 'Serbest statüden anında katılabilir', league: g.myLeague, rankScore: fa.ratings.gen * 0.6 + (i % 5) * 2 });
-    }
+    });
     return pool.sort((a, b) => b.rankScore - a.rankScore || a.p.id.localeCompare(b.p.id)).slice(0, 64);
   }, [g.squads, g.career.seed, g.career.day, g.career.clubId, g.budget.tb, g.myLeague, cycle]);
 
@@ -173,7 +177,7 @@ export const MarketScreen: React.FC<{ go?: (s: Screen) => void }> = ({ go }) => 
   const renderRow = (m: { p: Player; reason: string }) => <MarketPlayerRow key={m.p.id}
     player={m.p} reason={m.reason} price={priceOf(m.p)} inShort={short.includes(m.p.id)}
     alreadyOwn={ownIds.has(m.p.id)} onLoanNow={loanIds.has(m.p.id)} inWindow={inWin}
-    onShort={toggleShort} onOffer={setOffer} onLoan={loanPlayer} />;
+    onShort={toggleShort} onOffer={setOffer} onLoan={loanPlayer} onCompare={setCompare} />;
 
   return (
     <div className="h-full flex flex-col">
@@ -183,6 +187,7 @@ export const MarketScreen: React.FC<{ go?: (s: Screen) => void }> = ({ go }) => 
           <span className={`text-[10px] font-bold border rounded-md px-2 py-1 ${inWin ? 'bg-ok/10 border-ok/30 text-ok' : 'bg-warn/10 border-warn/40 text-warn'}`}>{inWin ? 'Pencere açık' : 'Pencere kapalı · yalnız serbest'}</span>
         </div>
         <p className="text-muted text-[11px] mt-0.5">Transfer fırsatları · yenilenme: <b className="text-amber num">{nextRefresh}g</b></p>
+        <button type="button" onClick={() => setCompare('empty')} className="w-full mt-2 min-h-[44px] flex items-center justify-center gap-1.5 rounded-xl border border-amber/35 bg-amber/5 text-amber text-[11.5px] font-bold"><GameIcon id="market" className="w-4 h-4" />Oyuncu Karşılaştırma Masası</button>
       </div>
 
       <div className="mx-4 mb-2.5 flex items-center justify-between bg-surface border border-line rounded-lg px-3 py-2.5">
@@ -283,6 +288,7 @@ export const MarketScreen: React.FC<{ go?: (s: Screen) => void }> = ({ go }) => 
           />
         )}
       </Sheet>
+      {compare !== null && <ComparisonDesk initialPlayer={compare === 'empty' ? null : compare} onClose={() => setCompare(null)} />}
       {ToastView}
     </div>
   );
