@@ -27,9 +27,47 @@ try {
   await page.waitForTimeout(700);
   const quick = await page.getByRole('button', { name: /Devam Et —/ }).count();
   ok('splash hızlı devam rozeti var (silmeden önce)', quick === 1);
+  // Eski sürümlerin sabit etiketini çok sezonlu bir kayıtla canlandır: sadece geçici test DB'si.
+  await page.evaluate(async () => {
+    const db = await new Promise((resolve, reject) => {
+      const req = indexedDB.open('manager26', 1);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction('saves', 'readwrite');
+      const store = tx.objectStore('saves');
+      const req = store.get(1);
+      req.onsuccess = () => {
+        const record = req.result;
+        record.blob.seasonNo = 3;
+        record.meta.season = '2026–27';
+        store.put(record);
+      };
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+  });
   await page.getByRole('button', { name: 'Kayıt Yuvaları' }).first().click({ force: true });
   await page.waitForTimeout(600);
   ok('yuva kartı dolu görünüyor', (await page.locator('text=Devam Et').count()) >= 1);
+  ok('eski sabit etiket yerine kayıtlı 3. sezon gösteriliyor', (await page.getByText(/2028–29/).count()) === 1);
+  const rawSeason = await page.evaluate(async () => {
+    const db = await new Promise((resolve, reject) => {
+      const req = indexedDB.open('manager26', 1);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+    const record = await new Promise((resolve, reject) => {
+      const req = db.transaction('saves', 'readonly').objectStore('saves').get(1);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+    db.close();
+    return record.meta.season;
+  });
+  ok('yuvaları görüntülemek eski kaydı yeniden yazmaz', rawSeason === '2026–27');
 
   // ⋯ menü: balonlanma fixi — Sheet açılmalı, oyuna girmemeli
   await page.getByRole('button', { name: 'Yuva 1 yönet menüsü' }).click({ force: true, timeout: 6000 });

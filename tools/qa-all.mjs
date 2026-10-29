@@ -46,6 +46,7 @@ try {
 
   const core = [
     ['Core integrity / serialization QA (11 tests)', ['tsx', 'tools/qa.ts']],
+    ['Save-slot season metadata and legacy compatibility QA', ['tsx', 'tools/qa-save-metadata.ts']],
     ['Stress and broad feature QA (37 tests)', ['tsx', 'tools/qa-extended.ts']],
     ['Goalkeeper/stat consistency QA', ['tsx', 'tools/qa8-faza.ts']],
     ['Assets and brand manifest QA', ['tsx', 'tools/qa9-logopack.ts']],
@@ -138,7 +139,7 @@ try {
     ...rows.map((row, i) => `| ${i + 1} | ${row.name.replaceAll('|', '\\|')} | ${row.code === 0 ? '✅ PASS' : '❌ FAIL'} |`),
     '',
     '## Bulgular ve açık işler',
-    `- **Bu koşuda ürün/test kusuru:** ${fail === 0 ? 'bulunmadı; tüm aşamalar geçti.' : `açık başarısız aşamalar: ${failingStages.join(', ')}.`}`,
+    `- **Bu koşudaki testler:** ${fail === 0 ? 'tüm aşamalar geçti; test kapsamı dışındaki kusurlar ayrıca incelenmelidir.' : `başarısız aşamalar: ${failingStages.join(', ')}.`}`,
     '- **Otomasyon düzeltmesi:** eski E2E betiklerindeki :3001 adresleri ortak `HM26_BASE_URL` ile :4173 preview adresine alındı; yeniden koşuda ilgili akışlar geçti.',
     '- **Tarayıcı ortamı:** Chromium indirme ve paylaşımlı sistem kütüphanelerini kontrol etme/kurma adımları ile launch smoke testi otomasyona eklendi.',
     '- **Uyarılar:** `qa-extended` 37/37 testte sıfır başarısızlıkla iki istatistiksel uyarı üretir (100 maçlık skor dağılımı örneklemi ve farklı skor çeşitliliği). Build ayrıca kabul edilmiş Phaser lazy-chunk boyut uyarısını verir; Phaser maç ekranında lazy-load edilir.',

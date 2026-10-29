@@ -8,6 +8,7 @@
     "build": "tsc --noEmit && vite build && node tools/inject-sw-manifest.mjs",
     "preview": "vite preview",
     "qa:features": "tsx tools/qa-features-v099.ts",
+    "qa:save-meta": "tsx tools/qa-save-metadata.ts",
     "qa:wave0": "tsx tools/qa-wave0-fixes.ts",
     "qa:wave1": "tsx tools/qa-wave1-analytics.ts",
     "qa:wave2": "tsx tools/qa-wave2-tactics.ts",

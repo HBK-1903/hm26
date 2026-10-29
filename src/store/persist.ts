@@ -1,6 +1,7 @@
 // HM26 — Aşama 1 veri çekirdeği: IndexedDB 3 yuvası + migrasyon + dışa/içe aktarma (§3.3/§16.2)
 import { Career } from '../types';
 import { clubByIdSafe } from '../data/clubs';
+import { careerSeasonLabel } from '../data/careerTimeline';
 
 const DB_NAME = 'manager26';
 const DB_VERSION = 1;
@@ -65,12 +66,27 @@ export interface SaveBlob {
   version: number;
   career: Career;
   day: number;
+  /** Mevcut oyun durumunda saklanan 1 tabanlı sezon; eski kayıtlarda bulunmayabilir. */
+  seasonNo?: number;
   tableState: unknown;
   fixtureState: unknown;
   cupState: unknown;
   inboxState: unknown;
   tacticState: unknown;
   extraSquads: unknown;
+}
+
+/** Kayıt verisindeki mevcut sezondan yuva etiketini üretir; eski kayıt verisini değiştirmez. */
+function recordedSeasonLabel(blob: SaveBlob): string | null {
+  const seasonNo = blob?.seasonNo;
+  return typeof seasonNo === 'number' && Number.isSafeInteger(seasonNo) && seasonNo >= 1
+    ? careerSeasonLabel(seasonNo)
+    : null;
+}
+
+function displayMeta(meta: SaveMeta, blob: SaveBlob): SaveMeta {
+  const season = recordedSeasonLabel(blob);
+  return season && season !== meta.season ? { ...meta, season } : meta;
 }
 
 export async function writeSave(blob: SaveBlob): Promise<SaveMeta> {
@@ -84,7 +100,7 @@ export async function writeSave(blob: SaveBlob): Promise<SaveMeta> {
     kzp: blob.career.manager.challengePoints,
     day: blob.day,
     week: blob.career.week,
-    season: '2026–27',
+    season: recordedSeasonLabel(blob) ?? '2026–27',
     updatedAt: Date.now(),
   };
   await new Promise<void>((resolve, reject) => {
@@ -116,7 +132,7 @@ export async function readSave(slot: number): Promise<{ meta: SaveMeta; blob: Sa
       // Sürüm kontrol (§3.3): bilinmeyen sürümü reddetmek yerine migrasyon denemesi
       const blob = r.blob as SaveBlob;
       if (typeof blob.version === 'number' && blob.version > SAVE_VERSION) return reject(new Error('Bu kayıt daha yeni bir sürümdeyken oluşturulmuş.'));
-      resolve({ meta: r.meta, blob: migrateBlob(blob) });
+      resolve({ meta: displayMeta(r.meta, blob), blob: migrateBlob(blob) });
     };
     req.onerror = () => reject(req.error);
   });
@@ -144,7 +160,9 @@ export async function listSaves(): Promise<SaveMeta[]> {
   return new Promise((resolve, reject) => {
     const tx = (db as IDBDatabase).transaction('saves', 'readonly');
     const req = tx.objectStore('saves').getAll();
-    req.onsuccess = () => resolve((req.result as { meta: SaveMeta }[]).map((x) => x.meta).sort((a, b) => a.slot - b.slot));
+    req.onsuccess = () => resolve((req.result as { meta: SaveMeta; blob: SaveBlob }[])
+      .map(({ meta, blob }) => displayMeta(meta, blob))
+      .sort((a, b) => a.slot - b.slot));
     req.onerror = () => reject(req.error);
   });
 }
