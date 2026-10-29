@@ -62,6 +62,8 @@
     "qa:sale:ui": "node --import tsx --loader ./tools/qa-live-loader.mjs tools/qa-sale-flow.tsx",
     "qa:market-squad:ui": "node --import tsx --loader ./tools/qa-live-loader.mjs tools/qa-market-squad-polish.tsx",
     "qa:market-squad:browser": "node tools/e2e-market-squad-polish.mjs",
+    "qa:renewal-highlights:ui": "node --import tsx --loader ./tools/qa-live-loader.mjs tools/qa-renewal-highlights.tsx",
+    "qa:renewal-highlights:browser": "node tools/e2e-renewal-highlights.mjs",
     "qa:academy:wave12": "tsx tools/qa-academy-wave12.ts",
     "qa:newsroom:wave13": "tsx tools/qa-newsroom-wave13.ts",
     "qa:culture:wave14": "tsx tools/qa-culture-wave14.ts",

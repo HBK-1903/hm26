@@ -93,6 +93,17 @@ export function buyerTransferLine(accepted: boolean, key: string): TransferVoice
 export function playerTransferLine(accepted: boolean, key: string): TransferVoiceLine {
   return pick(accepted ? playerAccept : playerReject, `${key}|${accepted ? 'accept' : 'reject'}`);
 }
+
+/** A renewal uses the same recorded voices, limited to lines appropriate for an existing player. */
+export function managerRenewalLine(tone: TransferTone, key: string): TransferVoiceLine {
+  return pick(tone === 'calm' ? calm : tone === 'witty' ? [witty[1], witty[2], witty[3]] : [firm[0], firm[1], firm[3]], `${key}|renew|${tone}`);
+}
+export function playerRenewalLine(accepted: boolean, key: string): TransferVoiceLine {
+  return pick(accepted ? [playerAccept[0], playerAccept[1]] : playerReject, `${key}|renew|${accepted}`);
+}
+export function renewalSignedLine(key: string): TransferVoiceLine {
+  return pick([playerSigned[0], playerSigned[2]], `${key}|renew|signed`);
+}
 export const signingReadyLine = line('player-sign-1', 'player', 'Kalemi verin hocam, fikrimi değiştirmeden imzalayayım.');
 export function signedTransferLine(key: string): TransferVoiceLine { return pick(playerSigned, `${key}|signed`); }
 export function transferAnnouncement(reveal: TransferReveal, key: string): TransferVoiceLine {

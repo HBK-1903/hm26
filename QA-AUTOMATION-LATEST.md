@@ -1,5 +1,13 @@
 # HM26 — QA Durumu
 
+## Sesli sözleşme yenileme ve gerçek maç özeti — 2026-10-29
+- `npm run qa:all`: **45/45 aşama geçti**; üretim derlemesi, 4.000 maçlık denge simülasyonu, gerçek Chromium ve çevrimdışı PWA dahil.
+- Yenileme/özet mağaza ve arayüz senaryoları **65/65**; 320/390 px Chromium yenileme/özet **31/31**; canlı maç, piyasa ve satış Chromium **47/47**; maç günü akışı **108/108**.
+- Ret, ayrı son imza, çift imza, son anda değişen bütçe/sahiplik, kiralık ve kırgınlık sınırları, kayıt/yükleme; gerçek olay/yol, deplasman yönü, VAR iptali, eksik veri, oynat/duraklat ve son fikstür kontrol edildi.
+- Arşiv yalnız mevcut sıkıştırılmış veriyi kullanıyor; kayıt sürümü 4 ve 256 maç sınırı korundu, yeni kalıcı alan eklenmedi. Düdük sonrası ve rapor geçişi kullanıcı kontrolünde.
+- Türkçe ses dosyaları ve altyazı tarayıcıda doğrulandı; insan dinlemesi yapılmadı. Mevcut geliştirme bağımlılıklarında Vite/esbuild güvenlik uyarıları ve kabul edilen Phaser parça boyutu uyarısı sürüyor.
+- Yerel QA; üretime dağıtım veya otomatik merge yapılmadı.
+
 ## Piyasa, satış görüşmesi ve maç raporu — 2026-10-29
 - `npm run qa:all`: **43/43 aşama geçti**; gerçek Chromium, çevrimdışı kullanım ve üretim derlemesi dahil.
 - Satış akışı **31/31**, piyasa/kadro ve eski dizilişler **40/40**, mobil piyasa/satış/maç E2E **43/43**, maç günü akışı **108/108**.

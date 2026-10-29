@@ -15,6 +15,7 @@ import { playerToneHints, respondToPlayerWithTone, respondToSellerWithTone, sell
 import { managerTransferLine, playerTransferLine, sellerTransferLine, signedTransferLine, signingReadyLine, transferAnnouncement, transferLeakLine } from '../data/transferVoices';
 import { TransferSpeechCue, TransferSubtitle, TransferTheatre } from '../components/transfer/TransferTheatre';
 import { SaleFlow } from '../components/transfer/SaleFlow';
+import { ContractRenewal } from '../components/transfer/ContractRenewal';
 import { transferVoiceVolume, useTransferSpeech } from '../components/transfer/useTransferSpeech';
 import { audio } from '../audio/engine';
 import { type Club, type IncomingOffer, Player, Screen } from '../types';
@@ -363,19 +364,19 @@ const IncomingOffers: React.FC = () => {
 // ── Sözleşmeler (§11.4 gerçek yenileme) ──
 const Contracts: React.FC = () => {
   const g = useGame();
-  const { show, ToastView } = useToast();
   const [confirm, setConfirm] = useState<Player | null>(null);
   const squad = [...g.mySquad].sort((a, b) => (a.contractYears ?? 3) - (b.contractYears ?? 3));
 
   return (
     <div className="space-y-2">
-      <p className="text-[11.5px] text-muted leading-snug">Sözleşmesi son 2 yıla giren oyuncular gözden geçirilebilir. Yenileme imza bonusu (≈6 aylık maaş) ve %15 maaş artışı gerektirir; süre en az 3 yıl olur.</p>
+      <p className="text-[11.5px] text-muted leading-snug">Son 2 yılına giren kendi oyuncularınla sözleşme görüşmesi yapabilirsin. Başlangıç beklentisi mevcut maaşın %15 üzeridir; imza bonusu mevcut maaşın 6 ayıdır.</p>
       {squad.map((p) => {
         const cy = p.contractYears ?? 3;
         const expiring = cy <= 1;
+        const loaned = (g.loans ?? []).some((loan) => loan.playerId === p.id);
         return (
           <Card key={p.id} className="!p-3" accent={expiring ? 'var(--c-danger)' : cy <= 2 ? 'var(--c-warn)' : undefined}>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3" data-testid="contract-player" data-player-id={p.id}>
               <div className="w-10 h-10 rounded-lg overflow-hidden bg-elevated border border-line"><PlayerPortrait player={p} size={40} /></div>
               <div className="flex-1 min-w-0">
                 <div className="text-primary text-[13.5px] font-bold truncate">{p.name}</div>
@@ -383,7 +384,7 @@ const Contracts: React.FC = () => {
               </div>
               <div className="text-right shrink-0">
                 <Badge kind={expiring ? 'danger' : cy <= 2 ? 'warn' : 'muted'}>{cy <= 0 ? 'Sözleşme bitti!' : `${cy} yıl`}</Badge>
-                {cy <= 2 && (
+                {loaned ? <div className="text-muted text-[10px] mt-1">Kiralık</div> : cy <= 2 && (
                   <Btn variant="secondary" className="!min-h-[36px] !px-3 !text-[11.5px] mt-1.5 w-full" onClick={() => setConfirm(p)}>Yenile</Btn>
                 )}
               </div>
@@ -392,30 +393,8 @@ const Contracts: React.FC = () => {
         );
       })}
       <Sheet open={!!confirm} onClose={() => setConfirm(null)} title="Sözleşme Yenileme">
-        {confirm && (
-          <div className="space-y-3">
-            <div className="bg-base rounded-xl p-3 flex items-center gap-3">
-              <PlayerPortrait player={confirm} size={42} />
-              <div>
-                <div className="text-primary font-bold">{confirm.name}</div>
-                <div className="text-secondary text-[12px]">{G_SHORT[confirm.group]} · {confirm.ratings.gen} GEN</div>
-              </div>
-            </div>
-            {[3, 4, 5].map((y) => {
-              const cost = Math.round(confirm.wage * 6) / 1000;
-              const afford = g.budget.tb >= cost;
-              return (
-                <Btn key={y} variant={y === 3 ? 'amber' : 'secondary'} className="w-full justify-between" disabled={!afford}
-                  onClick={() => { const r = g.renewContract(confirm.id, y); if (r.ok) { show(`${confirm.name} ile ${y} yıl uzatıldı ✓`, 'ok'); setConfirm(null); } else show(r.reason ?? 'İşlem yapılamadı.', 'warn'); }}>
-                  <span>{y} yıllık sözleşme</span><span className="num">₺{cost.toFixed(1)}M bonus</span>
-                </Btn>
-              );
-            })}
-            <p className="text-muted text-[11px] leading-snug">Maaş %15 artar. Sözleşmesi bitmiş oyuncu sezon sonunda serbest kalabilir — fırsatları kaçırma.</p>
-          </div>
-        )}
+        {confirm && <ContractRenewal key={confirm.id} player={confirm} onClose={() => setConfirm(null)} />}
       </Sheet>
-      {ToastView}
     </div>
   );
 };

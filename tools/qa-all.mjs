@@ -65,6 +65,7 @@ try {
   run('Transfer negotiation and save integration (jsdom)', 'npm', ['run', 'qa:transfer:scene:ui'], 180_000);
   run('Sale negotiation, settlement and save integration (jsdom)', 'npm', ['run', 'qa:sale:ui'], 180_000);
   run('Market potential, rotation, match plan and legacy saves (jsdom)', 'npm', ['run', 'qa:market-squad:ui'], 180_000);
+  run('Contract renewal and recorded match highlights (jsdom)', 'npm', ['run', 'qa:renewal-highlights:ui'], 180_000);
   run('Tactics editor regression (jsdom)', 'npm', ['run', 'qa:wave2:ui'], 180_000);
   run('Squad rotation and health regression (jsdom)', 'npm', ['run', 'qa:wave3:ui'], 180_000);
   run('Matchday preparation regression (jsdom)', 'npm', ['run', 'qa:wave5:ui'], 180_000);
@@ -104,6 +105,7 @@ try {
       ['Medical/mentoring/trade E2E', 'tools/e2e-features-v099.mjs'],
       ['Transfer theatre, signing and offline media E2E', 'tools/e2e-transfer-scene.mjs'],
       ['Market potential, rotation and sale negotiation E2E', 'tools/e2e-market-squad-polish.mjs'],
+      ['Contract renewal and recorded match highlights E2E', 'tools/e2e-renewal-highlights.mjs'],
       ['Market filters and match-flow E2E', 'tools/e2e-v099.mjs'],
       ['Live scorebug, feed, accessible Phaser pitch and action E2E (v0.9.12)', 'tools/e2e-live-v0911.mjs'],
       ['Deterministic Phaser motion and pause E2E', 'tools/e2e-pitch-motion.mjs'],

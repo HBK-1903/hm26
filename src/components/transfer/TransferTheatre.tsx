@@ -6,7 +6,7 @@ import { transferDialogueHash, transferRevealForGen, type TransferReveal } from 
 import type { TransferSpeaker, TransferVoiceLine } from '../../data/transferVoices';
 import './transferTheatre.css';
 
-type TheatreMode = 'seller' | 'buyer' | 'player' | 'reveal';
+type TheatreMode = 'seller' | 'buyer' | 'player' | 'renewal' | 'reveal';
 
 const Puppet: React.FC<{ face: FaceLike; palette?: KitPalettes; talking: boolean; label: string; side: 'manager' | 'opponent'; decorative?: boolean }> = ({ face, palette, talking, label, side, decorative = false }) => {
   const layers = avatarParts(face, palette ?? BASE_PALETTES);
@@ -65,7 +65,7 @@ export const TransferTheatre: React.FC<{
     : playerFaceFromSeed(playerFaceSeed(player.id));
   const opponentPalette = isRepresentative ? BASE_PALETTES : palette;
   const opponentSpeaker: TransferSpeaker = isRepresentative ? 'representative' : 'player';
-  const title = mode === 'seller' ? 'KULÜP GÖRÜŞMESİ' : mode === 'buyer' ? 'SATIŞ GÖRÜŞMESİ' : mode === 'player' ? 'OYUNCUYLA GÖRÜŞME' : reveal === 'star' ? 'YILDIZ TANITIMI' : reveal === 'stadium' ? 'STADYUM TANITIMI' : 'BASIN TANITIMI';
+  const title = mode === 'seller' ? 'KULÜP GÖRÜŞMESİ' : mode === 'buyer' ? 'SATIŞ GÖRÜŞMESİ' : mode === 'renewal' ? 'SÖZLEŞME YENİLEME' : mode === 'player' ? 'OYUNCUYLA GÖRÜŞME' : reveal === 'star' ? 'YILDIZ TANITIMI' : reveal === 'stadium' ? 'STADYUM TANITIMI' : 'BASIN TANITIMI';
   const venue = mode !== 'reveal' ? (seller?.name ?? 'Serbest oyuncu') : reveal === 'press' ? 'Basın odası' : club.stadium;
   const style = { '--transfer-club': club.color1, '--transfer-trim': club.color2 } as React.CSSProperties;
   return (

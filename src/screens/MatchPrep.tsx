@@ -9,6 +9,7 @@ import { clubById } from '../data/clubs';
 import { GAME_PLANS } from '../data/meta';
 import { DemoMatchResult } from '../store/game';
 import { LiveMatch } from './LiveMatch';
+import { MatchHighlights } from '../components/match/MatchHighlights';
 import { buildMatchBrief, type NoteTone } from '../engine/matchDay';
 import { buildMatchdayAtmosphere } from '../engine/atmosphere';
 import { normalizeClubCulture } from '../data/culture';
@@ -28,6 +29,7 @@ export const MatchPrep: React.FC<{ go: (s: Screen) => void; onEndDay?: () => voi
   const [started, setStarted] = useState(false);
   const [activeTacticIdx, setActiveTacticIdx] = useState(0);   // P2 (SPEC Böl.I/7): 5 plan slotu seçilebilir
   const [quick, setQuick] = useState<DemoMatchResult | null>(null);
+  const [quickHighlights, setQuickHighlights] = useState(false);
   // "Kaydet ve Günü Bitir": maç commit edilip LiveMatch kapandıktan SONRA gün ilerletilir.
   // Aynı event içinde çağırsak advanceDay fikstürü oynanmamış görüp engel dönerdi;
   // efekt, store yeniden render olduktan sonra taze closure ile çalışmayı garanti eder.
@@ -39,6 +41,24 @@ export const MatchPrep: React.FC<{ go: (s: Screen) => void; onEndDay?: () => voi
     if (onEndDay) onEndDay();
     else go('hub');
   }, [endDayPending, started, onEndDay, go]);
+  // A quick result stays accessible even if it was the final fixture and nextFixture is now null.
+  if (quick) {
+    const quickHome = clubById(quick.homeId);
+    const quickAway = clubById(quick.awayId);
+    const close = () => { setQuick(null); setQuickHighlights(false); go('hub'); };
+    return <div className="h-full bg-base">
+      <Sheet open onClose={close} title="Hızlı Simülasyon Sonucu" tall>
+        <div className="text-center pb-2 space-y-3">
+          <div className="font-display text-2xl text-primary">{quickHome.short} <span className="text-amber">{quick.hg}–{quick.ag}</span> {quickAway.short}</div>
+          <div className="text-muted text-[12px]">xG {quick.xgHome.toFixed(2)}–{quick.xgAway.toFixed(2)} · Sonuç sezona ve tabloya işlendi</div>
+          <p className="text-secondary text-[12.5px] leading-snug">{quick.insights[0]}</p>
+          {!quickHighlights && <Btn variant="secondary" testId="quick-open-highlights" className="w-full" onClick={() => setQuickHighlights(true)}>Öne Çıkan Anları İzle</Btn>}
+          {quickHighlights && <div className="text-left"><MatchHighlights home={quickHome} away={quickAway} homeGoals={quick.hg} awayGoals={quick.ag} events={quick.events ?? []} reduceMotion={g.career.settings.reduceMotion} /></div>}
+          <Btn variant="amber" className="w-full" onClick={close}>Ana Merkez'e Dön</Btn>
+        </div>
+      </Sheet>
+    </div>;
+  }
   if (!next) {
     return (
       <div className="h-full flex flex-col items-center justify-center px-8 text-center">
@@ -410,18 +430,6 @@ export const MatchPrep: React.FC<{ go: (s: Screen) => void; onEndDay?: () => voi
         </div>
       </div>
 
-      {quick && (
-        <Sheet open onClose={() => { setQuick(null); go('hub'); }} title="Hızlı Simülasyon Sonucu">
-          <div className="text-center pb-2">
-            <div className="font-display text-3xl text-primary">
-              {clubById(quick.homeId).short} <span className="text-amber">{quick.hg}–{quick.ag}</span> {clubById(quick.awayId).short}
-            </div>
-            <div className="text-muted text-[12px] mt-1">xG {quick.xgHome.toFixed(2)}–{quick.xgAway.toFixed(2)} · Sonuç sezona ve tabloya işlendi</div>
-            <p className="text-secondary text-[12.5px] mt-3 leading-snug">{quick.insights[0]}</p>
-            <Btn variant="amber" className="w-full mt-4" onClick={() => { setQuick(null); go('hub'); }}>Ana Merkez'e Dön</Btn>
-          </div>
-        </Sheet>
-      )}
     </div>
   );
 };

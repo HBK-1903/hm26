@@ -215,6 +215,13 @@ try {
   check('Maç bittiğinde ekran otomatik geçmez, kullanıcıyı bekler', await endButton.isVisible() && await page.getByRole('tab', { name: 'Spiker ve Maç Günlüğü' }).getAttribute('aria-selected') === 'true');
   await endButton.click();
   await page.getByRole('button', { name: /Röportaj vermeden geç/ }).click();
+  check('Canlı maç raporunda özet kullanıcı açana kadar başlamaz', await page.getByTestId('open-highlights').isVisible() && await page.getByTestId('match-highlights').count() === 0);
+  await page.getByTestId('open-highlights').click();
+  const liveHighlights = page.getByRole('dialog', { name: 'Öne Çıkan Anlar' });
+  check('Canlı maçın gerçek olayları duraklatılmış görsel özette açılır', await liveHighlights.getByTestId('match-highlights').getAttribute('data-playing') === 'false' && (await liveHighlights.getByTestId('highlight-event').innerText()).length > 10);
+  check('Özet kendi kendine sonuç kaydetmez', await liveHighlights.getByTestId('highlight-next').isVisible() && await page.getByTestId('match-report-footer').count() === 1);
+  await liveHighlights.getByRole('button', { name: 'Kapat' }).click();
+  check('Özet kapanınca canlı maçın manuel sonuç raporu korunur', await page.getByRole('button', { name: 'Sonucu Kaydet — Ana Merkez' }).isVisible());
   await page.getByRole('button', { name: 'Olaylar', exact: true }).click();
   const events = page.getByTestId('match-report-event');
   const eventTexts = await events.allTextContents();

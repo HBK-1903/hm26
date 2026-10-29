@@ -2,7 +2,8 @@
 import React, { useState } from 'react';
 import { DemoFixture } from '../types';
 import { useGame, DemoMatchResult } from '../store/game';
-import { Card, Btn, Seg } from '../components/ui/kit';
+import { Card, Btn, Seg, Sheet } from '../components/ui/kit';
+import { MatchHighlights } from '../components/match/MatchHighlights';
 import { Crest } from '../components/assets/Crest';
 import { clubById } from '../data/clubs';
 import { expectedMatchPoints } from '../engine/analytics';
@@ -13,6 +14,7 @@ export const MatchReport: React.FC<{ result: DemoMatchResult; fixture: DemoFixtu
   const away = clubById(result.awayId);
   const [tab, setTab] = useState<'ozet' | 'istatistik' | 'analiz' | 'karne' | 'events'>('ozet');
   const [eventView, setEventView] = useState<'all' | 'important'>('all');
+  const [highlightsOpen, setHighlightsOpen] = useState(false);
   const mine = result.homeId === g.myClub.id ? 'home' : 'away';
   const opponent = mine === 'home' ? away : home;
   const events = result.events ?? [];
@@ -70,6 +72,12 @@ export const MatchReport: React.FC<{ result: DemoMatchResult; fixture: DemoFixtu
 
           {tab === 'ozet' && (
             <div className="mt-4 space-y-2.5 m26-in">
+              <Card className="!p-3" accent="var(--c-accent)">
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 min-w-0"><div className="font-display text-primary font-bold text-[14px]">Öne Çıkan Anlar</div><p className="text-muted text-[11px] mt-0.5">Gerçek maç olaylarını sahada incele.</p></div>
+                  <Btn variant="amber" testId="open-highlights" onClick={() => setHighlightsOpen(true)}>Özeti İzle</Btn>
+                </div>
+              </Card>
               <Card accent={resColor}>
                 <div className="text-[12px] text-muted uppercase tracking-[0.08em]">Ana İçgörüler</div>
                 <div className="space-y-2 mt-2.5">
@@ -251,6 +259,9 @@ export const MatchReport: React.FC<{ result: DemoMatchResult; fixture: DemoFixtu
         </div>
       </div>
 
+      <Sheet open={highlightsOpen} onClose={() => setHighlightsOpen(false)} title="Öne Çıkan Anlar" tall>
+        {highlightsOpen && <MatchHighlights home={home} away={away} homeGoals={result.hg} awayGoals={result.ag} events={events} reduceMotion={g.career.settings.reduceMotion} />}
+      </Sheet>
       {/* Keep both actions inside the content area, above the shell navigation. */}
       <div className="shrink-0 px-4 py-3 border-t border-line/50 bg-base" data-testid="match-report-footer">
         <div className="space-y-2">

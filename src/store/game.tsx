@@ -22,6 +22,7 @@ import { applyComfortSettings } from '../utils/comfort';
 import { consumeManagerBan, registerManagerYellow as registerManagerYellowRule } from '../engine/discipline';
 import { normalizeSellOnClauses, withSellOnClause, calculateSellOnSettlement, type SellOnSettlement } from '../data/transferNegotiation';
 import { evaluateIncomingCounter } from '../data/saleNegotiation';
+import { evaluateRenewalOffer, renewalBonus, renewalDemand, RENEWAL_YEARS, type RenewalTerms } from '../data/contractNegotiation';
 import type { TransferTone } from '../data/transferPresentation';
 import { academyIntakeExpired, evaluateAcademySigning, normalizeAcademyIntake } from '../data/academy';
 import { addSeasonCultureHonors, assessFfp, normalizeClubCulture, resolveCultureChoice, type CultureChoice } from '../data/culture';
@@ -38,6 +39,17 @@ export interface IncomingOfferResponse {
   reason?: string;
   fee?: number;
   settlement?: SellOnSettlement;
+  budgetAfter?: number;
+}
+
+export interface RenewalQuote {
+  ok: boolean;
+  reason?: string;
+  accepted?: boolean;
+  years?: number;
+  wage?: number;
+  demand?: number;
+  bonus?: number;
   budgetAfter?: number;
 }
 
@@ -147,7 +159,8 @@ interface GameActions {
   applyRiskOutcome: (playedIds: string[]) => string[];
   /** v0.9.9 — ağabeylik: 29+ oyuncu ≤21 gence atanır (gelişim desteği) */
   setMentor: (youngId: string, seniorId: string | null) => { ok: boolean; reason?: string };
-  renewContract: (playerId: string, years: number) => { ok: boolean; reason?: string };
+  quoteRenewal: (playerId: string, years: number, terms: RenewalTerms) => RenewalQuote;
+  renewContract: (playerId: string, years: number, terms?: RenewalTerms) => RenewalQuote;
   /** previewCounter: kabulde satış yapmaz; gerçek ret ise teklifi kapatır. */
   respondOffer: (offerId: string, accept: boolean, counterFee?: number, options?: { tone?: TransferTone; previewCounter?: boolean }) => IncomingOfferResponse;
   resolveCultureIssue: (issueId: string, choice: CultureChoice) => { ok: boolean; reason?: string };
@@ -1743,34 +1756,57 @@ export function GameProvider({ career: initialCareer, snapshot, children }: {
     });
   }, [playerOf]);
 
-  const renewContract = useCallback((playerId: string, years: number): { ok: boolean; reason?: string } => {
+  // Quote and signature share every eligibility, financial and player-response rule.
+  // The quote is ephemeral; only the existing wage/contract fields are saved on signature.
+  const quoteRenewal = useCallback((playerId: string, years: number, terms?: RenewalTerms): RenewalQuote => {
     const s = stateRef.current;
-    const p = playerOf(playerId);
-    if (!p) return { ok: false, reason: 'Oyuncu bulunamadı.' };
+    const found = playerOf(playerId);
+    if (!found || s.removedPlayers.includes(playerId)) return { ok: false, reason: 'Oyuncu bulunamadı.' };
+    // A previous action in this same event can have changed the ref before React rerenders.
+    const p = { ...found, ...(s.playerPatch[playerId] ?? {}), clubId: s.playerClub[playerId] ?? found.clubId };
     if (p.clubId !== s.career.clubId) return { ok: false, reason: 'Oyuncu kadronuzda değil.' };
+    if (onLoan(s.loans ?? [], playerId)) return { ok: false, reason: 'Kiralık oyuncunun sözleşmesi kendi kulübüne aittir.' };
     if ((p.contractYears ?? 3) > 2) return { ok: false, reason: 'Sözleşme yenileme son 2 yılda açılır.' };
-    // Dalga 6: kırgın oyuncu süre sözü olmadan masaya oturmaz
-    {
-      const myId2 = s.career.clubId;
-      const byGen = [...(squads[myId2] ?? [])].sort((a, b) => b.ratings.gen - a.ratings.gen);
-      const rank = byGen.findIndex((x) => x.id === playerId);
-      const playedLeague = s.fixtures.filter((f) => f.played && f.comp === 'lig' && (f.homeId === myId2 || f.awayId === myId2)).length;
-      const apps = (s.playerStats ?? {})[playerId]?.apps ?? 0;
-      const gv = minuteGrievance(rank < 0 ? 20 : rank, p.age, apps, playedLeague);
-      if (grievanceLabel(gv) === 'kırgın' && !(s.promises ?? {})[playerId])
-        return { ok: false, reason: `${p.name} kırgın: süre garantisi olmadan yeni sözleşme konuşmuyor. Profilinde "Süre Sözü Ver" (önümüzdeki 10 maçta ≥%55) ya da düzenli oynat.` };
+    if (!RENEWAL_YEARS.some((value) => value === years)) return { ok: false, reason: 'Süre 3, 4 veya 5 yıl olmalı.' };
+    if (!Number.isFinite(p.wage) || p.wage < 0) return { ok: false, reason: 'Oyuncunun mevcut maaşı geçersiz.' };
+    const offer = terms ?? { wage: renewalDemand(p.wage), tone: 'calm' as const };
+    const maxWage = Math.max(1, Math.ceil(renewalDemand(p.wage) * 2));
+    if (!Number.isSafeInteger(offer.wage) || offer.wage < 0 || offer.wage > maxWage || !['calm', 'witty', 'firm'].includes(offer.tone)) {
+      return { ok: false, reason: 'Maaş veya görüşme üslubu geçersiz.' };
     }
-    const cost = Math.round(p.wage * 6) / 1000; // imza bonusu ≈ 6 maaş (₺M)
-    if (s.budget.tb < cost) return { ok: false, reason: `İmza bonusu için bütçe yetersiz (₺${cost.toFixed(1)}M gerekli).` };
-    setSt((cur) => ({
-      ...cur,
-      playerPatch: { ...cur.playerPatch, [playerId]: { ...(cur.playerPatch[playerId] ?? {}), contractYears: Math.max(years, 3), wage: Math.round(p.wage * 1.15) } },
-      budget: { ...cur.budget, tb: Math.round((cur.budget.tb - cost) * 10) / 10 },
-      inbox: [{ id: `rw-${playerId}-${cur.career.day}`, kind: 'transfer', title: 'Sözleşme yenilendi', body: `${p.name} ile ${years} yıllık yeni sözleşme imzalandı. İmza bonusu: ₺${cost.toFixed(1)}M. Yeni maaş ₺${Math.round(p.wage * 1.15)}B/ay (+%15).`, day: cur.career.day, read: false }, ...cur.inbox],
-    }));
+    const byGen = (squads[s.career.clubId] ?? [])
+      .filter((player) => (s.playerClub[player.id] ?? player.clubId) === s.career.clubId && !s.removedPlayers.includes(player.id))
+      .map((player) => ({ ...player, ...(s.playerPatch[player.id] ?? {}) }))
+      .sort((a, b) => b.ratings.gen - a.ratings.gen);
+    const rank = byGen.findIndex((player) => player.id === playerId);
+    const playedLeague = s.fixtures.filter((f) => f.played && f.comp === 'lig' && (f.homeId === s.career.clubId || f.awayId === s.career.clubId)).length;
+    const apps = (s.playerStats ?? {})[playerId]?.apps ?? 0;
+    if (grievanceLabel(minuteGrievance(rank < 0 ? 20 : rank, p.age, apps, playedLeague)) === 'kırgın' && !(s.promises ?? {})[playerId]) {
+      return { ok: false, reason: `${p.name} kırgın: süre garantisi olmadan yeni sözleşme konuşmuyor. Profilinde "Süre Sözü Ver" (önümüzdeki 10 maçta ≥%55) ya da düzenli oynat.` };
+    }
+    const bonus = renewalBonus(p.wage); // ₺M, mevcut maaşın altı ayı
+    if (s.budget.tb < bonus) return { ok: false, reason: `İmza bonusu için bütçe yetersiz (₺${bonus.toFixed(3)}M gerekli).` };
+    const response = evaluateRenewalOffer({ currentWage: p.wage, offeredWage: offer.wage, tone: offer.tone, seed: s.career.seed, day: s.career.day, playerId });
+    return { ok: true, accepted: response.accepted, demand: response.demand, wage: offer.wage, years, bonus, budgetAfter: Math.round((s.budget.tb - bonus) * 1000) / 1000 };
+  }, [playerOf, squads]);
+
+  const renewContract = useCallback((playerId: string, years: number, terms?: RenewalTerms): RenewalQuote => {
+    const quote = quoteRenewal(playerId, years, terms);
+    if (!quote.ok) return quote;
+    if (!quote.accepted) return { ...quote, ok: false, reason: `Oyuncu en az ₺${quote.demand}B/ay bekliyor.` };
+    const s = stateRef.current;
+    const p = playerOf(playerId)!;
+    const next: PersistedState = {
+      ...s,
+      playerPatch: { ...s.playerPatch, [playerId]: { ...(s.playerPatch[playerId] ?? {}), contractYears: years, wage: quote.wage! } },
+      budget: { ...s.budget, tb: quote.budgetAfter! },
+      inbox: [{ id: `rw-${playerId}-${s.career.day}`, kind: 'transfer', title: 'Sözleşme yenilendi', body: `${p.name} ile ${years} yıllık yeni sözleşme imzalandı. İmza bonusu: ₺${quote.bonus!.toFixed(3)}M. Yeni maaş ₺${quote.wage}B/ay.`, day: s.career.day, read: false }, ...s.inbox],
+    };
+    // A second click sees the newly extended contract before React renders again.
+    stateRef.current = next; setSt(next);
     setTimeout(() => { void saveNow(); }, 100);
-    return { ok: true };
-  }, [worldSeed, playerOf, saveNow]);
+    return quote;
+  }, [quoteRenewal, playerOf, saveNow]);
 
   // ── Dalga 3: Kiralık alma (AI kulübünden, pencere içinde, kapı ücreti yok, maaş yarı yarıya) ──
   const loanIn = useCallback((p: Player): { ok: boolean; reason?: string } => {
@@ -1862,7 +1898,7 @@ export function GameProvider({ career: initialCareer, snapshot, children }: {
     effectiveStrength, saveNow,
     advanceDay, buildDemoMatch, playLeagueMatch, updateTactic, setInbox, setCareer, updateMarketShortlist, recordManagerYellow, consumeManagerSuspension, setBudget, addSquadPlayer, clearSeasonFinale,
     setTrainingFocus, signAcademyCandidate, passAcademyCandidate, acceptJob,
-    buyPlayer, clinicTreat, setRiskPlay, applyRiskOutcome, setMentor, respondOffer, toggleTransferList, playerOf, clubOfPlayer, renewContract,
+    buyPlayer, clinicTreat, setRiskPlay, applyRiskOutcome, setMentor, respondOffer, toggleTransferList, playerOf, clubOfPlayer, quoteRenewal, renewContract,
     loanIn, loanOut, promiseMinutes, minuteState, resolveCultureIssue,
   };
   return <GameCtx.Provider value={value}>{children}</GameCtx.Provider>;
