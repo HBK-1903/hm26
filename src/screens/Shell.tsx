@@ -1,5 +1,5 @@
 // HM26 — UI/UX §4 Global Kabuk (v0.7.0: UI Prototip entegrasyonu — HM26 header + alt nav + daybar + Daha paneli)
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Screen } from '../types';
 import { GameIcon } from '../components/icons';
 import { useGame, dayToDate } from '../store/game';
@@ -19,7 +19,6 @@ import { MatchPrep } from './MatchPrep';
 import { ScreenBoundary } from '../components/ui/ScreenBoundary';
 import { Sheet, Btn } from '../components/ui/kit';
 import { audio } from '../audio/engine';
-import { useEffect } from 'react';
 
 const NAV: { id: Screen | 'more'; label: string; icon: string }[] = [
   { id: 'hub', label: 'Merkez', icon: 'home' },
@@ -42,6 +41,7 @@ const MORE_IDS: string[] = MORE_MENU.map((m) => m.id);
 
 // v0.8.3 RISK-01: tarayıcı geri/ileri için yalnızca kalıcı ekranlar geçmişe yazılır (liveMatch/matchReport geçici)
 const NAV_SCREENS = new Set<Screen>(['hub', 'squad', 'tactics', 'market', 'club', 'comps', 'stats', 'inbox', 'careerProfile', 'settings', 'backup', 'matchPrep', 'newsroom']);
+const UNSAVED_MATCH_WARNING = 'Maç sonucu henüz kaydedilmedi. Bu ekrandan ayrılırsan maç baştan oynanır. Ayrılmak istiyor musun?';
 
 // PWA kısayolları (#squad, #market …) ve yenileme sonrası derin link: bilinmeyen hash güvenle Merkez'e düşer
 function screenFromHash(): Screen {
@@ -59,6 +59,19 @@ export const AppShell: React.FC<{ pendingScreen: Screen | null; setPendingScreen
   const [moreOpen, setMoreOpen] = useState(false);
   const [blockedReason, setBlockedReason] = useState<string | null>(null);
   const [lastSummary, setLastSummary] = useState<string[] | null>(null);
+  // A live match and its report are transient until the manager saves the result.
+  const matchInProgress = useRef(false);
+  const setMatchInProgress = useCallback((active: boolean) => { matchInProgress.current = active; }, []);
+
+  useEffect(() => {
+    const warnBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!matchInProgress.current) return;
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warnBeforeUnload);
+    return () => window.removeEventListener('beforeunload', warnBeforeUnload);
+  }, []);
 
   // §15.1: ilk kullanıcı temasında sesi aç + tercihleri yükle
   useEffect(() => {
@@ -85,6 +98,14 @@ export const AppShell: React.FC<{ pendingScreen: Screen | null; setPendingScreen
       const fromHash = location.hash.replace(/^#/, '') as Screen;
       const target: Screen = NAV_SCREENS.has(fromState as Screen) ? (fromState as Screen)
         : NAV_SCREENS.has(fromHash) ? fromHash : 'hub';
+      if (matchInProgress.current && target !== 'matchPrep') {
+        if (!window.confirm(UNSAVED_MATCH_WARNING)) {
+          // popstate has already changed the URL; restore the live-match route.
+          try { history.pushState({ hm26s: 'matchPrep' }, '', '#matchPrep'); } catch { /* file:// fallback */ }
+          return;
+        }
+        matchInProgress.current = false;
+      }
       setPendingScreen(null);
       setMoreOpen(false);
       setScreen(target);
@@ -95,6 +116,10 @@ export const AppShell: React.FC<{ pendingScreen: Screen | null; setPendingScreen
 
   const current: Screen = pendingScreen ?? screen;
   const go = (s: Screen) => {
+    if (matchInProgress.current && s !== 'matchPrep') {
+      if (!window.confirm(UNSAVED_MATCH_WARNING)) return;
+      matchInProgress.current = false;
+    }
     setPendingScreen(null);
     setScreen(s);
     setMoreOpen(false);
@@ -173,7 +198,7 @@ export const AppShell: React.FC<{ pendingScreen: Screen | null; setPendingScreen
           {current === 'inbox' && <InboxScreen go={go} />}
           {current === 'stats' && <StatsHub />}
           {current === 'newsroom' && <NewsroomScreen />}
-          {current === 'matchPrep' && <MatchPrep go={go} onEndDay={endDayFromMatch} />}
+          {current === 'matchPrep' && <MatchPrep go={go} onEndDay={endDayFromMatch} onMatchSessionChange={setMatchInProgress} />}
           {(current === 'careerProfile' || current === 'settings' || current === 'backup') && <PlaceholderScreen id={current} />}
         </ScreenBoundary>
       </div>

@@ -10,6 +10,7 @@ import { computeSeasonAwards, SeasonAwards } from '../data/awards';
 import { minuteGrievance, grievanceLabel, evalPromise, newPromise, MinutePromise, minuteRole } from '../data/minutes';
 import type { MatchStateEvent } from '../engine/engine';
 import { buildEngineInput } from '../engine/adapter';
+import { aiDefaultTactic } from '../engine/tactics';
 import { buildQuickMatchResult } from '../engine/quickMatchResult';
 import { fixtureXgPair, xgConfig, hash32 } from '../engine/leagueXg';
 import { compactMatchEvents } from '../engine/matchEvents';
@@ -19,7 +20,9 @@ import { Cup, CupTie, buildCup, buildFriendlies, buildLeagueFixtures, cupGroupTa
 import { writeSave, writeSaveRetry, SaveBlob, SAVE_VERSION } from './persist';
 import { applyComfortSettings } from '../utils/comfort';
 import { consumeManagerBan, registerManagerYellow as registerManagerYellowRule } from '../engine/discipline';
-import { normalizeSellOnClauses, withSellOnClause, calculateSellOnSettlement } from '../data/transferNegotiation';
+import { normalizeSellOnClauses, withSellOnClause, calculateSellOnSettlement, type SellOnSettlement } from '../data/transferNegotiation';
+import { evaluateIncomingCounter } from '../data/saleNegotiation';
+import type { TransferTone } from '../data/transferPresentation';
 import { academyIntakeExpired, evaluateAcademySigning, normalizeAcademyIntake } from '../data/academy';
 import { addSeasonCultureHonors, assessFfp, normalizeClubCulture, resolveCultureChoice, type CultureChoice } from '../data/culture';
 import { applyInterviewEffect, INTERVIEW_INBOX_TITLE, type InterviewOption } from '../data/interview';
@@ -28,6 +31,15 @@ import { advanceInternationalSeason, archiveInternationalSeason, buildInternatio
 
 export const SEED_BASE = 20260803;
 export { dayToDate };
+
+export interface IncomingOfferResponse {
+  ok: boolean;
+  outcome?: 'accepted' | 'counter-accepted' | 'rejected';
+  reason?: string;
+  fee?: number;
+  settlement?: SellOnSettlement;
+  budgetAfter?: number;
+}
 
 export interface DemoMatchEvent { minute: number; text: string; kind: 'info' | 'goal' | 'card' | 'chance' | 'save' | 'var' | 'sub' | 'half' | 'injury' | 'coach'; side?: 'home' | 'away'; path?: string[]; anim?: MatchStateEvent['anim']; playerId?: string; scorerId?: string; assisterId?: string; visualEvent?: 'free_kick' | 'brawl' | 'woodwork' | 'volley'; visualActors?: string[]; }
 // Dalga 2 (§5-D): vuruş haritası noktası — dikey saha yüzde koordinatı (ev üst yarı, dep alt yarı)
@@ -115,7 +127,7 @@ interface GameState extends PersistedState {
 interface GameActions {
   clearSeasonFinale: () => void;
   advanceDay: () => AdvanceResult;
-  buildDemoMatch: (homeId: string, awayId: string, tacticName: string) => DemoMatchResult;
+  buildDemoMatch: (homeId: string, awayId: string, tacticName: string, tacticIdx?: number) => DemoMatchResult;
   playLeagueMatch: (fx: DemoFixture, overrideResult?: DemoMatchResult, tacticIdx?: number, interview?: InterviewOption) => DemoMatchResult;
   updateTactic: (idx: number, t: TacticPlan) => void;
   setInbox: (fn: (m: InboxMsg[]) => InboxMsg[]) => void;
@@ -136,7 +148,8 @@ interface GameActions {
   /** v0.9.9 — ağabeylik: 29+ oyuncu ≤21 gence atanır (gelişim desteği) */
   setMentor: (youngId: string, seniorId: string | null) => { ok: boolean; reason?: string };
   renewContract: (playerId: string, years: number) => { ok: boolean; reason?: string };
-  respondOffer: (offerId: string, accept: boolean, counterFee?: number) => void;
+  /** previewCounter: kabulde satış yapmaz; gerçek ret ise teklifi kapatır. */
+  respondOffer: (offerId: string, accept: boolean, counterFee?: number, options?: { tone?: TransferTone; previewCounter?: boolean }) => IncomingOfferResponse;
   resolveCultureIssue: (issueId: string, choice: CultureChoice) => { ok: boolean; reason?: string };
   toggleTransferList: (playerId: string) => void;
   playerOf: (playerId: string) => Player | null;
@@ -329,7 +342,9 @@ export function GameProvider({ career: initialCareer, snapshot, children }: {
         if (st.removedPlayers.includes(p0.id)) return;
         const patch = st.playerPatch[p0.id];
         const p = patch ? { ...p0, ...patch } : p0;
-        (merged[cid] ??= []).push({ ...p, clubId: cid });
+        // Migrated / academy players must follow the same transfer override as base squads.
+        const targetClub = st.playerClub[p.id] ?? cid;
+        (merged[targetClub] ??= []).push({ ...p, clubId: targetClub });
       });
     });
     return merged;
@@ -1135,7 +1150,9 @@ export function GameProvider({ career: initialCareer, snapshot, children }: {
     if (next.career.day % 30 === 0 && next.career.day > 1) {
       const cObj = clubById(next.career.clubId);
       const facs = next.career.clubFacilities ?? cObj.facilities;
-      const totalWageM = (squads[next.career.clubId] ?? []).concat(next.extraSquads[next.career.clubId] ?? []).reduce((sum, p) => sum + (p.wage ?? 0), 0) / 1000;
+      // squads already includes academy/legacy players and respects playerClub transfers.
+      // Appending extraSquads again double-counted wages and kept charging sold players.
+      const totalWageM = (squads[next.career.clubId] ?? []).reduce((sum, p) => sum + (p.wage ?? 0), 0) / 1000;
       const facCostM = Object.values(facs).reduce((sum, l) => sum + (l ?? 1) * 0.05, 0);
       const expenses = totalWageM + facCostM;
       const sponsorM = cObj.strength * 0.02;
@@ -1173,11 +1190,14 @@ export function GameProvider({ career: initialCareer, snapshot, children }: {
   }, [allMyFixtures, simulateDayFixtures, buildKnockouts, advanceKnockouts, startNewSeason, saveNow, evolvePlayers, maybeSpawnOffer, squads]);
 
   // ── Hızlı maç sonucu üretici: MatchSession sonucu, post-score müdahalesi olmadan ──
-  const buildDemoMatch = useCallback((homeId: string, awayId: string, tacticName: string): DemoMatchResult => {
+  const buildDemoMatch = useCallback((homeId: string, awayId: string, tacticName: string, tacticIdx?: number): DemoMatchResult => {
     const homeClub0 = clubById(homeId), awayClub0 = clubById(awayId);
     const career = stateRef.current.career;
-    const tacNameHome = homeId === career.clubId ? tacticName : undefined;
-    const homeTactic = stateRef.current.tactics.find((t) => t.name === tacNameHome) ?? stateRef.current.tactics[0];
+    const chosen = (tacticIdx === undefined ? undefined : stateRef.current.tactics[tacticIdx])
+      ?? stateRef.current.tactics.find((t) => t.name === tacticName) ?? stateRef.current.tactics[0];
+    // The user's plan belongs to their actual side, including on away fixtures.
+    const homeTactic = homeId === career.clubId ? chosen : aiDefaultTactic(homeClub0, awayClub0);
+    const awayTactic = awayId === career.clubId ? chosen : undefined;
     // Dayanıklı maç seed'i: her gün + her rakip çifti deterministic
     const seed = worldSeed + homeId.length * 13 + awayId.length * 17 + career.day * 101;
     const input = buildEngineInput({
@@ -1186,11 +1206,13 @@ export function GameProvider({ career: initialCareer, snapshot, children }: {
       homeSquad: squads[homeId] ?? [],
       awaySquad: squads[awayId] ?? [],
       homeTactic,
+      awayTactic,
       seed,
       settings: career.settings,
       derby: homeClub0.derby === awayId || awayClub0.derby === homeId,
       challengeClubId: career.clubId,
       challengePoints: career.manager.challengePoints,
+      riskIds: stateRef.current.riskPlayIds ?? [],
     });
     // challengePoints are not allowed to alter a completed score. All quick-result fields
     // come from the same deterministic engine result and its event-derived statistics.
@@ -1199,7 +1221,7 @@ export function GameProvider({ career: initialCareer, snapshot, children }: {
 
   const playLeagueMatch = useCallback((fx: DemoFixture, overrideResult?: DemoMatchResult, tacticIdx = 0, interview?: InterviewOption): DemoMatchResult => {
     // P0 (SPEC Böl.I/1): canlı maçtan gelen sonuç varsa DIRECT kullan — aksi halde bağımsız re-simülasyon skoru çöpe atardı
-    const res = overrideResult ?? buildDemoMatch(fx.homeId, fx.awayId, stateRef.current.tactics[0]?.name ?? 'Ana Plan');
+    const res = overrideResult ?? buildDemoMatch(fx.homeId, fx.awayId, stateRef.current.tactics[tacticIdx]?.name ?? stateRef.current.tactics[0]?.name ?? 'Ana Plan', tacticIdx);
     setSt((s) => {
       let next = finishUserFixture(s, fx, res.hg, res.ag, res.xgHome, res.xgAway);
       // Wave 13: exact engine/player-row evidence is now read from the adapter's public projection (legacy nested result remains supported).
@@ -1636,61 +1658,78 @@ export function GameProvider({ career: initialCareer, snapshot, children }: {
     return { ok: true };
   }, [playerOf, squads, saveNow]);
 
-  const respondOffer = useCallback((offerId: string, accept: boolean, counterFee?: number) => {
+  const respondOffer = useCallback((offerId: string, accept: boolean, counterFee?: number, options?: { tone?: TransferTone; previewCounter?: boolean }): IncomingOfferResponse => {
     const s = stateRef.current;
-    const of = s.incomingOffers.find((o) => o.id === offerId);
-    if (!of || of.state !== 'open') return;
-    // Dalga 3: kiralık oyuncu satış masasına çıkamaz
-    if (onLoan(s.loans ?? [], of.playerId)) return;
-    const p = playerOf(of.playerId);
-    const buyer = clubById(of.fromClubId);
-    if (accept || (counterFee !== undefined)) {
-      const rng = mulberry32(worldSeed + of.day * 7 + of.fee * 100);
-      if (accept) {
-        setSt((cur) => {
-          const settlement = calculateSellOnSettlement(of.fee, normalizeSellOnClauses(cur.sellOnClauses)[of.playerId] ?? []);
-          const clauses = normalizeSellOnClauses(cur.sellOnClauses); delete clauses[of.playerId];
-          const nextBudget = Math.round((cur.budget.tb + settlement.retainedFee) * 100) / 100;
-          const entry: TransferLogEntry = { id: `to-${offerId}`, day: cur.career.day, seasonNo: cur.seasonNo, playerName: p!.name, age: p!.age, group: p!.group, fromClubId: cur.career.clubId, toClubId: of.fromClubId, fee: of.fee, kind: 'out', sellOnPaid: settlement.totalPaid };
-          const paidTo = settlement.payouts.map((row) => `${clubByIdSafe(row.clubId)?.short ?? row.clubId} ₺${row.amount.toFixed(2)}M`).join(', ');
-          return {
-            ...cur,
-            incomingOffers: cur.incomingOffers.map((o) => (o.id === offerId ? { ...o, state: 'accepted' as const } : o)),
-            playerClub: { ...cur.playerClub, [of.playerId]: of.fromClubId },
-            budget: { ...cur.budget, tb: nextBudget },
-            sellOnClauses: clauses,
-            transferLog: [entry, ...cur.transferLog],
-            transferListed: cur.transferListed.filter((x) => x !== of.playerId),
-            inbox: [{ id: `ts-${offerId}`, kind: 'transfer', title: `Satış: ${p!.name}`, body: `${p!.name}, ₺${of.fee.toFixed(1)}M brüt bedelle ${buyer.name} kulübüne satıldı.${settlement.totalPaid > 0 ? ` Önceki satış payı: ₺${settlement.totalPaid.toFixed(2)}M (${paidTo}); bütçeye net ₺${settlement.retainedFee.toFixed(2)}M eklendi.` : ''} Transfer bütçen ₺${nextBudget.toFixed(1)}M oldu.`, day: cur.career.day, read: false }, ...cur.inbox],
-          };
-        });
-      } else {
-        // Karşı teklif: alıcı değerlendirir (fee oranına göre deterministik)
-        const acc = counterFee! <= of.fee * 1.25 || (of.negotiable && counterFee! <= of.fee * 1.6 && rng() < 0.5);
-        setSt((cur) => {
-          if (!acc) return { ...cur, incomingOffers: cur.incomingOffers.map((o) => (o.id === offerId ? { ...o, state: 'rejected' as const } : o)), inbox: [{ id: `trn-${offerId}`, kind: 'transfer', title: 'Karşı teklif reddedildi', body: `${buyer.name}, ${p!.name} için önerdiğin ₺${counterFee!.toFixed(1)}M bedeli çok yüksek buldu ve masadan kalktı.`, day: cur.career.day, read: false }, ...cur.inbox] };
-          const settlement = calculateSellOnSettlement(counterFee!, normalizeSellOnClauses(cur.sellOnClauses)[of.playerId] ?? []);
-          const clauses = normalizeSellOnClauses(cur.sellOnClauses); delete clauses[of.playerId];
-          const nextBudget = Math.round((cur.budget.tb + settlement.retainedFee) * 100) / 100;
-          const entry: TransferLogEntry = { id: `to-${offerId}-c`, day: cur.career.day, seasonNo: cur.seasonNo, playerName: p!.name, age: p!.age, group: p!.group, fromClubId: cur.career.clubId, toClubId: of.fromClubId, fee: counterFee!, kind: 'out', sellOnPaid: settlement.totalPaid };
-          const paidTo = settlement.payouts.map((row) => `${clubByIdSafe(row.clubId)?.short ?? row.clubId} ₺${row.amount.toFixed(2)}M`).join(', ');
-          return {
-            ...cur,
-            incomingOffers: cur.incomingOffers.map((o) => (o.id === offerId ? { ...o, state: 'accepted' as const, fee: counterFee! } : o)),
-            playerClub: { ...cur.playerClub, [of.playerId]: of.fromClubId },
-            budget: { ...cur.budget, tb: nextBudget },
-            sellOnClauses: clauses,
-            transferLog: [entry, ...cur.transferLog],
-            transferListed: cur.transferListed.filter((x) => x !== of.playerId),
-            inbox: [{ id: `trn-ok-${offerId}`, kind: 'transfer', title: 'Karşı teklif kabul!', body: `${buyer.name}, yükseltilmiş bedel ₺${counterFee!.toFixed(1)}M'yi kabul etti. ${p!.name} satıldı.${settlement.totalPaid > 0 ? ` Önceki satış payı: ₺${settlement.totalPaid.toFixed(2)}M (${paidTo}); bütçeye net ₺${settlement.retainedFee.toFixed(2)}M eklendi.` : ''}`, day: cur.career.day, read: false }, ...cur.inbox],
-          };
-        });
-      }
-    } else {
-      setSt((cur) => ({ ...cur, incomingOffers: cur.incomingOffers.map((o) => (o.id === offerId ? { ...o, state: 'rejected' as const } : o)) }));
+    const offer = s.incomingOffers.find((item) => item.id === offerId);
+    if (!offer || offer.state !== 'open') return { ok: false, reason: 'Bu teklif artık açık değil.' };
+    if (options?.previewCounter && (accept || counterFee === undefined)) return { ok: false, reason: 'Karşı teklif bedeli gerekli.' };
+
+    // An explicit refusal is always possible, including for a now-invalid player.
+    if (!accept && counterFee === undefined) {
+      const next: PersistedState = { ...s, incomingOffers: s.incomingOffers.map((item) => item.id === offerId ? { ...item, state: 'rejected' as const } : item) };
+      stateRef.current = next; setSt(next);
+      setTimeout(() => { void saveNow(); }, 150);
+      return { ok: true, outcome: 'rejected' };
     }
+    if (offer.expiresDay < s.career.day) return { ok: false, reason: 'Teklifin süresi doldu.' };
+    if (!Number.isFinite(offer.fee) || offer.fee <= 0) return { ok: false, reason: 'Teklif bedeli geçersiz.' };
+    if (onLoan(s.loans ?? [], offer.playerId)) return { ok: false, reason: 'Kiralık oyuncu satılamaz.' };
+    const player = playerOf(offer.playerId);
+    const currentClub = player ? s.playerClub[player.id] ?? player.clubId : null;
+    if (!player || currentClub !== s.career.clubId || s.removedPlayers.includes(offer.playerId)) {
+      return { ok: false, reason: 'Oyuncu artık kadronuzda değil.' };
+    }
+    const buyer = clubByIdSafe(offer.fromClubId);
+    if (!buyer || buyer.id === s.career.clubId) return { ok: false, reason: 'Alıcı kulüp bulunamadı.' };
+
+    const isCounter = !accept && counterFee !== undefined;
+    let fee = offer.fee;
+    if (isCounter) {
+      if (!Number.isFinite(counterFee) || counterFee! < 0) return { ok: false, reason: 'Karşı teklif bedeli geçersiz.' };
+      // Keep legacy callers' exact value for the acceptance boundary; the UI itself sends hundredths.
+      fee = counterFee!;
+      const result = evaluateIncomingCounter({ seed: s.career.seed, offer, fee, tone: options?.tone });
+      if (!result.accepted) {
+        const next: PersistedState = {
+          ...s,
+          incomingOffers: s.incomingOffers.map((item) => item.id === offerId ? { ...item, state: 'rejected' as const } : item),
+          inbox: [{ id: `trn-${offerId}`, kind: 'transfer', title: 'Karşı teklif reddedildi', body: `${buyer.name}, ${player.name} için önerdiğin ₺${fee.toFixed(2)}M bedeli yüksek buldu ve masadan kalktı.`, day: s.career.day, read: false }, ...s.inbox],
+        };
+        stateRef.current = next; setSt(next);
+        setTimeout(() => { void saveNow(); }, 150);
+        return { ok: true, outcome: 'rejected', fee };
+      }
+      // The buyer agreed, but the manager has not yet authorized a sale.
+      if (options?.previewCounter) return { ok: true, outcome: 'counter-accepted', fee };
+    }
+
+    const clauses = normalizeSellOnClauses(s.sellOnClauses);
+    const settlement = calculateSellOnSettlement(fee, clauses[offer.playerId] ?? []);
+    delete clauses[offer.playerId];
+    const nextBudget = Math.round((s.budget.tb + settlement.retainedFee) * 100) / 100;
+    const entry: TransferLogEntry = { id: `to-${offerId}${isCounter ? '-c' : ''}`, day: s.career.day, seasonNo: s.seasonNo,
+      playerName: player.name, age: player.age, group: player.group, fromClubId: s.career.clubId, toClubId: buyer.id,
+      fee, kind: 'out', sellOnPaid: settlement.totalPaid };
+    const paidTo = settlement.payouts.map((row) => `${clubByIdSafe(row.clubId)?.short ?? row.clubId} ₺${row.amount.toFixed(2)}M`).join(', ');
+    const next: PersistedState = {
+      ...s,
+      // Other offers for a transferred player are no longer actionable.
+      incomingOffers: s.incomingOffers.map((item) => item.id === offerId ? { ...item, state: 'accepted' as const, fee }
+        : item.playerId === offer.playerId && item.state === 'open' ? { ...item, state: 'expired' as const } : item),
+      playerClub: { ...s.playerClub, [offer.playerId]: buyer.id },
+      budget: { ...s.budget, tb: nextBudget },
+      sellOnClauses: clauses,
+      transferLog: [entry, ...s.transferLog],
+      transferListed: s.transferListed.filter((id) => id !== offer.playerId),
+      inbox: [{ id: `ts-${offerId}`, kind: 'transfer', title: `Satış: ${player.name}`,
+        body: `${player.name}, ₺${fee.toFixed(2)}M brüt bedelle ${buyer.name} kulübüne satıldı.${settlement.totalPaid > 0 ? ` Önceki satış payı: ₺${settlement.totalPaid.toFixed(2)}M (${paidTo}); bütçeye net ₺${settlement.retainedFee.toFixed(2)}M eklendi.` : ''} Transfer bütçen ₺${nextBudget.toFixed(2)}M oldu.`,
+        day: s.career.day, read: false }, ...s.inbox],
+    };
+    // Synchronous ref update prevents two clicks or another stale offer selling twice.
+    stateRef.current = next; setSt(next);
     setTimeout(() => { void saveNow(); }, 150);
-  }, [worldSeed, playerOf, saveNow]);
+    return { ok: true, outcome: 'accepted', fee, settlement, budgetAfter: nextBudget };
+  }, [playerOf, saveNow]);
 
   const toggleTransferList = useCallback((playerId: string) => {
     setSt((cur) => {

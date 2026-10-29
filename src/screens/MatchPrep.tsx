@@ -7,7 +7,6 @@ import { Crest } from '../components/assets/Crest';
 import { GameIcon } from '../components/icons';
 import { clubById } from '../data/clubs';
 import { GAME_PLANS } from '../data/meta';
-import { autoXI } from '../data/gen';
 import { DemoMatchResult } from '../store/game';
 import { LiveMatch } from './LiveMatch';
 import { buildMatchBrief, type NoteTone } from '../engine/matchDay';
@@ -18,10 +17,11 @@ import { goalMinuteProfile } from '../engine/matchEvents';
 import { COMP_LABEL } from '../data/newsroom';
 import { opponentScout } from '../engine/scout';
 import { rotationAdvice } from '../engine/squadInsights';
-import { FORMATION_SLOTS } from '../engine/profiles';
+import { autoLineup } from '../engine/profiles';
+import { boardToEngine } from '../engine/lineupOrder';
 
 
-export const MatchPrep: React.FC<{ go: (s: Screen) => void; onEndDay?: () => void }> = ({ go, onEndDay }) => {
+export const MatchPrep: React.FC<{ go: (s: Screen) => void; onEndDay?: () => void; onMatchSessionChange?: (active: boolean) => void }> = ({ go, onEndDay, onMatchSessionChange }) => {
   const g = useGame();
   const next = g.nextFixture;
   const [prepared, setPrepared] = useState<Set<string>>(new Set(['tactic', 'xi']));
@@ -32,6 +32,7 @@ export const MatchPrep: React.FC<{ go: (s: Screen) => void; onEndDay?: () => voi
   // Aynı event içinde çağırsak advanceDay fikstürü oynanmamış görüp engel dönerdi;
   // efekt, store yeniden render olduktan sonra taze closure ile çalışmayı garanti eder.
   const [endDayPending, setEndDayPending] = useState(false);
+  useEffect(() => () => onMatchSessionChange?.(false), [onMatchSessionChange]);
   useEffect(() => {
     if (!endDayPending || started) return;
     setEndDayPending(false);
@@ -55,9 +56,9 @@ export const MatchPrep: React.FC<{ go: (s: Screen) => void; onEndDay?: () => voi
   if (started) return <LiveMatch
     fixture={next}
     tacticIdx={activeTacticIdx}
-    onExit={() => setStarted(false)}
-    onSaved={() => { setStarted(false); go('hub'); }}
-    onEndDay={() => { setStarted(false); setEndDayPending(true); }}
+    onExit={() => { onMatchSessionChange?.(false); setStarted(false); }}
+    onSaved={() => { onMatchSessionChange?.(false); setStarted(false); go('hub'); }}
+    onEndDay={() => { onMatchSessionChange?.(false); setStarted(false); setEndDayPending(true); }}
   />;
 
   // Dalga 1 (v0.5): işsiz menajer maç merkezine giremez
@@ -78,12 +79,15 @@ export const MatchPrep: React.FC<{ go: (s: Screen) => void; onEndDay?: () => voi
   const away = clubById(next.awayId);
   const mine = g.myClub.id === home.id ? home : away;
   const isHome = mine.id === home.id;
-  const xi = autoXI(g.mySquad, g.tactics[0].formation);
-  const xiList = [...xi.gk, ...xi.defShape, ...xi.fbWb, ...xi.dm, ...xi.cm, ...xi.am, ...xi.wg, ...xi.st];
+  const selectedPlan = g.tactics[activeTacticIdx] ?? g.tactics[0];
+  // Use the very same lineup selection as the match engine, including manual XI and approved injury risks.
+  const selectedIds = selectedPlan.customLineup && boardToEngine(selectedPlan.formation, selectedPlan.customLineup);
+  const xi = autoLineup(g.mySquad, selectedPlan.formation, selectedIds, new Set(g.riskPlayIds ?? []), selectedPlan.customBench);
+  const xiList = xi.slots.map((slot) => slot.player);
   const avgFitness = Math.round(xiList.reduce((x, p) => x + p.fitness, 0) / Math.max(1, xiList.length));
   const riskCount = xiList.filter((p) => p.fitness < 60 || p.injuredDays > 0).length;
   const checklist: { id: string; ok: boolean; title: string; sub: string }[] = [
-    { id: 'squadOk', ok: riskCount === 0, title: 'İlk 11 tamamlandı ve sağlıklı', sub: riskCount ? `${riskCount} oyuncu yüksek risk taşıyor` : `${xiList.length}/11 hazır · ort. kondisyon ${avgFitness}` },
+    { id: 'squadOk', ok: xiList.length === 11 && riskCount === 0, title: 'İlk 11 tamamlandı ve sağlıklı', sub: riskCount ? `${riskCount} oyuncu yüksek risk taşıyor` : `${xiList.length}/11 hazır · ort. kondisyon ${avgFitness}` },
     { id: 'bench', ok: xi.bench.length >= 5, title: 'Yedekler seçildi', sub: `${xi.bench.length} yedek (5 değişiklik hakkı)` },
     { id: 'fitness', ok: avgFitness >= 75, title: 'Kondisyon incelendi', sub: `Ortalama ${avgFitness}% ${avgFitness >= 75 ? '— hazır' : '— rotasyon önerilebilir'}` },
     { id: 'report', ok: prepared.has('report'), title: 'Rakip raporu okundu', sub: `${away.name === mine.name ? home.name : away.name} analizi hazır` },
@@ -147,14 +151,12 @@ export const MatchPrep: React.FC<{ go: (s: Screen) => void; onEndDay?: () => voi
 
         {/* Dalga 5: Teknik Direktör Notu — gerçek veriden brifing (yeni şema yok, arşiv yoksa form yorumu yok) */}
         {(() => {
-          const tac = g.tactics[activeTacticIdx] ?? g.tactics[0];
-          const briefXi = autoXI(g.mySquad, tac.formation);
-          const briefList = [...briefXi.gk, ...briefXi.defShape, ...briefXi.fbWb, ...briefXi.dm, ...briefXi.cm, ...briefXi.am, ...briefXi.wg, ...briefXi.st];
+          const tac = selectedPlan;
           const opp = isHome ? away : home;
           const brief = buildMatchBrief({
             myClub: { short: mine.short, strength: mine.strength },
             oppClub: { short: opp.short, strength: opp.strength },
-            plan: tac, xi: briefList, squad: g.mySquad,
+            plan: tac, xi: xiList, squad: g.mySquad,
             reports: g.matchReports ?? [], isHome,
           });
           const toneCls: Record<NoteTone, string> = {
@@ -339,11 +341,7 @@ export const MatchPrep: React.FC<{ go: (s: Screen) => void; onEndDay?: () => voi
 
         {/* Risk & rotasyon — gerçek kondisyon, sakatlık ve arşiv reyting sinyalleri */}
         {(() => {
-          const tac = g.tactics[activeTacticIdx] ?? g.tactics[0];
-          const xiAuto = autoXI(g.mySquad, tac.formation);
-          const lineup = [...xiAuto.gk, ...xiAuto.defShape, ...xiAuto.fbWb, ...xiAuto.dm, ...xiAuto.cm, ...xiAuto.am, ...xiAuto.wg, ...xiAuto.st];
-          const groups = FORMATION_SLOTS[tac.formation];
-          const xiSlots = lineup.map((p, i) => ({ playerId: p.id, slotGroup: groups[i] ?? 'CM' }));
+          const xiSlots = xi.slots.map((slot) => ({ playerId: slot.player.id, slotGroup: slot.slotGroup }));
           const advice = rotationAdvice({ squad: g.mySquad, xi: xiSlots, reports: g.matchReports ?? [] });
           return (
             <Card className="!p-3">
@@ -396,10 +394,15 @@ export const MatchPrep: React.FC<{ go: (s: Screen) => void; onEndDay?: () => voi
           })()}
         </Card>
         <div className="sticky bottom-2 pt-2 pb-1 space-y-2">
-          <Btn variant="amber" className="w-full !min-h-[52px] text-[15px]" disabled={!isMatchday} onClick={() => isMatchday && setStarted(true)}>
+          <Btn variant="amber" className="w-full !min-h-[52px] text-[15px]" disabled={!isMatchday} onClick={() => { if (isMatchday) { onMatchSessionChange?.(true); setStarted(true); } }}>
             {isMatchday ? 'Maça Başla' : `Maç için ${daysLeft} gün kaldı`}
           </Btn>
-          <Btn variant="secondary" className="w-full !min-h-touch" disabled={!isMatchday} onClick={() => isMatchday && setQuick(g.playLeagueMatch({ ...next }))}>
+          <Btn variant="secondary" className="w-full !min-h-touch" disabled={!isMatchday} onClick={() => {
+            if (!isMatchday) return;
+            const result = g.playLeagueMatch({ ...next }, undefined, activeTacticIdx);
+            g.applyRiskOutcome(Object.entries(result.playerRows ?? {}).filter(([, row]) => row.min > 0).map(([id]) => id));
+            setQuick(result);
+          }}>
             Simüle Et (hızlı sonuç)
           </Btn>
           {!isMatchday && <p className="text-warn text-[11.5px] text-center mt-1">Maç günleri takvimde işaretli — günü ilerletmek için Ana Merkez'den "Sonraki Gün"e dokun.</p>}

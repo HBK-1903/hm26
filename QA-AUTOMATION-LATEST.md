@@ -1,5 +1,12 @@
 # HM26 — QA Durumu
 
+## Piyasa, satış görüşmesi ve maç raporu — 2026-10-29
+- `npm run qa:all`: **43/43 aşama geçti**; gerçek Chromium, çevrimdışı kullanım ve üretim derlemesi dahil.
+- Satış akışı **31/31**, piyasa/kadro ve eski dizilişler **40/40**, mobil piyasa/satış/maç E2E **43/43**, maç günü akışı **108/108**.
+- Altı formasyonda eski manuel dizilişlerin konumu, ev/deplasman aktarımı; 256 maç arşiv sınırı ve satış sonrası maaş hesabı doğrulandı. Kayıt şemasına yeni alan eklenmedi.
+- Ses kaynakları ve altyazı akışı tarayıcıda doğrulandı; insan dinlemesi yapılmadı. Mevcut geliştirme bağımlılıklarında Vite/esbuild güvenlik uyarıları sürüyor; büyük sürüm yükseltmesi bu değişikliğe dahil edilmedi.
+- Yerel QA; üretime dağıtım veya otomatik merge yapılmadı.
+
 ## Transfer Wave 11 — negotiation table, sell-on + no buy-back · 2026-10-26
 - `npm run qa:transfer:wave11`: **5/5 PASS** — deterministic seller patience/counter/walk-away; player+cash and sell-on negotiation valuation; seed-deterministic leak; JSON clause round-trip and 20% resale settlement; aggregate sell-on cap/malformed-record handling; persistence/store/no-buy-back wiring.
 - Market signing now exposes seller ask/patience, player/fee swap (one outgoing player max), contract terms, 0–25% resale clause, leak message and explicit signature summary. Sell-on clauses persist; a later accepted sale pays prior beneficiaries from gross fee, caps combined payout at 50%, credits net proceeds and clears obligations. No buy-back path added.

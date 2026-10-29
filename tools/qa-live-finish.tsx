@@ -26,6 +26,17 @@ import { act } from 'react-dom/test-utils';
 import { createRoot } from 'react-dom/client';
 import { GameProvider, useGame } from '../src/store/game';
 import { MatchSession } from '../src/engine/session';
+import { matchEventsToDemo } from '../src/engine/adapter';
+import { compactMatchEvents, EV_GOAL } from '../src/engine/matchEvents';
+import type { MatchResult } from '../src/engine/engine';
+
+let finalEngineResult: MatchResult | null = null;
+const originalToResult = MatchSession.prototype.toResult;
+MatchSession.prototype.toResult = function observedResult() {
+  const result = originalToResult.call(this);
+  finalEngineResult = result;
+  return result;
+};
 
 // Arıza enjeksiyonu: HM26_FAULT=retry|finish → 8. step çağrısında tek seferlik istisna fırlat.
 // HM26_HALFTIME_BATCH=trailing|decision: devre düdüğünden sonra aynı adımda başka olay üret.
@@ -198,6 +209,13 @@ function Harness({ done }: { done: (report: string[]) => void }) {
         await tick(400);
         const stayedLive = !/Flash Röportaj/.test(dom.window.document.body.textContent ?? '');
         log.push(stayedLive ? '✅ Bekleyince röportaj kendiliğinden açılmadı, canlı ekran incelemeye açık kaldı' : '❌ Röportaj otomatik açıldı');
+        if (faultMode === 'finish') {
+          await clickByText([/^Spiker$/]);
+          const recoveredFeed = dom.window.document.querySelector('[role="log"][aria-label="Maç olay akışı"]')?.textContent ?? '';
+          log.push(recoveredFeed.includes('Maç sona erdi.')
+            ? '✅ Güvenli bitiriş sonrası canlı günlük de son düdüğe kadar tamamlandı'
+            : '❌ Güvenli bitirişten sonra canlı günlük eksik kaldı');
+        }
 
         // Manuel geçiş: butona basınca röportaj ekranı açılmalı
         await clickByText([/Maç Sonu Röportajına Geç/]);
@@ -211,6 +229,20 @@ function Harness({ done }: { done: (report: string[]) => void }) {
         if (interviewOption) { await act(async () => interviewOption.click()); await tick(150); }
         const reportOpen = /Sonucu Kaydet — Ana Merkez/.test(dom.window.document.body.textContent ?? '');
         log.push(reportOpen ? '✅ Röportaj sonrası maç raporu açıldı' : '❌ Rapor açılmadı');
+        const engineResult = finalEngineResult as MatchResult | null;
+        const expectedEvents = matchEventsToDemo(engineResult?.events ?? []);
+        const actualGoals = expectedEvents.filter((event) => event.kind === 'goal');
+        log.push(engineResult && actualGoals.filter((event) => event.side === 'home').length === engineResult.stats.hg && actualGoals.filter((event) => event.side === 'away').length === engineResult.stats.ag
+          ? '✅ Gerçek olay akışındaki goller motor skoruyla tutarlı' : '❌ Olay golleri ve skor uyuşmuyor');
+        await clickByText([/^Olaylar$/]);
+        const eventRows = dom.window.document.querySelectorAll('[data-testid="match-report-event"]');
+        const eventText = dom.window.document.querySelector('[data-testid="match-report-events"]')?.textContent ?? '';
+        log.push(expectedEvents.length > 0 && eventRows.length === expectedEvents.length && eventText.includes('Maç sona erdi.')
+          ? `✅ Rapor son düdük dahil tüm gerçek olayları gösteriyor (${eventRows.length})` : `❌ Rapor olayları eksik: gösterilen=${eventRows.length}, motor=${expectedEvents.length}`);
+        await clickByText([/^Önemli anlar$/]);
+        const importantCount = expectedEvents.filter((event) => ['goal', 'card', 'save', 'var', 'sub', 'injury', 'half'].includes(event.kind)).length;
+        log.push(dom.window.document.querySelectorAll('[data-testid="match-report-event"]').length === importantCount
+          ? '✅ Önemli anlar filtresi gerçek olayları süzüyor' : '❌ Önemli olay filtresi tutarsız');
 
         await clickByText([/Sonucu Kaydet/]);
         await tick(200);
@@ -218,6 +250,13 @@ function Harness({ done }: { done: (report: string[]) => void }) {
         const sameAgain = after && after.day === target.day && after.homeId === target.homeId && after.awayId === target.awayId;
         log.push(`Maç sonrası nextFixture: ${after ? `gün ${after.day} ${after.homeId} vs ${after.awayId} played=${after.played}` : 'yok'}`);
         log.push(sameAgain ? '❌ HATA: aynı maç tekrar oynanabilir durumda!' : '✅ Fikstür ilerledi');
+        const archive = g().matchReports.find((entry) => entry.day === target.day && entry.homeId === target.homeId && entry.awayId === target.awayId);
+        const expectedArchive = compactMatchEvents(expectedEvents);
+        log.push(archive && JSON.stringify(archive.events) === JSON.stringify(expectedArchive)
+          ? `✅ Gerçek önemli olaylar arşive doğru sıkıştırıldı (${expectedArchive.length})` : '❌ Arşiv olayları motor akışıyla uyuşmuyor');
+        const archiveGoals = archive?.events?.filter((event) => event[1] === EV_GOAL) ?? [];
+        log.push(archive && archiveGoals.filter((event) => event[2] === 0).length === archive.hg && archiveGoals.filter((event) => event[2] === 1).length === archive.ag
+          ? '✅ Arşiv gol sayısı kaydedilen skorla eşleşiyor' : '❌ Arşiv golleri skorla uyuşmuyor');
         done(log);
       } catch (err) {
         done(['❌ İSTİSNA: ' + ((err as Error).stack ?? err)]);

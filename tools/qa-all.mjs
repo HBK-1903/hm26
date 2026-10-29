@@ -10,9 +10,9 @@ let previewProcess = null;
 const clean = (s = '') => s.replace(/\u001b\[[0-9;]*m/g, '').trim();
 const stamp = new Date().toISOString();
 
-function run(name, command, args, timeout = 300_000) {
+function run(name, command, args, timeout = 300_000, extraEnv = {}) {
   console.log(`\n${'='.repeat(74)}\n[QA ${rows.length + 1}] ${name}\n$ ${command} ${args.join(' ')}\n${'='.repeat(74)}`);
-  const res = spawnSync(command, args, { cwd: root, encoding: 'utf8', timeout, maxBuffer: 32 * 1024 * 1024, env: { ...process.env, HM26_BASE_URL: 'http://localhost:4173' } });
+  const res = spawnSync(command, args, { cwd: root, encoding: 'utf8', timeout, maxBuffer: 32 * 1024 * 1024, env: { ...process.env, HM26_BASE_URL: 'http://localhost:4173', ...extraEnv } });
   const stdout = clean(res.stdout ?? '');
   const stderr = clean(res.stderr ?? '');
   if (stdout) console.log(stdout);
@@ -63,8 +63,14 @@ try {
   ];
   for (const [name, args] of core) run(name, 'npx', ['--yes', ...args], name.includes('simulation') ? 300_000 : 180_000);
   run('Transfer negotiation and save integration (jsdom)', 'npm', ['run', 'qa:transfer:scene:ui'], 180_000);
+  run('Sale negotiation, settlement and save integration (jsdom)', 'npm', ['run', 'qa:sale:ui'], 180_000);
+  run('Market potential, rotation, match plan and legacy saves (jsdom)', 'npm', ['run', 'qa:market-squad:ui'], 180_000);
+  run('Tactics editor regression (jsdom)', 'npm', ['run', 'qa:wave2:ui'], 180_000);
+  run('Squad rotation and health regression (jsdom)', 'npm', ['run', 'qa:wave3:ui'], 180_000);
+  run('Matchday preparation regression (jsdom)', 'npm', ['run', 'qa:wave5:ui'], 180_000);
   run('Batched halftime event and decision flow (jsdom)', 'npm', ['run', 'qa:live:halftime'], 180_000);
   run('Match finish and manual interview flow (jsdom)', 'npm', ['run', 'qa:match-finish'], 180_000);
+  run('Match finish recovery after simulated engine failure (jsdom)', 'npm', ['run', 'qa:match-finish'], 180_000, { HM26_FAULT: 'finish' });
   run('Matchday progression and end-day regression (jsdom)', 'npm', ['run', 'qa:dayflow'], 180_000);
 
   const browserProbe = spawnSync(process.execPath, ['-e', "import('playwright').then(({ chromium }) => console.log(chromium.executablePath()))"], { cwd: root, encoding: 'utf8' });
@@ -97,6 +103,7 @@ try {
       ['Bench-first tactical flow E2E', 'tools/e2e-benchfirst.mjs'],
       ['Medical/mentoring/trade E2E', 'tools/e2e-features-v099.mjs'],
       ['Transfer theatre, signing and offline media E2E', 'tools/e2e-transfer-scene.mjs'],
+      ['Market potential, rotation and sale negotiation E2E', 'tools/e2e-market-squad-polish.mjs'],
       ['Market filters and match-flow E2E', 'tools/e2e-v099.mjs'],
       ['Live scorebug, feed, accessible Phaser pitch and action E2E (v0.9.12)', 'tools/e2e-live-v0911.mjs'],
       ['Deterministic Phaser motion and pause E2E', 'tools/e2e-pitch-motion.mjs'],

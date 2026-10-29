@@ -9,6 +9,7 @@ import { aiDefaultTactic, chooseAiTacticDecision } from './tactics';
 import type { MatchInput, MatchResult, MatchStateEvent, MatchStats, Weather, EngineShot } from './engine';
 import { buildInsights } from './insights';
 import { autoLineup, teamProfile, TeamMatchProfile } from './profiles';
+import { boardToEngine } from './lineupOrder';
 import { Player, TacticPlan } from '../types';
 import { ZoneId, ZONE_XY } from './zones';
 import { goalLineClearanceCandidate } from './pitch-ai';
@@ -109,8 +110,10 @@ export class MatchSession {
     this.awayTactic = input.awayTactic ?? aiDefaultTactic(input.awayClub, input.homeClub, input.homeClub.strength);
     const riskSet = new Set(input.riskIds ?? []);
     this.riskIds = riskSet;
-    this.homeLine = autoLineup(input.homeSquad, this.homeTactic.formation, input.homeTactic.customLineup, riskSet);
-    this.awayLine = autoLineup(input.awaySquad, this.awayTactic.formation, input.awayTactic?.customLineup, riskSet);
+    const homeIds = this.homeTactic.customLineup && boardToEngine(this.homeTactic.formation, this.homeTactic.customLineup);
+    const awayIds = this.awayTactic.customLineup && boardToEngine(this.awayTactic.formation, this.awayTactic.customLineup);
+    this.homeLine = autoLineup(input.homeSquad, this.homeTactic.formation, homeIds, riskSet, this.homeTactic.customBench);
+    this.awayLine = autoLineup(input.awaySquad, this.awayTactic.formation, awayIds, riskSet, this.awayTactic.customBench);
     // v0.9.9: iğneyle oynatılanlar %50 kondisyonla başlar (types.ts canPlayWithRisk yorumu)
     for (const l of [this.homeLine, this.awayLine]) for (const sl of l.slots) if (sl && riskSet.has(sl.player.id)) sl.liveFitness = Math.min(50, sl.liveFitness ?? sl.player.fitness);
     this.homeProf = teamProfile(this.homeLine.slots, this.homeTactic, { home: true, derby: !!input.derby });

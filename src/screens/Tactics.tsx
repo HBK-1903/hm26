@@ -4,21 +4,21 @@ import { useGame } from '../store/game';
 import { Card, Btn, Badge, Sheet, Seg } from '../components/ui/kit';
 import { GameIcon } from '../components/icons';
 import { FORMATIONS, GAME_PLANS, PLAN_SLOTS } from '../data/meta';
-import { FORMATION_SLOTS } from '../engine/profiles';
+import { autoLineup, FORMATION_SLOTS } from '../engine/profiles';
+import { engineSlotForBoard, engineToBoard } from '../engine/lineupOrder';
 import { positionMod } from '../engine/ratings';
-import { autoXI } from '../data/gen';
 import { canSlotGroup, cohesionEffectPct, cohesionFactor, fitnessRing, tacticalFamiliarity } from '../engine/tacticsStudio';
 import { Formation, Player } from '../types';
 
 const POS_LABEL: Record<string, string> = { GK: 'KL', CB: 'STP', FB: 'BK', WB: 'KB', DM: 'DOS', CM: 'MO', AM: 'OOS', WG: 'KNT', ST: 'SN' };
 // Saha koordinatları (formasyon bazlı; yüzde) — §9.1 taban
 const SHAPE: Record<Formation, { guide: string; slots: { x: number; y: number; group: string }[] }> = {
-  '4-3-3': { guide: '4-3-3', slots: [{ x: 50, y: 90, group: 'GK' }, { x: 12, y: 74, group: 'FB/WB' }, { x: 33, y: 76, group: 'CB' }, { x: 67, y: 76, group: 'CB' }, { x: 88, y: 74, group: 'FB/WB' }, { x: 25, y: 50, group: 'CM' }, { x: 50, y: 55, group: 'CM' }, { x: 75, y: 50, group: 'CM' }, { x: 15, y: 24, group: 'WG' }, { x: 50, y: 18, group: 'ST' }, { x: 85, y: 24, group: 'WG' }] },
+  '4-3-3': { guide: '4-3-3', slots: [{ x: 50, y: 90, group: 'GK' }, { x: 12, y: 74, group: 'FB/WB' }, { x: 33, y: 76, group: 'CB' }, { x: 67, y: 76, group: 'CB' }, { x: 88, y: 74, group: 'FB/WB' }, { x: 25, y: 50, group: 'CM' }, { x: 50, y: 55, group: 'DM/CM' }, { x: 75, y: 50, group: 'CM' }, { x: 15, y: 24, group: 'WG' }, { x: 50, y: 18, group: 'ST' }, { x: 85, y: 24, group: 'WG' }] },
   '4-2-3-1': { guide: '4-2-3-1', slots: [{ x: 50, y: 90, group: 'GK' }, { x: 12, y: 74, group: 'FB/WB' }, { x: 33, y: 76, group: 'CB' }, { x: 67, y: 76, group: 'CB' }, { x: 88, y: 74, group: 'FB/WB' }, { x: 36, y: 56, group: 'DM/CM' }, { x: 64, y: 56, group: 'DM/CM' }, { x: 15, y: 34, group: 'WG/AM' }, { x: 50, y: 36, group: 'AM' }, { x: 85, y: 34, group: 'WG/AM' }, { x: 50, y: 14, group: 'ST' }] },
   '4-4-2': { guide: '4-4-2', slots: [{ x: 50, y: 90, group: 'GK' }, { x: 12, y: 74, group: 'FB/WB' }, { x: 33, y: 76, group: 'CB' }, { x: 67, y: 76, group: 'CB' }, { x: 88, y: 74, group: 'FB/WB' }, { x: 14, y: 48, group: 'WG/CM' }, { x: 38, y: 52, group: 'CM' }, { x: 62, y: 52, group: 'CM' }, { x: 86, y: 48, group: 'WG/CM' }, { x: 35, y: 18, group: 'ST' }, { x: 65, y: 18, group: 'ST' }] },
   '4-1-4-1': { guide: '4-1-4-1', slots: [{ x: 50, y: 90, group: 'GK' }, { x: 12, y: 74, group: 'FB/WB' }, { x: 33, y: 76, group: 'CB' }, { x: 67, y: 76, group: 'CB' }, { x: 88, y: 74, group: 'FB/WB' }, { x: 50, y: 62, group: 'DM' }, { x: 15, y: 42, group: 'WG/CM' }, { x: 38, y: 46, group: 'CM' }, { x: 62, y: 46, group: 'CM' }, { x: 85, y: 42, group: 'WG/CM' }, { x: 50, y: 15, group: 'ST' }] },
-  '3-5-2': { guide: '3-5-2', slots: [{ x: 50, y: 90, group: 'GK' }, { x: 25, y: 76, group: 'CB' }, { x: 50, y: 78, group: 'CB' }, { x: 75, y: 76, group: 'CB' }, { x: 8, y: 50, group: 'WB' }, { x: 30, y: 54, group: 'CM' }, { x: 50, y: 58, group: 'CM' }, { x: 70, y: 54, group: 'CM' }, { x: 92, y: 50, group: 'WB' }, { x: 38, y: 18, group: 'ST' }, { x: 62, y: 18, group: 'ST' }] },
-  '5-3-2': { guide: '5-3-2', slots: [{ x: 50, y: 90, group: 'GK' }, { x: 10, y: 76, group: 'WB' }, { x: 30, y: 80, group: 'CB' }, { x: 50, y: 82, group: 'CB' }, { x: 70, y: 80, group: 'CB' }, { x: 90, y: 76, group: 'WB' }, { x: 30, y: 52, group: 'CM' }, { x: 50, y: 56, group: 'CM' }, { x: 70, y: 52, group: 'CM' }, { x: 40, y: 18, group: 'ST' }, { x: 60, y: 18, group: 'ST' }] },
+  '3-5-2': { guide: '3-5-2', slots: [{ x: 50, y: 90, group: 'GK' }, { x: 25, y: 76, group: 'CB' }, { x: 50, y: 78, group: 'CB' }, { x: 75, y: 76, group: 'CB' }, { x: 8, y: 50, group: 'WB' }, { x: 30, y: 54, group: 'CM' }, { x: 50, y: 58, group: 'DM/CM' }, { x: 70, y: 54, group: 'CM' }, { x: 92, y: 50, group: 'WB' }, { x: 38, y: 18, group: 'ST' }, { x: 62, y: 18, group: 'ST' }] },
+  '5-3-2': { guide: '5-3-2', slots: [{ x: 50, y: 90, group: 'GK' }, { x: 10, y: 76, group: 'FB/WB' }, { x: 30, y: 80, group: 'CB' }, { x: 50, y: 82, group: 'CB' }, { x: 70, y: 80, group: 'CB' }, { x: 90, y: 76, group: 'FB/WB' }, { x: 30, y: 52, group: 'CM' }, { x: 50, y: 56, group: 'DM/CM' }, { x: 70, y: 52, group: 'CM' }, { x: 40, y: 18, group: 'ST' }, { x: 60, y: 18, group: 'ST' }] },
 };
 
 export const TacticsScreen: React.FC<{ pendingXI?: Player | null; onClearXI?: () => void }> = ({ pendingXI, onClearXI }) => {
@@ -28,15 +28,16 @@ export const TacticsScreen: React.FC<{ pendingXI?: Player | null; onClearXI?: ()
   const [tab, setTab] = useState<'formation' | 'plan' | 'instr'>('formation');
   const [drawer, setDrawer] = useState<'setpieces' | null>(null);
   const [editName, setEditName] = useState(false);
-  const xi = useMemo(() => autoXI(g.mySquad, plan.formation), [g.mySquad, plan.formation]);
+  const xi = useMemo(() => autoLineup(g.mySquad, plan.formation, undefined, new Set(g.riskPlayIds ?? [])), [g.mySquad, plan.formation, g.riskPlayIds]);
   const [slotPick, setSlotPick] = useState<number | null>(null); // FAZ 2: dokunulan saha yuvası
   // v0.9.4 G2-açıklama: uyumsuz hedefe iki aşamalı onay (ilk dokun uyarı/bilgi, ikinci dokun işlemi uygular)
   const [arm, setArm] = useState<string | null>(null);
   // v0.9.5: yedek kartlar da her zaman tıklanabilir — önce yedeğe dokun, sonra uyumlu yuvaya dokun (kulübeden-sahaya akışı)
   const [benchPick, setBenchPick] = useState<string | null>(null);
 
-  // Aktif lineup: customLineup > auto varsayılan (autoXI'nin picker dizilimiyle eşleşen 11 id)
-  const autoIds = useMemo(() => [...xi.gk, ...xi.defShape, ...xi.fbWb, ...xi.dm, ...xi.cm, ...xi.am, ...xi.wg, ...xi.st].map((p) => p.id), [xi]);
+  // The board keeps its original slot order for saved lineups; derive its
+  // automatic players from the engine's equivalent slots.
+  const autoIds = useMemo(() => engineToBoard(plan.formation, xi.slots.map((slot) => slot.player.id)), [xi, plan.formation]);
   const lineupIds: (string | null)[] = plan.customLineup && plan.customLineup.length === 11 ? plan.customLineup : autoIds;
   const lineup = lineupIds.map((id) => g.mySquad.find((p) => p.id === id) ?? null);
   const benchAll = useMemo(() => {
@@ -48,11 +49,12 @@ export const TacticsScreen: React.FC<{ pendingXI?: Player | null; onClearXI?: ()
   const swapSlot = (slotIdx: number, newId: string) => {
     const next11 = [...lineupIds];
     const old = next11[slotIdx];
-    next11[slotIdx] = newId;
     const inIdx = next11.indexOf(newId);
-    // yeni oyuncu baska slottaysa eski oyuncunun gitmesi lazim (swap)
+    next11[slotIdx] = newId;
+    // Find the previous slot before replacing it, otherwise an earlier target creates a duplicate.
     if (inIdx !== -1 && inIdx !== slotIdx) next11[inIdx] = old;
-    setPlan({ customLineup: next11, customBench: benchAll.map((p) => p.id).filter((id) => !next11.includes(id)).slice(0, 6) });
+    const nextBench = [...g.mySquad].filter((p) => !next11.includes(p.id)).sort((a, b) => b.ratings.gen - a.ratings.gen).slice(0, 6).map((p) => p.id);
+    setPlan({ customLineup: next11, customBench: nextBench });
     setSlotPick(null);
     setBenchPick(null);
   };
@@ -107,7 +109,7 @@ export const TacticsScreen: React.FC<{ pendingXI?: Player | null; onClearXI?: ()
 
   // v0.9.4: yuvanın MOTOR mevki grubu (FORMATION_SLOTS) üzerinden gerçek güç cezası yüzdesi
   const penaltyOf = (slotIdx: number, p: Player): number => {
-    const g0 = FORMATION_SLOTS[plan.formation]?.[slotIdx];
+    const g0 = FORMATION_SLOTS[plan.formation]?.[engineSlotForBoard(plan.formation, slotIdx)];
     if (!g0) return 7;
     return Math.round((1 - positionMod(p, g0)) * 100);
   };

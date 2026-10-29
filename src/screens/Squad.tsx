@@ -5,10 +5,10 @@ import { useGame } from '../store/game';
 import { Card, Badge, Sheet, Btn, RatingChip, useToast, useFocusTrap } from '../components/ui/kit';
 import { ICONS } from '../components/icons';
 import { PlayerPortrait } from '../components/assets/Portrait';
-import { autoXI } from '../data/gen';
+import { autoLineup, FORMATION_SLOTS } from '../engine/profiles';
+import { engineToBoard } from '../engine/lineupOrder';
 import { Crest } from '../components/assets/Crest';
 import { clubById } from '../data/clubs';
-import { FORMATION_SLOTS } from '../engine/profiles';
 import { fitnessBreakdown, formTrend, recentRatings, rotationAdvice, type FormTrend } from '../engine/squadInsights';
 import { playerMatchLog, summarizePlayerLog, ratingTrend } from '../engine/playerInsights';
 import { RatingSparkline } from '../components/ui/charts';
@@ -24,6 +24,8 @@ export const SquadScreen: React.FC<{ goXI: (p: Player) => void }> = ({ goXI }) =
   const [filter, setFilter] = useState('all');
   const [sort, setSort] = useState('gen');
   const [search, setSearch] = useState('');
+  // The desk is intentionally collapsed on entry so the squad remains usable on small screens.
+  const [rotationOpen, setRotationOpen] = useState(false);
   const [quick, setQuick] = useState<Player | null>(null);
   const [mentorSel, setMentorSel] = useState('');
   const [full, setFull] = useState<Player | null>(null);
@@ -43,19 +45,20 @@ export const SquadScreen: React.FC<{ goXI: (p: Player) => void }> = ({ goXI }) =
   const riskCount = g.mySquad.filter((p) => p.fitness < 60 || p.injuredDays > 0 || p.suspendedMatches > 0).length;
   // Jr-09/QA: Ana Plan'ın aktif ilk 11 + yedek kimlikleri (kadro kartında XI / YDK rozeti)
   const plan0 = g.tactics[0];
-  const xiAutoIds = useMemo(() => {
-    const xi = autoXI(g.mySquad, plan0.formation);
-    return [...xi.gk, ...xi.defShape, ...xi.fbWb, ...xi.dm, ...xi.cm, ...xi.am, ...xi.wg, ...xi.st].map((p) => p.id);
-  }, [g.mySquad, plan0.formation]);
+  const xiAuto = useMemo(() => autoLineup(g.mySquad, plan0.formation, undefined, new Set(g.riskPlayIds ?? [])), [g.mySquad, plan0.formation, g.riskPlayIds]);
+  const xiAutoIds = useMemo(() => xiAuto.slots.map((slot) => slot.player.id), [xiAuto]);
   const xiIds = useMemo(() => new Set(((plan0.customLineup && plan0.customLineup.length === 11 ? plan0.customLineup : xiAutoIds).filter(Boolean) as string[])), [plan0.customLineup, xiAutoIds]);
   const benchIds = useMemo(() => new Set(plan0.customBench?.length ? plan0.customBench : g.mySquad.filter((p) => !xiIds.has(p.id)).sort((a, b) => b.ratings.gen - a.ratings.gen).slice(0, 6).map((p) => p.id)), [plan0.customBench, g.mySquad, xiIds]);
   // Dalga 3: kadro içgörüleri — tamamen mevcut veri/maç arşivinden türetilir (yeni şema yok)
   const breakdown = useMemo(() => fitnessBreakdown(g.mySquad), [g.mySquad]);
   const xiSlots = useMemo(() => {
-    const lineupIds = plan0.customLineup && plan0.customLineup.length === 11 ? plan0.customLineup : xiAutoIds;
-    const groups = FORMATION_SLOTS[plan0.formation];
-    return lineupIds.filter(Boolean).map((id, i) => ({ playerId: id as string, slotGroup: groups[i] ?? 'CM' }));
-  }, [plan0.customLineup, plan0.formation, xiAutoIds]);
+    if (!plan0.customLineup || plan0.customLineup.length !== 11) {
+      return xiAuto.slots.map((slot) => ({ playerId: slot.player.id, slotGroup: slot.slotGroup }));
+    }
+    const boardGroups = engineToBoard(plan0.formation, FORMATION_SLOTS[plan0.formation]);
+    // Preserve original board indices even when a manual lineup contains empty slots.
+    return plan0.customLineup.flatMap((id, i) => id ? [{ playerId: id, slotGroup: boardGroups[i] ?? 'CM' }] : []);
+  }, [plan0.customLineup, plan0.formation, xiAuto]);
   const advice = useMemo(() => rotationAdvice({ squad: g.mySquad, xi: xiSlots, reports: g.matchReports ?? [] }), [g.mySquad, xiSlots, g.matchReports]);
   const trendById = useMemo(() => {
     const m = new Map<string, FormTrend>();
@@ -101,19 +104,26 @@ export const SquadScreen: React.FC<{ goXI: (p: Player) => void }> = ({ goXI }) =
         </div>
         {/* Dalga 3: rotasyon masası — yalnız gerçek sinyaller; veri yoksa sakin durum metni */}
         <div className="mb-3 rounded-xl border border-line bg-surface overflow-hidden" data-testid="rotation-desk">
-          <div className="px-3 pt-2 pb-1 text-[9.5px] font-extrabold tracking-[0.08em] text-muted">ROTASYON MASASI</div>
-          {advice.length === 0 ? (
-            <p className="px-3 pb-2.5 text-[11px] text-muted leading-snug">Tüm kadro hazır — sakatlık, ceza veya kondisyon uyarısı yok.</p>
-          ) : (
-            advice.slice(0, 5).map((a) => (
-              <button key={`${a.kind}-${a.playerId}`} onClick={() => { const pl = squadById.get(a.playerId); if (pl) setQuick(pl); }}
-                data-advice-kind={a.kind}
-                className="w-full text-left flex items-start gap-2 px-3 py-2 border-t border-line/50 min-h-[44px] active:bg-elevated">
-                <span className="text-[13px] leading-5 shrink-0">{a.kind === 'injury' ? '🚑' : a.kind === 'rest' ? '🔄' : '🔥'}</span>
-                <span className="text-[11px] leading-snug text-secondary flex-1">{a.reason}</span>
-              </button>
-            ))
-          )}
+          <button type="button" onClick={() => setRotationOpen((open) => !open)} aria-expanded={rotationOpen} aria-controls="rotation-desk-content"
+            className="w-full min-h-touch px-3 flex items-center justify-between gap-2 text-left">
+            <span className="text-[10.5px] font-extrabold tracking-[0.08em] text-primary">ROTASYON MASASI</span>
+            <span className="ml-auto text-[10.5px] text-secondary">{advice.length ? `${advice.length} öneri` : 'Kadro hazır'}</span>
+            <span aria-hidden="true" className="text-amber text-lg leading-none">{rotationOpen ? '−' : '+'}</span>
+          </button>
+          <div id="rotation-desk-content" hidden={!rotationOpen} className="max-h-40 overflow-y-auto">
+            {advice.length === 0 ? (
+              <p className="px-3 pb-2.5 text-[11px] text-muted leading-snug">Tüm kadro hazır — sakatlık, ceza veya kondisyon uyarısı yok.</p>
+            ) : (
+              advice.slice(0, 5).map((a) => (
+                <button key={`${a.kind}-${a.playerId}`} onClick={() => { const pl = squadById.get(a.playerId); if (pl) setQuick(pl); }}
+                  data-advice-kind={a.kind}
+                  className="w-full text-left flex items-start gap-2 px-3 py-2 border-t border-line/50 min-h-[44px] active:bg-elevated">
+                  <span className="text-[13px] leading-5 shrink-0">{a.kind === 'injury' ? '🚑' : a.kind === 'rest' ? '🔄' : '🔥'}</span>
+                  <span className="text-[11px] leading-snug text-secondary flex-1">{a.reason}</span>
+                </button>
+              ))
+            )}
+          </div>
         </div>
         <div className="flex gap-1.5 overflow-x-auto no-scrollbar mb-2" aria-label="Mevki filtresi">
           {([['all', 'Tümü'], ['GK', 'Kaleci'], ['DF', 'Savunma'], ['MF', 'Orta'], ['FW', 'Hücum']] as const).map(([v, l]) => (

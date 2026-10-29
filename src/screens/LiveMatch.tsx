@@ -7,7 +7,8 @@ import { pitchTeamColors } from '../components/assets/pitchPresentation';
 import { toStadiumPoint } from '../engine/pitch-ai';
 import { useGame, DemoMatchResult, DemoMatchEvent } from '../store/game';
 import { MatchSession, TeamTalkChoice } from '../engine/session';
-import { buildEngineInput } from '../engine/adapter';
+import { buildEngineInput, matchEventsToDemo } from '../engine/adapter';
+import { aiDefaultTactic } from '../engine/tactics';
 import { PresentationSpeed, presentationDelayMs, projectLiveMatch } from '../engine/adapters/liveProjection';
 import { buildXgTimeline } from '../engine/analytics';
 import { coachNoteAt, nextCoachCheckpoint } from '../engine/matchDay';
@@ -91,12 +92,13 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onE
   if (!sessionRef.current) {
     const homeId = fixture.homeId, awayId = fixture.awayId;
     const seed = 20260803 + fixture.day * 101 + homeId.length * 13;
-    const myTactic = g.tactics[tacticIdx] ?? g.tactics[0] ?? defaultTactic();
+    const homeClub = clubByIdLive(homeId), awayClub = clubByIdLive(awayId);
+    const myTactic = g.tactics[tacticIdx] ?? g.tactics[0] ?? aiDefaultTactic(mySide === 'home' ? homeClub : awayClub, mySide === 'home' ? awayClub : homeClub);
     sessionRef.current = new MatchSession(buildEngineInput({
-      homeClub: clubByIdLive(homeId), awayClub: clubByIdLive(awayId),
+      homeClub, awayClub,
       homeSquad: g.squads[homeId] ?? [], awaySquad: g.squads[awayId] ?? [],
-      // Kullanıcının taktik planını doğru tarafa ver: içerideyse home, deplasmandaysa away
-      homeTactic: mySide === 'home' ? myTactic : defaultTactic(),
+      // Kullanıcının planı deplasmanda rakibe değil kendi takımına uygulanır.
+      homeTactic: mySide === 'home' ? myTactic : aiDefaultTactic(homeClub, awayClub),
       awayTactic: mySide === 'away' ? myTactic : undefined,
       seed,
       settings: g.career.settings,
@@ -108,9 +110,6 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onE
     }));
   }
   const session = sessionRef.current;
-  function defaultTactic() {
-    return g.tactics[tacticIdx] ?? g.tactics[0] ?? { id: 't', name: 'Ana Plan', formation: '4-3-3' as const, plan: 'dengeli' as const, press: 'mid' as const, tempo: 'mid' as const, direction: 'balanced' as const, defLine: 'normal' as const, passRisk: 'mid' as const, width: 50, fbAdvanced: false, midLine: 'mid' as const, strikerSupport: 'mid' as const, setPieces: { captain: null, penalty: null, cornerL: null, cornerR: null, fkShort: null, fkLong: null } };
-  }
 
   const projection = projectLiveMatch(session);
   const done = projection.status === 'complete';
@@ -183,7 +182,7 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onE
   // Maç sonucu rapor formatına çevirir — normal bitiş ve kurtarma yolu aynı eşlemi kullanır
   const buildFinResult = (rr: ReturnType<typeof session.toResult>): DemoMatchResult => ({
     homeId: fixture.homeId, awayId: fixture.awayId, hg: rr.stats.hg, ag: rr.stats.ag,
-    events: [], // arşiv; rapor sürümü ayrı
+    events: matchEventsToDemo(rr.events), // son düdük ve kurtarma dahil oturumun gerçek olayları
     xgHome: rr.stats.xgH, xgAway: rr.stats.xgA, posHome: rr.stats.posH,
     shotsH: rr.stats.shotsH, shotsA: rr.stats.shotsA, shotsOnH: rr.stats.onH, shotsOnA: rr.stats.onA,
     insights: rr.insights,
@@ -209,25 +208,7 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onE
         const ballSample = session.getBallState();
         const heatPoint = toStadiumPoint(ballSample.owner, { x: ballSample.x, y: ballSample.y });
         setHeatSamples((previous) => [...previous, { ...heatPoint, side: ballSample.owner }].slice(-1200));
-        if (fresh.length) {
-          const kindMap: Record<string, DemoMatchEvent['kind']> = { danger: 'chance', corner: 'chance' };
-          setEventsShown((ev) => [
-            ...ev,
-            ...fresh.map((e): DemoMatchEvent => ({
-              minute: e.minute,
-              text: e.text,
-              kind: kindMap[e.kind] ?? (e.kind as DemoMatchEvent['kind']),
-              side: e.side,
-              path: e.path as string[],
-              anim: e.anim,
-              playerId: e.playerId,
-              scorerId: e.scorerId,
-              assisterId: e.assisterId,
-              visualEvent: e.visualEvent,
-              visualActors: e.visualActors,
-            })),
-          ]);
-        }
+        if (fresh.length) setEventsShown((ev) => [...ev, ...matchEventsToDemo(fresh)]);
         // React state is only a render trigger; score, clock and stats are read from the engine projection.
         setTick((prev) => prev + 1);
         if (session.done) finalizeFromSession();
@@ -245,7 +226,11 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onE
   // Kurtarma: motoru kalan dakikaları simüle ederek güvenle bitir ve rapora geç
   const recoverMatch = () => {
     try {
+      const seenEngineEvents = session.getEvents().length;
       session.finishNow();
+      // Recovery can simulate most of a match in one go; keep the visible feed in sync too.
+      const remainingEvents = session.getEvents().slice(seenEngineEvents);
+      if (remainingEvents.length) setEventsShown((shown) => [...shown, ...matchEventsToDemo(remainingEvents)]);
       finalizeFromSession();
       setLoopError(null);
     } catch (err) {
@@ -266,7 +251,7 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onE
   // v0.9.9: akış açılış satırı — 'Maç başladı' kurucuya itilir ama step() onu hiç döndürmezdi (akış bomboş başlıyordu)
   useEffect(() => {
     const start = session.getEvents();
-    if (start.length) setEventsShown((ev) => ev.length ? ev : start.map((e) => ({ minute: e.minute, text: e.text, kind: (e.kind as DemoMatchEvent['kind']), side: e.side, path: e.path as string[], anim: e.anim, playerId: e.playerId, scorerId: e.scorerId, assisterId: e.assisterId, visualEvent: e.visualEvent, visualActors: e.visualActors })));
+    if (start.length) setEventsShown((ev) => ev.length ? ev : matchEventsToDemo(start));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -340,8 +325,8 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onE
     g.playLeagueMatch(fixture, finResult ?? undefined, tacticIdx, interviewChoiceRef.current ?? undefined);
     g.consumeManagerSuspension(managerSuspendedAtStart);
     // v0.9.9: iğneyle oynatma kumarı maç sonunda çözülür (%25 nüks — oynayan onaylılar)
-    const rows = (finResult as unknown as { engine?: { playerRows: Record<string, { min: number }> } })?.engine?.playerRows ?? {};
-    const playedIds = Object.entries(rows).filter(([, row]) => row.min > 0).map(([id]) => id);
+    // Canlı sonuçta dakikalar doğrudan playerRows içinde; engine.playerRows yoktur.
+    const playedIds = Object.entries(finResult?.playerRows ?? {}).filter(([, row]) => row.min > 0).map(([id]) => id);
     g.applyRiskOutcome(playedIds);
   }
 
@@ -402,7 +387,7 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onE
   );
 
   const quickMentality = (kind: 'protect' | 'balanced' | 'attack' | 'allin') => {
-    const base = g.tactics[tacticIdx] ?? g.tactics[0] ?? defaultTactic();
+    const base = g.tactics[tacticIdx] ?? g.tactics[0] ?? aiDefaultTactic(clubByIdLive(g.myClub.id), clubByIdLive(mySide === 'home' ? fixture.awayId : fixture.homeId));
     const patch: Partial<TacticPlan> = kind === 'protect'
       ? { name: 'Skoru Koru', plan: 'dusukBlok', press: 'low', tempo: 'low', defLine: 'deep', passRisk: 'safe', fbAdvanced: false }
       : kind === 'balanced' ? { name: 'Dengeli', plan: 'dengeli', press: 'mid', tempo: 'mid', defLine: 'normal', passRisk: 'mid' }
