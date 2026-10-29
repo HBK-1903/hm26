@@ -4,6 +4,8 @@ import { DemoFixture } from '../types';
 import { useGame, DemoMatchResult } from '../store/game';
 import { Card, Btn, Seg, Sheet } from '../components/ui/kit';
 import { MatchHighlights } from '../components/match/MatchHighlights';
+import { MatchAwardCeremony } from '../components/match/MatchAwardCeremony';
+import { selectMatchAward } from '../data/matchAward';
 import { Crest } from '../components/assets/Crest';
 import { clubById } from '../data/clubs';
 import { expectedMatchPoints } from '../engine/analytics';
@@ -15,6 +17,7 @@ export const MatchReport: React.FC<{ result: DemoMatchResult; fixture: DemoFixtu
   const [tab, setTab] = useState<'ozet' | 'istatistik' | 'analiz' | 'karne' | 'events'>('ozet');
   const [eventView, setEventView] = useState<'all' | 'important'>('all');
   const [highlightsOpen, setHighlightsOpen] = useState(false);
+  const [awardOpen, setAwardOpen] = useState(false);
   const mine = result.homeId === g.myClub.id ? 'home' : 'away';
   const opponent = mine === 'home' ? away : home;
   const events = result.events ?? [];
@@ -31,8 +34,8 @@ export const MatchReport: React.FC<{ result: DemoMatchResult; fixture: DemoFixtu
   const rows = result.playerRows ?? {};
   const myRows = Object.entries(rows).filter(([id]) => g.clubOfPlayer(id) === g.myClub.id);
   const oppRows = Object.entries(rows).filter(([id]) => g.clubOfPlayer(id) && g.clubOfPlayer(id) !== g.myClub.id);
-  const motmRow = [...myRows, ...oppRows].sort((x, y) => y[1].rating - x[1].rating || y[1].g - x[1].g || y[1].a - x[1].a || y[1].shots - x[1].shots || x[0].localeCompare(y[0]))[0];
-  const motmName = motmRow ? (g.playerOf(motmRow[0])?.name ?? 'Oyuncu') : '—';
+  const award = selectMatchAward(result, g.clubOfPlayer, g.playerOf);
+  const motmName = award ? (award.player?.name ?? 'Oyuncu') : '—';
   const corridor = (wide: number, central: number) => {
     const tot = Math.max(1, wide + central);
     return { c: Math.round((central / tot) * 100), w: Math.round((wide / tot) * 100) };
@@ -63,11 +66,13 @@ export const MatchReport: React.FC<{ result: DemoMatchResult; fixture: DemoFixtu
           <div className="text-secondary text-[12px] mt-3">{home.name} vs {away.name} · {home.stadium}</div>
           <div className="mt-2 inline-flex items-center gap-2 bg-elevated border border-line rounded-full px-3 py-1">
             <span className="text-muted text-[11px]">Maçın Adamı:</span>
-            <span className="text-amber font-bold text-[12px]">{motmName} ★ {motmRow ? motmRow[1].rating.toFixed(2) : ''}</span>
+            <span className="text-amber font-bold text-[12px]">{motmName} ★ {award ? award.row.rating.toFixed(2) : ''}</span>
           </div>
+          {award && !awardOpen && <div className="px-4 mt-3"><Btn variant="secondary" testId="open-match-award" className="w-full !text-[12px]" onClick={() => setAwardOpen(true)}>Maçın Adamı Törenini İzle</Btn></div>}
         </div>
 
         <div className="px-4 pb-4">
+          {award && awardOpen && <div className="mb-3"><MatchAwardCeremony award={award} reducedMotion={g.career.settings.reduceMotion} onClose={() => setAwardOpen(false)} /></div>}
           <Seg ariaLabel="Maç raporu sekmeleri" className="[&>button]:text-[11px]" options={[{ v: 'ozet', label: 'Özet' }, { v: 'istatistik', label: 'İstatistik' }, { v: 'analiz', label: 'Analiz' }, { v: 'karne', label: 'Karneler' }, { v: 'events', label: 'Olaylar' }]} value={tab} onChange={(v) => setTab(v as any)} />
 
           {tab === 'ozet' && (

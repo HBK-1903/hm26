@@ -13,6 +13,7 @@ import { readSave, exportSaveFile, exportFileName, parseImportFile, writeSave } 
 import { dayToDate } from '../data/calendar';
 import { audio, AudioPrefs } from '../audio/engine';
 import { buildPressProfile } from '../engine/pressProfile';
+import { CareerTimeline } from '../components/CareerTimeline';
 
 export const PlaceholderScreen: React.FC<{ id: 'careerProfile' | 'settings' | 'backup' }> = ({ id }) => {
   const [theme, setTheme] = React.useState<ThemePref>(loadTheme());
@@ -46,6 +47,7 @@ export const PlaceholderScreen: React.FC<{ id: 'careerProfile' | 'settings' | 'b
             </div>
           </div>
         </Card>
+        <CareerTimeline seasonNo={g.seasonNo} day={g.career.day} reports={g.matchReports} transfers={g.transferLog} trophies={g.career.trophyCabinet} />
         <Card>
           <div className="m26-overline mb-2">Kariyer Kurulumu</div>
           {[['Dünya Dönemi', era.name], ['Zorluk', `${diff.name} (KZP ${g.career.manager.challengePoints})`], ['İlk Sezon Kaynağı', bg.bonus], ['Kulüp', `${g.myClub.name} — ${g.myClub.stadium}`]].map(([k, v]) => (

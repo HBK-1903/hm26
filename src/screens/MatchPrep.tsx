@@ -10,6 +10,9 @@ import { GAME_PLANS } from '../data/meta';
 import { DemoMatchResult } from '../store/game';
 import { LiveMatch } from './LiveMatch';
 import { MatchHighlights } from '../components/match/MatchHighlights';
+import { ArrivalScene } from '../components/match/ArrivalScene';
+import { MatchAwardCeremony } from '../components/match/MatchAwardCeremony';
+import { selectMatchAward } from '../data/matchAward';
 import { buildMatchBrief, type NoteTone } from '../engine/matchDay';
 import { buildMatchdayAtmosphere } from '../engine/atmosphere';
 import { normalizeClubCulture } from '../data/culture';
@@ -30,6 +33,8 @@ export const MatchPrep: React.FC<{ go: (s: Screen) => void; onEndDay?: () => voi
   const [activeTacticIdx, setActiveTacticIdx] = useState(0);   // P2 (SPEC Böl.I/7): 5 plan slotu seçilebilir
   const [quick, setQuick] = useState<DemoMatchResult | null>(null);
   const [quickHighlights, setQuickHighlights] = useState(false);
+  const [quickAwardOpen, setQuickAwardOpen] = useState(false);
+  const [arrivalOpen, setArrivalOpen] = useState(false);
   // "Kaydet ve Günü Bitir": maç commit edilip LiveMatch kapandıktan SONRA gün ilerletilir.
   // Aynı event içinde çağırsak advanceDay fikstürü oynanmamış görüp engel dönerdi;
   // efekt, store yeniden render olduktan sonra taze closure ile çalışmayı garanti eder.
@@ -45,13 +50,16 @@ export const MatchPrep: React.FC<{ go: (s: Screen) => void; onEndDay?: () => voi
   if (quick) {
     const quickHome = clubById(quick.homeId);
     const quickAway = clubById(quick.awayId);
-    const close = () => { setQuick(null); setQuickHighlights(false); go('hub'); };
+    const award = selectMatchAward(quick, g.clubOfPlayer, g.playerOf);
+    const close = () => { setQuick(null); setQuickHighlights(false); setQuickAwardOpen(false); go('hub'); };
     return <div className="h-full bg-base">
       <Sheet open onClose={close} title="Hızlı Simülasyon Sonucu" tall>
         <div className="text-center pb-2 space-y-3">
           <div className="font-display text-2xl text-primary">{quickHome.short} <span className="text-amber">{quick.hg}–{quick.ag}</span> {quickAway.short}</div>
           <div className="text-muted text-[12px]">xG {quick.xgHome.toFixed(2)}–{quick.xgAway.toFixed(2)} · Sonuç sezona ve tabloya işlendi</div>
           <p className="text-secondary text-[12.5px] leading-snug">{quick.insights[0]}</p>
+          {award && !quickAwardOpen && <Btn variant="secondary" testId="quick-open-award" className="w-full" onClick={() => setQuickAwardOpen(true)}>Maçın Adamı Törenini İzle</Btn>}
+          {award && quickAwardOpen && <div className="text-left"><MatchAwardCeremony award={award} reducedMotion={g.career.settings.reduceMotion} onClose={() => setQuickAwardOpen(false)} /></div>}
           {!quickHighlights && <Btn variant="secondary" testId="quick-open-highlights" className="w-full" onClick={() => setQuickHighlights(true)}>Öne Çıkan Anları İzle</Btn>}
           {quickHighlights && <div className="text-left"><MatchHighlights home={quickHome} away={quickAway} homeGoals={quick.hg} awayGoals={quick.ag} events={quick.events ?? []} reduceMotion={g.career.settings.reduceMotion} /></div>}
           <Btn variant="amber" className="w-full" onClick={close}>Ana Merkez'e Dön</Btn>
@@ -134,7 +142,7 @@ export const MatchPrep: React.FC<{ go: (s: Screen) => void; onEndDay?: () => voi
             <div className="text-primary text-[12px] font-bold mt-1.5 max-w-[90px] truncate">{home.short}</div>
           </div>
           <div className="text-center">
-            <div className="text-muted text-[10px] uppercase tracking-wide">{home.stadium}</div>
+            <div data-testid="match-stadium" className="text-muted text-[10px] uppercase tracking-wide">{home.stadium}</div>
             <div className="num text-primary font-display text-2xl">VS</div>
           </div>
           <div className="text-center">
@@ -149,6 +157,12 @@ export const MatchPrep: React.FC<{ go: (s: Screen) => void; onEndDay?: () => voi
       )}
 
       <div className="px-4 space-y-2.5 mt-1">
+        <Card className="!p-3" accent="var(--c-accent)">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0"><div className="text-primary text-[13px] font-bold">Takımın stadyuma gelişi</div><p className="text-secondary text-[11px] leading-snug mt-1">{isMatchday ? `${mine.name} otobüsü · ${home.stadium}` : 'Geliş sahnesi maç günü açılır.'}</p></div>
+            <Btn variant="secondary" testId="open-arrival" className="!min-h-[42px] !px-3 !text-[11.5px] shrink-0" disabled={!isMatchday} onClick={() => setArrivalOpen(true)}>Gelişi İzle</Btn>
+          </div>
+        </Card>
         <div className="flex items-center justify-between">
           <div className="text-[11px] text-muted uppercase tracking-wide">Maç Hazırlığı Kontrol Listesi</div>
           <Badge kind={ready === checklist.length ? 'ok' : 'warn'}>{ready}/{checklist.length} tamam</Badge>
@@ -429,7 +443,11 @@ export const MatchPrep: React.FC<{ go: (s: Screen) => void; onEndDay?: () => voi
           <p className="text-center text-muted text-[11px]">Canlı yönetim önerilir — hızlı simülasyon sonucu anında işler ve sezona yansır.</p>
         </div>
       </div>
-
+      <Sheet open={arrivalOpen} onClose={() => setArrivalOpen(false)} title="Stadyuma Geliş" tall>
+        <ArrivalScene home={home} away={away} team={mine} day={next.day} players={xiList} reducedMotion={g.career.settings.reduceMotion} />
+        <Btn variant="amber" className="w-full mt-3" disabled={!isMatchday} onClick={() => { if (isMatchday) { setArrivalOpen(false); onMatchSessionChange?.(true); setStarted(true); } }}>Maça Başla</Btn>
+        <Btn variant="secondary" className="w-full mt-2" onClick={() => setArrivalOpen(false)}>Hazırlığa Dön</Btn>
+      </Sheet>
     </div>
   );
 };

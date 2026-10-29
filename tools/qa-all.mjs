@@ -69,6 +69,7 @@ try {
   run('Market potential, rotation, match plan and legacy saves (jsdom)', 'npm', ['run', 'qa:market-squad:ui'], 180_000);
   run('Contract renewal and recorded match highlights (jsdom)', 'npm', ['run', 'qa:renewal-highlights:ui'], 180_000);
   run('Live reactions, player comparison and weekly paper (jsdom)', 'npm', ['run', 'qa:atmosphere-paper:ui'], 180_000);
+  run('Match arrival, award, training and career story (jsdom)', 'npm', ['run', 'qa:career-scenes:ui'], 180_000);
   run('Newsroom and fan atmosphere regression (jsdom)', 'npm', ['run', 'qa:wave7:ui'], 180_000);
   run('Tactics editor regression (jsdom)', 'npm', ['run', 'qa:wave2:ui'], 180_000);
   run('Squad rotation and health regression (jsdom)', 'npm', ['run', 'qa:wave3:ui'], 180_000);
@@ -112,6 +113,7 @@ try {
       ['Market potential, rotation and sale negotiation E2E', 'tools/e2e-market-squad-polish.mjs'],
       ['Contract renewal and recorded match highlights E2E', 'tools/e2e-renewal-highlights.mjs'],
       ['Live reactions, player comparison and weekly paper E2E', 'tools/e2e-atmosphere-comparison-paper.mjs'],
+      ['Match arrival, award, training and career story E2E', 'tools/e2e-career-scenes.mjs'],
       ['Market filters and match-flow E2E', 'tools/e2e-v099.mjs'],
       ['Live scorebug, feed, accessible Phaser pitch and action E2E (v0.9.12)', 'tools/e2e-live-v0911.mjs'],
       ['Deterministic Phaser motion and pause E2E', 'tools/e2e-pitch-motion.mjs'],

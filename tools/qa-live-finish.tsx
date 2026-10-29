@@ -270,6 +270,22 @@ function Harness({ done }: { done: (report: string[]) => void }) {
         const reportOpen = /Sonucu Kaydet — Ana Merkez/.test(dom.window.document.body.textContent ?? '');
         log.push(reportOpen ? '✅ Röportaj sonrası maç raporu açıldı' : '❌ Rapor açılmadı');
         const engineResult = finalEngineResult as MatchResult | null;
+        // Tören, gerçek canlı maç motorunun oyuncu satırlarından mevcut rapor sırasını kullanır.
+        const realAward = Object.entries(engineResult?.stats.playerRows ?? {}).filter(([id]) => !!g().clubOfPlayer(id))
+          .sort((a, b) => b[1].rating - a[1].rating || b[1].g - a[1].g || b[1].a - a[1].a || b[1].shots - a[1].shots || a[0].localeCompare(b[0]))[0];
+        const { audio: liveAudio } = await import('../src/audio/engine');
+        const priorPrefs = liveAudio.getPrefs();
+        liveAudio.setPrefs({ master: 0 }); // jsdom medya oynatmaz; gerçek ses ayrı browser testinde doğrulanır.
+        const awardButton = dom.window.document.querySelector('[data-testid="open-match-award"]') as HTMLButtonElement | null;
+        if (awardButton) { await act(async () => awardButton.click()); await tick(80); }
+        const awardScene = dom.window.document.querySelector('[data-testid="match-award"]');
+        const awardCorrect = !!realAward && awardScene?.getAttribute('data-player-id') === realAward[0]
+          && !!awardScene.textContent?.includes(realAward[1].rating.toFixed(2))
+          && !!awardScene.textContent?.includes(g().playerOf(realAward[0])?.name ?? 'Oyuncu bilgisi yok');
+        log.push(awardCorrect ? '✅ Canlı maç ödül töreni gerçek oyuncu ve motor puanını gösterdi' : '❌ Canlı maç ödül oyuncusu veya puanı yanlış');
+        await clickByText([/^Töreni Kapat$/]);
+        log.push(/Sonucu Kaydet — Ana Merkez/.test(dom.window.document.body.textContent ?? '') ? '✅ Tören kapanınca maç raporu otomatik değişmedi' : '❌ Tören maç raporundan çıkardı');
+        liveAudio.setPrefs(priorPrefs);
         const expectedEvents = matchEventsToDemo(engineResult?.events ?? []);
         const actualGoals = expectedEvents.filter((event) => event.kind === 'goal');
         log.push(engineResult && actualGoals.filter((event) => event.side === 'home').length === engineResult.stats.hg && actualGoals.filter((event) => event.side === 'away').length === engineResult.stats.ag
