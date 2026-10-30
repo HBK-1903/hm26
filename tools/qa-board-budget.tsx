@@ -42,6 +42,8 @@ check('Kalan kaynak sınırı %60 dahil; üzeri ret', favorable.approved && !ass
 check('Hedefin üç sıra gerisi ret', !assessBoardBudget({ ...base, leagueTable: rows.map((r) => r.clubId === club.id ? { ...r, pts: 0, gf: 0, ga: 10 } : { ...r, pts: 12 }) }).approved);
 check('Maaş tavanı ihlali ek kaynak verilmesini engeller', !assessBoardBudget({ ...base, squad: squad.map((p) => ({ ...p, wage: 1000 })) }).approved);
 check('Net transfer harcaması mali ihlalse ret', !assessBoardBudget({ ...base, transferLog: [transaction({ kind: 'in', fromClubId: 'other', toClubId: club.id, fee: 15.1 })] }).approved);
+const academyFee = transaction({ kind: 'youth', fromClubId: null, toClubId: club.id, fee: 0.3 });
+check('Akademi kayıt bedeli de aynı kulübün transfer harcamasıdır', clubSeasonTransferTotals([academyFee], club.id, 1).spendM === 0.3 && !assessBoardBudget({ ...base, transferLog: [transaction({ kind: 'in', toClubId: club.id, fee: 14.9 }), academyFee] }).approved);
 check('Eski kayıtlarda güven eksikse mevcut 70 varsayılanı kullanılır', assessBoardBudget({ ...base, career: { ...career, boardConfidence: undefined } }).approved);
 check('Şampiyonluk ve açık lig hedefleri yorumlanır', boardTargetRank('Şampiyonluk', 12) === 1 && boardTargetRank('Yükselme yarışı (ilk 4)', 12) === 4 && boardTargetRank('Ligde kal', 12) === 10);
 check('Kulüp ölçeğine göre tutar alt ve üst sınırlıdır', assessBoardBudget({ ...base, club: { ...club, transferBudget: 0.5 }, budget: { tb: 0 } }).amount === 0.2 && assessBoardBudget({ ...base, club: { ...club, transferBudget: 100 }, budget: { tb: 0 } }).amount === 5);

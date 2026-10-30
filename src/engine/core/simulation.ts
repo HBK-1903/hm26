@@ -104,7 +104,8 @@ export class SimulationCore {
   private aiTacticDecisionBand: Record<'home' | 'away', number> = { home: 0, away: 0 };
   private aiDecisionTraces: AiDecisionTrace[] = [];
   private stepContext: { fresh: MatchStateEvent[]; elapsedSeconds: number; stage: 'tactics' | 'home-subs' | 'away-subs' | 'simulate' } | null = null;
-  done = false;
+  private finished = false;
+  get done(): boolean { return this.finished; }
 
   constructor(input: SimulationInput) {
     this.input = normalizeSimulationInput(input);
@@ -904,7 +905,7 @@ export class SimulationCore {
 
   private finish() {
     if (this.done) return;
-    this.done = true;
+    this.finished = true;
     for (const slot of [...this.homeLine.slots, ...this.awayLine.slots]) this.stopPlayerClock(slot, this.clockSec);
     for (const [playerId, row] of Object.entries(this.stats.playerRows)) {
       const clock = this.playerClocks.get(playerId);

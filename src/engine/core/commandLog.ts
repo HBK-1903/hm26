@@ -16,7 +16,11 @@ function cloneFreeze(value: unknown): unknown {
   if (value && typeof value === 'object') {
     const prototype = Object.getPrototypeOf(value);
     if (prototype !== Object.prototype && prototype !== null) throw new Error('Match command payload must be JSON-like.');
-    const copied = Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([key, item]) => [key, cloneFreeze(item)]));
+    // Match JSON object semantics: optional undefined properties are omitted.
+    // The tactics screen uses them when returning to an automatic lineup.
+    const copied = Object.fromEntries(Object.entries(value as Record<string, unknown>)
+      .filter(([, item]) => item !== undefined)
+      .map(([key, item]) => [key, cloneFreeze(item)]));
     return Object.freeze(copied);
   }
   throw new Error('Match command payload must be JSON-like.');

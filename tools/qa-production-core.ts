@@ -65,6 +65,8 @@ check('Çalışan simülasyon ve tekrar oynatma React/DOM, depolama ve gerçek s
   const stats = core.getStats(); stats.playerRows[slot.player.id].g = 99;
   const event = core.getEvents()[0]; event.text = 'Dışarıdan değişiklik';
   check('Kadro, yedek, taktik, istatistik ve sunum görünümü motorun iç durumunu değiştiremez', core.getSlots('home')[0].liveFitness === oldFitness && !core.getSlots('home')[0].sentOff && core.getBench('home').length === benchCount && core.getTactic('home').width !== 1 && core.getStats().playerRows[slot.player.id].g === 0 && core.getEvents()[0].text !== event.text);
+  try { (core as any).done = true; } catch { /* readonly property in strict mode */ }
+  check('Dış kod bitiş durumunu elle değiştiremez', !core.done);
   const started = core.beginStep();
   const wrongOrderRejected = started.ready && throws(() => core.completeStep()) && throws(() => core.beginStep());
   if (started.ready) { core.applyTacticsBoundary(); core.applySubstitutionBoundary('home'); core.applySubstitutionBoundary('away'); core.completeStep(); }
@@ -97,6 +99,24 @@ check('Çalışan simülasyon ve tekrar oynatma React/DOM, depolama ve gerçek s
   const replay = replaySimulation(original.getSimulationInput(), original.getCommandLog());
   check('Kaydedilmiş kullanıcı komutları çekirdekte hem sonucu hem tüm olay günlüğünü tekrarlatır', queued && substituted && JSON.stringify(replay.result) === JSON.stringify(original.toResult()) && JSON.stringify(replay.events) === JSON.stringify(original.getCoreEvents()) && replay.commandHash === original.getCommandLogHash());
   check('Komut saati/sonrası bozulursa sessizce farklı tekrar yapılmaz', throws(() => replaySimulation(original.getSimulationInput(), original.getCommandLog().map((command, index) => index ? command : { ...command, issuedAtSecond: 999 }))) && throws(() => replaySimulation(original.getSimulationInput(), original.getCommandLog().map((command) => ({ ...command, issuedAtStep: 999 })) )));
+}
+
+{
+  // The tactics screen deliberately clears these optional properties when the
+  // user switches back to automatic selection or changes formation.
+  const optionalPlan = { ...input.homeTactic, customLineup: undefined, customBench: undefined };
+  const live = new MatchSession({ ...input, homeTactic: optionalPlan });
+  let accepted = false, replayed = false;
+  try {
+    accepted = live.queueTactic('home', { ...optionalPlan, tempo: 'high' });
+    live.finishNow();
+    const commands = clone(live.getCommandLog()); // exercise a real JSON round trip
+    const replay = replaySimulation(live.getSimulationInput(), commands);
+    replayed = JSON.stringify(replay.result) === JSON.stringify(live.toResult()) && JSON.stringify(replay.events) === JSON.stringify(live.getCoreEvents());
+  } catch { /* reported as a failed regression, not an uncaught test abort */ }
+  check('Otomatik 11/formasyon sonrası isteğe bağlı boş taktik alanları canlı komutu ve JSON tekrarını bozmaz', accepted && replayed);
+  const invalid = new MatchSession(input);
+  check('Komutta fonksiyon veya geçersiz sayı hâlâ reddedilir ve deftere yazılmaz', throws(() => invalid.queueTactic('home', { ...optionalPlan, extra: () => {} } as any)) && throws(() => invalid.queueTactic('home', { ...optionalPlan, width: NaN })) && invalid.getCommandLog().length === 0);
 }
 
 {

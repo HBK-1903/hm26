@@ -53,7 +53,8 @@ export interface FfpAssessment {
 export function clubSeasonTransferTotals(log: readonly TransferLogEntry[], clubId: string, seasonNo: number): { spendM: number; incomeM: number } {
   return log.reduce((totals, entry) => {
     if (entry.seasonNo !== seasonNo) return totals;
-    if (entry.kind === 'in' && entry.toClubId === clubId) totals.spendM += entry.fee;
+    // Academy registrations are paid from the same transfer budget as signings.
+    if ((entry.kind === 'in' || entry.kind === 'youth') && entry.toClubId === clubId) totals.spendM += entry.fee;
     if (entry.kind === 'out' && entry.fromClubId === clubId) totals.incomeM += Math.max(0, entry.fee - (entry.sellOnPaid ?? 0));
     return totals;
   }, { spendM: 0, incomeM: 0 });
