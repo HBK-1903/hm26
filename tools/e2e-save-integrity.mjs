@@ -6,7 +6,9 @@ const base = process.env.HM26_BASE_URL ?? 'http://127.0.0.1:4173';
 const executablePath = process.env.HM26_CHROMIUM;
 const launchOptions = executablePath ? { executablePath, headless: true, args: ['--no-sandbox', '--single-process', '--no-zygote', '--disable-gpu', '--disable-dev-shm-usage'] } : {};
 const browser = await chromium.launch(launchOptions);
-const context = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'tr', acceptDownloads: true });
+const width = Number(process.env.HM26_VIEWPORT_WIDTH ?? 390);
+const viewport = { width, height: width <= 320 ? 720 : 844 };
+const context = await browser.newContext({ viewport, locale: 'tr', acceptDownloads: true });
 let historicalBrowser, historicalContext;
 let passed = 0, failed = 0;
 const pageErrors = [];
@@ -186,7 +188,7 @@ try {
 
   // A synthetic career exported by the actual initial public app (commit 3fb2aa7314, SAVE_VERSION 2).
   historicalBrowser = await chromium.launch(launchOptions);
-  historicalContext = await historicalBrowser.newContext({ viewport: { width: 390, height: 844 }, locale: 'tr' });
+  historicalContext = await historicalBrowser.newContext({ viewport, locale: 'tr' });
   const historicalPage = await historicalContext.newPage(); instrument(historicalPage);
   await historicalPage.goto(base, { waitUntil: 'networkidle' });
   await historicalPage.getByRole('button', { name: 'Başla' }).click();

@@ -2,6 +2,7 @@
 // Kullanım: npm run qa:all
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, writeFileSync } from 'node:fs';
+import { qaChildStatus } from './qa-child-status.mjs';
 
 const root = process.cwd();
 const reportPath = `${root}/QA-AUTOMATION-LATEST.md`;
@@ -17,8 +18,10 @@ function run(name, command, args, timeout = 300_000, extraEnv = {}) {
   const stderr = clean(res.stderr ?? '');
   if (stdout) console.log(stdout);
   if (stderr) console.error(stderr);
-  const code = res.status ?? (res.error ? 1 : 0);
-  rows.push({ name, code, stdout, stderr, error: res.error?.message ?? '' });
+  // A signal-terminated or timed-out child has no exit status; it must never
+  // be reported as a successful QA stage.
+  const { code, error } = qaChildStatus(res);
+  rows.push({ name, code, stdout, stderr, error });
   console.log(`[${code === 0 ? 'PASS' : 'FAIL'}] ${name} (exit ${code})`);
   return code === 0;
 }
@@ -41,6 +44,7 @@ async function ensurePreview() {
 
 try {
   if (!existsSync(`${root}/node_modules/.bin/tsc`)) run('Install locked dependencies', 'npm', ['ci'], 300_000);
+  run('QA runner exit, signal and timeout handling', process.execPath, ['tools/qa-child-status.test.mjs'], 60_000);
   run('Production build + TypeScript + offline manifest', 'npm', ['run', 'build'], 300_000);
   run('PWA headers, manifest, icons and update lifecycle', 'npm', ['run', 'qa:pwa'], 120_000);
   run('Content-derived service-worker build identity', 'npm', ['run', 'qa:sw-manifest'], 60_000);
@@ -142,8 +146,10 @@ try {
       ['Icon system E2E', 'tools/e2e-icons.mjs'],
       ['Statistics and career history E2E', 'tools/e2e-stats.mjs'],
       ['Save-slot delete flow E2E', 'tools/e2e-slots.mjs'],
-      ['Backup, storage failure, legacy migration and stale-tab E2E', 'tools/e2e-save-integrity.mjs'],
-      ['Board budget approval and reload on migrated career E2E', 'tools/e2e-board-budget.mjs'],
+      ['Backup, storage failure, legacy migration and stale-tab E2E (390px)', 'tools/e2e-save-integrity.mjs'],
+      ['Backup, storage failure, legacy migration and stale-tab E2E (320px)', 'tools/e2e-save-integrity.mjs', { HM26_VIEWPORT_WIDTH: '320' }],
+      ['Board budget approval and reload on migrated career E2E (390px)', 'tools/e2e-board-budget.mjs'],
+      ['Board budget approval and reload on migrated career E2E (320px)', 'tools/e2e-board-budget.mjs', { HM26_VIEWPORT_WIDTH: '320' }],
       ['Service-worker two-release and offline isolation E2E', 'tools/e2e-sw-update.mjs'],
       ['Save-before-update and multi-tab game update E2E', 'tools/e2e-update-game.mjs'],
       ['Full profile → starting XI E2E', 'tools/e2e-xi-full.mjs'],
@@ -160,7 +166,7 @@ try {
       ['Deterministic Phaser motion and pause E2E', 'tools/e2e-pitch-motion.mjs'],
       ['PWA offline shell + cached bundles E2E (v0.9.12)', 'tools/e2e-offline-v0911.mjs'],
     ];
-    for (const [name, script] of ui) run(name, process.execPath, [script], 240_000);
+    for (const [name, script, extraEnv] of ui) run(name, process.execPath, [script], 240_000, extraEnv);
   }
 } catch (error) {
   rows.push({ name: 'QA automation runner', code: 1, stdout: '', stderr: String(error) });
