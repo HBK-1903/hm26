@@ -11,6 +11,8 @@
     "qa:save-meta": "tsx tools/qa-save-metadata.ts",
     "qa:save-integrity": "node --import tsx --loader ./tools/qa-live-loader.mjs tools/qa-save-integrity.tsx",
     "qa:save-integrity:browser": "node tools/e2e-save-integrity.mjs",
+    "qa:board-budget": "tsx tools/qa-board-budget.tsx",
+    "qa:board-budget:browser": "node tools/e2e-board-budget.mjs",
     "qa:sw-manifest": "node tools/qa-sw-manifest.mjs",
     "qa:sw-update:browser": "node tools/e2e-sw-update.mjs",
     "qa:game-update:browser": "node tools/e2e-update-game.mjs",

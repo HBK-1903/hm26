@@ -70,11 +70,11 @@ try {
 
   await goMore(page, 'Kulüp');
   await page.getByRole('button', { name: 'Finans', exact: true }).click();
-  check('Yönetim talebinin bütçeyi değiştirmediği önceden açıkça belirtilir', await page.getByText(/Bu talep şu anda bütçeyi değiştirmez/).isVisible());
+  check('Yönetim ek bütçenin tutarını ve koşullarını önceden açıklar', await page.getByText(/Onaylanırsa transfer bütçesine/).isVisible() && await page.getByText(/En az 4 lig maçı ve %60 yönetim güveni/).isVisible());
   await page.getByRole('button', { name: 'Talep Gönder' }).click();
-  const requested = await waitForSave(page, (record) => record?.blob?.inbox?.some((message) => message.title === 'Bütçe talebi yanıtlandı'));
-  check('Ek bütçe talebi yalnız yanıtı kaydeder, bütçeyi değiştirmez', requested.blob.budget.tb === unlisted.blob.budget.tb);
-  check('Aynı gün tekrar talep yinelenmez ve mali kayıt kimliğiyle çakışmaz', await page.getByRole('button', { name: 'Bugün Yanıtlandı' }).isDisabled() && requested.blob.inbox.filter((message) => message.id === `board-budget-request-${requested.blob.career.clubId}-${requested.blob.career.day}`).length === 1 && requested.blob.inbox.every((message) => message.title !== 'Bütçe talebi yanıtlandı' || message.id !== `fin-${requested.blob.career.day}`));
+  const requested = await waitForSave(page, (record) => record?.blob?.inbox?.some((message) => message.title === 'Ek bütçe talebi reddedildi'));
+  check('Sezon başındaki koşulsuz talep gerekçeyle reddedilir ve bütçeyi değiştirmez', requested.blob.budget.tb === unlisted.blob.budget.tb && requested.blob.inbox.some((message) => message.title === 'Ek bütçe talebi reddedildi' && message.body.includes('en az 4 lig maçı')));
+  check('Ret sonrası tekrar talep engellenir ve mali kayıt kimliğiyle çakışmaz', await page.getByRole('button', { name: 'Talep Gönder' }).isDisabled() && requested.blob.inbox.filter((message) => message.id === `board-budget-v1:${requested.blob.career.clubId}:${requested.blob.seasonNo}:${requested.blob.career.day}:rejected`).length === 1 && requested.blob.inbox.every((message) => message.title !== 'Ek bütçe talebi reddedildi' || message.id !== `fin-${requested.blob.career.day}`));
   await page.locator('input[type="range"]').fill('1');
   await page.getByRole('button', { name: 'Aktarımı Onayla' }).click();
   const moved = await waitForSave(page, (record) => record?.blob?.budget?.tb === requested.blob.budget.tb - 1 && record?.blob?.budget?.wbExtra === 0.05);
