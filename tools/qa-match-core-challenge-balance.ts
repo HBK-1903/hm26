@@ -109,16 +109,22 @@ const profileSane = DIFFICULTIES.every(({ label }) => {
     && b.firstHalfFivePlus / b.games < 0.07 && b.teamSevenPlus / b.games < 0.08
     && b.xgSixPlus / b.games < 0.08 && b.aiChanges > 0;
 });
+// Per-scenario limits catch the formerly hidden favorite tail, not just its
+// diluted contribution to an aggregate across normal-league fixtures.
 const favoriteTailsSane = DIFFICULTIES.every(({ label }) => (['favori_ev', 'favori_deplasman'] as ScenarioName[]).every((scenario) => {
   const b = buckets[label][scenario]; const avg = b.goals / b.games;
-  return b.games === PER_SCENARIO && avg < 5 && b.ninePlus / b.games < 0.08
-    && b.firstHalfFivePlus / b.games < 0.15 && b.firstHalfSevenPlus / b.games < 0.02
-    && b.teamSevenPlus / b.games < 0.22 && b.xgSixPlus / b.games < 0.17;
+  return b.games === PER_SCENARIO && avg > 2.5 && avg < 4.0
+    && b.favoriteWins / b.games > 0.88 && b.favoriteWins / b.games < 0.99 && b.underdogWins > 0
+    && b.ninePlus / b.games < 0.025 && b.firstHalfFivePlus / b.games < 0.06
+    && b.firstHalfSevenPlus / b.games < 0.01 && b.teamSevenPlus / b.games < 0.08 && b.xgSixPlus / b.games < 0.035;
 }));
-const tailWatch = DIFFICULTIES.some(({ label }) => (['favori_ev', 'favori_deplasman'] as ScenarioName[]).some((scenario) => {
-  const b = buckets[label][scenario];
-  return b.firstHalfFivePlus / b.games > 0.08 || b.teamSevenPlus / b.games > 0.12 || b.xgSixPlus / b.games > 0.1;
-}));
-console.log(`CHALLENGE-BALANCE: ${profileSane && favoriteTailsSane && completed === 15_000 ? 'PASS' : 'FAIL'} (15k; H/D/A, upset rate, half split, 5+/7+/xG tails by difficulty)`);
-if (tailWatch) console.log('TAIL WATCH: large favorite mismatches still have elevated 5+ first-half / 7+ team / 6+ xG rates; see scenario rows above.');
-if (!profileSane || !favoriteTailsSane || completed !== 15_000) process.exit(1);
+const normalLeaguesSane = DIFFICULTIES.every(({ label }) => {
+  const normal = (['zirve', 'gecit', 'kok'] as ScenarioName[]).map((scenario) => buckets[label][scenario]);
+  const games = normal.reduce((sum, b) => sum + b.games, 0);
+  const goals = normal.reduce((sum, b) => sum + b.goals, 0);
+  const homeWins = normal.reduce((sum, b) => sum + b.homeWins, 0);
+  return games === 3_000 && goals / games > 1.75 && goals / games < 2.35 && homeWins / games > 0.35 && homeWins / games < 0.55;
+});
+const pass = profileSane && favoriteTailsSane && normalLeaguesSane && completed === 15_000;
+console.log(`CHALLENGE-BALANCE: ${pass ? 'PASS' : 'FAIL'} (15k; separate normal leagues and favorite H/A tail limits by difficulty)`);
+if (!pass) process.exit(1);

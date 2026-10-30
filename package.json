@@ -44,6 +44,7 @@
     "qa:e2e:live": "node tools/e2e-live-v0911.mjs",
     "qa:match-core": "tsx tools/qa-match-core-foundation.ts",
     "qa:production-core": "tsx tools/qa-production-core.ts",
+    "qa:goal-calibration": "tsx tools/qa-goal-calibration.ts",
     "qa:match-core:wave2": "tsx tools/qa-match-core-wave2.ts",
     "qa:match-core:wave3": "tsx tools/qa-match-core-wave3.ts",
     "qa:match-core:wave4": "tsx tools/qa-match-core-wave4.ts",

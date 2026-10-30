@@ -81,6 +81,8 @@ try {
     ['MatchCore injuries and substitutions', 'qa:match-core:wave6'],
     ['MatchCore referees and set pieces', 'qa:match-core:wave7'],
     ['MatchCore tactics and AI decisions', 'qa:match-core:wave8'],
+    ['Goal pace, randomness and causal score calibration (6,480 matches)', 'qa:goal-calibration'],
+    ['League and favorite balance simulation (10,000 matches)', 'qa:match-core:wave8:balance'],
     ['Challenge balance simulation (15,000 matches)', 'qa:match-core:challenge-balance'],
     ['Transfer negotiation and resale clauses', 'qa:transfer:wave11'],
     ['Academy recruitment and limits', 'qa:academy:wave12'],
@@ -183,7 +185,8 @@ try {
     '- **Ek kapsam:** maç çekirdeği, klasik röportajlar, transfer/akademi/kulüp kültürü/uluslararası kupa ve ek arayüz testleri de artık bu sıraya dahildir.',
     '- **Yönetim bütçesi:** mevcut güven, lig performansı ve mali verilere dayalı onay/ret; sezon başına tek onay, redden sonra 30 günlük bekleme ve kayıt/yeniden açma testleri kapsamdadır.',
     '- **Maç çekirdeği:** canlı ve hızlı maçlar callback içermeyen, kopyalanmış girdi kullanan ortak üretim çekirdeğinde çalışır; eski oturum ve komut tekrar oynatma yolları uyumluluk adaptörleriyle korunur.',
-    '- **Uyarılar:** `qa-extended` 37/37 testte sıfır başarısızlıkla iki istatistiksel uyarı üretir (100 maçlık skor dağılımı örneklemi ve farklı skor çeşitliliği). Çok dengesiz rakip eşleşmelerinde uç skorlar için ayrıca denge takibi önerilir. Build Phaser lazy-chunk boyut uyarısı verir; Phaser maç ekranında lazy-load edilir.',
+    '- **Denge:** ayrı normal lig ve favori ev/deplasman senaryoları 15.000 ve 10.000 maçta, gol temposu/rastlantısallık ayarları 6.480 maçta izlenir. Örneklem sınırları ve önce/sonra karşılaştırması `QA-MATCH-BALANCE.md` dosyasındadır; skorlar sonradan kesilmez.',
+    '- **Uyarılar:** `qa-extended` 100 maçlık küçük örneklemde istatistiksel uyarılar üretebilir; her koşunun çıktısı aşağıdadır. Build Phaser lazy-chunk boyut uyarısı verir; Phaser maç ekranında lazy-load edilir.',
     '- **Dağıtım:** bu koşu yerel build/QA’dır; üretime deployment yapılmadı.',
     '',
     ...rows.flatMap((row, i) => [
