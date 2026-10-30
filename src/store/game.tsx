@@ -1809,10 +1809,11 @@ export function GameProvider({ career: initialCareer, snapshot, initialUpdatedAt
       return {
         ...cur,
         transferListed: listed ? cur.transferListed.filter((x) => x !== playerId) : [...cur.transferListed, playerId],
-        inbox: listed ? cur.inbox : [{ id: `tl-${playerId}`, kind: 'transfer', title: 'Satış listesine eklendi', body: `${p?.name ?? 'Oyuncu'} satış listesine alındı — AI kulüpler pencere içinde teklifle gelebilir. Kadro ekranından geri alınabilir.`, day: cur.career.day, read: false }, ...cur.inbox],
+        inbox: listed ? cur.inbox : [{ id: `tl-${playerId}`, kind: 'transfer', title: 'Satış listesine eklendi', body: `${p?.name ?? 'Oyuncu'} satış listesine alındı — AI kulüpler pencere içinde teklifle gelebilir. Kadro ekranından geri alınabilir.`, day: cur.career.day, read: false }, ...cur.inbox.filter((message) => message.id !== `tl-${playerId}`)],
       };
     });
-  }, [playerOf]);
+    scheduleSave();
+  }, [playerOf, scheduleSave]);
 
   // Quote and signature share every eligibility, financial and player-response rule.
   // The quote is ephemeral; only the existing wage/contract fields are saved on signature.

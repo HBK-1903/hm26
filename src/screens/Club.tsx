@@ -32,6 +32,8 @@ export const ClubScreen: React.FC = () => {
   const wbExtra = g.budget?.wbExtra ?? 0;            // Dalga 9: TB'den aktarılan aylık maaş payı
   const wageCap = c.wageBudget + wbExtra;            // efektif aylık maaş tavanı
   const wagePct = Math.min(99, Math.round((wageUse / wageCap) * 100));
+  const budgetRequestId = `board-budget-request-${g.career.clubId}-${g.career.day}`;
+  const budgetRequested = g.inbox.some((message) => message.id === budgetRequestId);
   const trust = g.career.boardConfidence ?? 70;
   const projectInfo = g.career.pending.activeProject;
   const culture = normalizeClubCulture(g.career.culture, g.career.seed, g.career.clubId, c.rivalIds ?? []);
@@ -133,9 +135,9 @@ export const ClubScreen: React.FC = () => {
               }}>Aktarımı Onayla</Btn>
             </Card>
             <Card className="border-dashed">
-              <div className="text-primary text-[13px] font-bold">Bütçe aktarımı / yönetim talebi</div>
-              <p className="text-secondary text-[12px] mt-1.5 leading-snug">Güven, sportif hedef ve mali denge değerlendirilir. Sahte bütçede görmezden gelme yok — talep tesis projesi/gerekçeyle onaya girer.</p>
-              <Btn variant="secondary" className="w-full mt-3 !text-[12.5px]" onClick={() => g.setInbox((ms) => [...ms, { id: `fin-${g.career.day}`, kind: 'yonetim', title: 'Bütçe talibi iletildi', body: `Aylık maaş kullanımı %${wagePct}. Yönetim, sportif ilerlemeyi görmeden yeni mali alan açmayı erteledi (prototip akış).`, day: g.career.day, read: false }])}>Talep Gönder</Btn>
+              <div className="text-primary text-[13px] font-bold">Yönetimden ek bütçe talebi</div>
+              <p className="text-secondary text-[12px] mt-1.5 leading-snug">Bu talep şu anda bütçeyi değiştirmez. Gönderdiğinde yönetimin ek kaynak açmadığı yanıtı gelen kutuna gelir.</p>
+              <Btn variant="secondary" className="w-full mt-3 !text-[12.5px]" disabled={budgetRequested} onClick={() => g.setInbox((ms) => ms.some((message) => message.id === budgetRequestId) ? ms : [...ms, { id: budgetRequestId, kind: 'yonetim', title: 'Bütçe talebi yanıtlandı', body: `Aylık maaş kullanımı %${wagePct}. Yönetim şu anda ek bütçe açmıyor; mevcut bütçe değişmedi.`, day: g.career.day, read: false }])}>{budgetRequested ? 'Bugün Yanıtlandı' : 'Talep Gönder'}</Btn>
             </Card>
           </div>
         )}

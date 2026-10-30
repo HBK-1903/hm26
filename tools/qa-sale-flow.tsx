@@ -155,12 +155,13 @@ await act(async () => { duplicate = g.respondOffer('qa-second', true); });
 check('Eski ikinci teklif satışı tekrarlayamaz', !duplicate!.ok && g.transferLog.length === startingLog + 1);
 
 // Accepted counter needs an additional explicit confirmation.
-await mount(snapshot(80, false));
+await mount(snapshot(80, true));
 const beforeCounter = g.budget.tb;
+check('Önceki kulübün satış payı kayıt yüklenirken korunur', g.sellOnClauses?.[originalPlayer.id]?.[0]?.pct === 20);
 await openSale(); await setCounter(2.4); await selectTone('firm'); await clickId('sale-counter');
 check('Kabul edilen karşı teklif yalnız ön anlaşmadır', stage() === 'response' && g.budget.tb === beforeCounter && g.incomingOffers[0].state === 'open' && g.mySquad.some((p) => p.id === originalPlayer.id));
 await clickId('sale-review'); await clickId('sale-confirm');
-check('Onaylanan karşı teklifin gerçek bedeli ve bütçesi işlenir', g.transferLog[0]?.fee === 2.4 && g.budget.tb === Math.round((beforeCounter + 2.4) * 100) / 100);
+check('Onaylanan karşı teklifte pay gerçek bedelden düşülür ve bütçeye net tutar eklenir', g.transferLog[0]?.fee === 2.4 && g.transferLog[0]?.sellOnPaid === 0.48 && g.budget.tb === Math.round((beforeCounter + 1.92) * 100) / 100 && !g.sellOnClauses?.[originalPlayer.id]);
 check('80 GEN alıcı kulübün stadyumunda tanıtılır', q('[data-testid="sale-complete"]')?.getAttribute('data-reveal-tier') === 'stadium' && body().includes(buyer.stadium));
 
 // A real counter rejection closes the offer without a transfer.

@@ -69,6 +69,27 @@ try {
     ['Market refresh, shortlist and press-room links', ['tsx', 'tools/qa-market-improvements.ts']],
   ];
   for (const [name, args] of core) run(name, 'npx', ['--yes', ...args], name.includes('simulation') ? 300_000 : 180_000);
+
+  // Feature-specific suites that used to be runnable only individually.
+  const focused = [
+    ['MatchCore event/reducer contracts', 'qa:match-core'],
+    ['MatchCore state and deterministic input', 'qa:match-core:wave2'],
+    ['MatchCore live/instant and replay parity', 'qa:match-core:wave3'],
+    ['MatchCore shot and VAR consistency', 'qa:match-core:wave4'],
+    ['MatchCore time, fatigue and player minutes', 'qa:match-core:wave5'],
+    ['MatchCore injuries and substitutions', 'qa:match-core:wave6'],
+    ['MatchCore referees and set pieces', 'qa:match-core:wave7'],
+    ['MatchCore tactics and AI decisions', 'qa:match-core:wave8'],
+    ['Challenge balance simulation (15,000 matches)', 'qa:match-core:challenge-balance'],
+    ['Transfer negotiation and resale clauses', 'qa:transfer:wave11'],
+    ['Academy recruitment and limits', 'qa:academy:wave12'],
+    ['Club culture and financial decisions', 'qa:culture:wave14'],
+    ['International competition progression', 'qa:international:wave15'],
+    ['Classic interviews and outcomes', 'qa:interview'],
+    ['GameProvider played-fixture and durable save', 'qa:store-fixture'],
+  ];
+  for (const [name, script] of focused) run(name, 'npm', ['run', script], name.includes('simulation') ? 300_000 : 180_000);
+
   run('Transfer negotiation and save integration (jsdom)', 'npm', ['run', 'qa:transfer:scene:ui'], 180_000);
   run('Sale negotiation, settlement and save integration (jsdom)', 'npm', ['run', 'qa:sale:ui'], 180_000);
   run('Market potential, rotation, match plan and legacy saves (jsdom)', 'npm', ['run', 'qa:market-squad:ui'], 180_000);
@@ -84,6 +105,13 @@ try {
   run('Cancelled goal live presentation, audio and match finish (jsdom)', 'npm', ['run', 'qa:match-finish'], 180_000, { HM26_CANCELLED_GOAL: '1' });
   run('Match finish recovery after simulated engine failure (jsdom)', 'npm', ['run', 'qa:match-finish'], 180_000, { HM26_FAULT: 'finish' });
   run('Matchday progression and end-day regression (jsdom)', 'npm', ['run', 'qa:dayflow'], 180_000);
+  for (const [name, script] of [
+    ['Team insights and statistics UI (jsdom)', 'qa:wave6:ui'],
+    ['Player analytics and match history UI (jsdom)', 'qa:analytics:ui'],
+    ['Scout, interview and press profile UI (jsdom)', 'qa:scout:ui'],
+    ['News and career analytics UI (jsdom)', 'qa:fixwave:ui'],
+    ['Match preparation and league analytics UI (jsdom)', 'qa:cwave:ui'],
+  ]) run(name, 'npm', ['run', script], 180_000);
 
   const browserProbe = spawnSync(process.execPath, ['-e', "import('playwright').then(({ chromium }) => console.log(chromium.executablePath()))"], { cwd: root, encoding: 'utf8' });
   const chromiumExecutable = clean(browserProbe.stdout ?? '').split('\n').filter(Boolean).at(-1) ?? '';
@@ -149,7 +177,10 @@ try {
     `- **Bu koşudaki testler:** ${fail === 0 ? 'tüm aşamalar geçti; test kapsamı dışındaki kusurlar ayrıca incelenmelidir.' : `başarısız aşamalar: ${failingStages.join(', ')}.`}`,
     '- **Otomasyon düzeltmesi:** eski E2E betiklerindeki :3001 adresleri ortak `HM26_BASE_URL` ile :4173 preview adresine alındı; yeniden koşuda ilgili akışlar geçti.',
     '- **Tarayıcı ortamı:** Chromium indirme ve paylaşımlı sistem kütüphanelerini kontrol etme/kurma adımları ile launch smoke testi otomasyona eklendi.',
-    '- **Uyarılar:** `qa-extended` 37/37 testte sıfır başarısızlıkla iki istatistiksel uyarı üretir (100 maçlık skor dağılımı örneklemi ve farklı skor çeşitliliği). Build ayrıca kabul edilmiş Phaser lazy-chunk boyut uyarısını verir; Phaser maç ekranında lazy-load edilir.',
+    '- **Ek kapsam:** maç çekirdeği, klasik röportajlar, transfer/akademi/kulüp kültürü/uluslararası kupa ve ek arayüz testleri de artık bu sıraya dahildir.',
+    '- **Açık ürün sınırı:** yönetimden ek bütçe talebi şu an yalnız sabit yanıt üretir; koşullara göre onaylanan gerçek bir ek bütçe mekaniği değildir.',
+    '- **Teknik sınır:** ayrı `MatchCore` sınıfı saat/durum iskeletidir; oynanan maçlar ortak `MatchSession` içinde simüle edilir. Simülasyonun ayrı çekirdeğe taşınması, yol haritasında kalan mimari iştir; mevcut maç akışı bu nedenle başarısız sayılmaz.',
+    '- **Uyarılar:** `qa-extended` 37/37 testte sıfır başarısızlıkla iki istatistiksel uyarı üretir (100 maçlık skor dağılımı örneklemi ve farklı skor çeşitliliği). Çok dengesiz rakip eşleşmelerinde uç skorlar için ayrıca denge takibi önerilir. Build Phaser lazy-chunk boyut uyarısı verir; Phaser maç ekranında lazy-load edilir.',
     '- **Dağıtım:** bu koşu yerel build/QA’dır; üretime deployment yapılmadı.',
     '',
     ...rows.flatMap((row, i) => [

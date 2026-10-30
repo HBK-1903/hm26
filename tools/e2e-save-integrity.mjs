@@ -49,6 +49,37 @@ try {
   const original = await waitForSave(page, (record) => !!record?.blob?.career);
   check('Yeni kariyer gerçek IndexedDB yuvasına kaydedildi', original.blob.career.manager.name === 'Aktif Menajer' && original.blob.version === 4);
 
+  await page.locator('nav[aria-label="Ana gezinme"]').getByRole('button', { name: 'Kadro', exact: true }).click();
+  const playerCard = page.locator('button').filter({ hasText: /yaş/ }).first();
+  await playerCard.click();
+  await page.getByRole('button', { name: 'Satış Listesine Koy' }).click();
+  const listed = await waitForSave(page, (record) => record?.blob?.transferListed?.length === 1);
+  const listedPlayer = listed.blob.transferListed[0];
+  check('Kadrodan satış listesine ekleme ve haber elle kaydetmeden saklanır', !!listedPlayer && listed.blob.inbox.some((message) => message.id === `tl-${listedPlayer}`));
+  await playerCard.click();
+  await page.getByRole('button', { name: 'Listeden Çıkar' }).click();
+  let unlisted = await waitForSave(page, (record) => record?.meta?.updatedAt > listed.meta.updatedAt && !record?.blob?.transferListed?.includes(listedPlayer));
+  check('Satış listesinden çıkarma da elle kaydetmeden saklanır', !unlisted.blob.transferListed.includes(listedPlayer));
+  await playerCard.click();
+  await page.getByRole('button', { name: 'Satış Listesine Koy' }).click();
+  const relisted = await waitForSave(page, (record) => record?.meta?.updatedAt > unlisted.meta.updatedAt && record?.blob?.transferListed?.includes(listedPlayer));
+  check('Aynı oyuncu tekrar listeye alınca yinelenen haber oluşmaz', relisted.blob.inbox.filter((message) => message.id === `tl-${listedPlayer}`).length === 1);
+  await playerCard.click();
+  await page.getByRole('button', { name: 'Listeden Çıkar' }).click();
+  unlisted = await waitForSave(page, (record) => record?.meta?.updatedAt > relisted.meta.updatedAt && !record?.blob?.transferListed?.includes(listedPlayer));
+
+  await goMore(page, 'Kulüp');
+  await page.getByRole('button', { name: 'Finans', exact: true }).click();
+  check('Yönetim talebinin bütçeyi değiştirmediği önceden açıkça belirtilir', await page.getByText(/Bu talep şu anda bütçeyi değiştirmez/).isVisible());
+  await page.getByRole('button', { name: 'Talep Gönder' }).click();
+  const requested = await waitForSave(page, (record) => record?.blob?.inbox?.some((message) => message.title === 'Bütçe talebi yanıtlandı'));
+  check('Ek bütçe talebi yalnız yanıtı kaydeder, bütçeyi değiştirmez', requested.blob.budget.tb === unlisted.blob.budget.tb);
+  check('Aynı gün tekrar talep yinelenmez ve mali kayıt kimliğiyle çakışmaz', await page.getByRole('button', { name: 'Bugün Yanıtlandı' }).isDisabled() && requested.blob.inbox.filter((message) => message.id === `board-budget-request-${requested.blob.career.clubId}-${requested.blob.career.day}`).length === 1 && requested.blob.inbox.every((message) => message.title !== 'Bütçe talebi yanıtlandı' || message.id !== `fin-${requested.blob.career.day}`));
+  await page.locator('input[type="range"]').fill('1');
+  await page.getByRole('button', { name: 'Aktarımı Onayla' }).click();
+  const moved = await waitForSave(page, (record) => record?.blob?.budget?.tb === requested.blob.budget.tb - 1 && record?.blob?.budget?.wbExtra === 0.05);
+  check('Transferden maaşa aktarım ve yönetim haberi birlikte otomatik kaydedilir', moved.blob.inbox.some((message) => message.title === 'Bütçe aktarımı onaylandı'));
+
   await goMore(page, 'Ayarlar');
   const contrast = page.getByRole('switch', { name: 'Yüksek kontrast' });
   const previousContrast = original.blob.career.settings.highContrast;

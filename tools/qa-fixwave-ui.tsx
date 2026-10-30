@@ -5,6 +5,7 @@
 //     diğer yönetim mesajları eskisi gibi kulüp bölümüne (club).
 //  3) MatchReport: xG çiftinden türetilen xPTS kartı (yeni kalıcı alan yok).
 //  4) Kariyer Profili: basın profili özeti.
+import 'fake-indexeddb/auto';
 import { JSDOM } from 'jsdom';
 const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', { url: 'http://localhost/', pretendToBeVisual: true });
 (globalThis as any).window = dom.window;
