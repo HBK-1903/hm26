@@ -41,19 +41,25 @@ const throws = (fn: () => unknown, fragment: string) => {
 }
 
 {
-  const session = new MatchSession(input);
-  const internals = session as unknown as { protestWindowUntil: { home: number } };
-  internals.protestWindowUntil.home = session.getMinute() + 2;
-  const protest = session.protest('home').ok;
-  let guard = 0;
-  while (session.getMinute() < 45 && !session.done && guard++ < 100) session.step();
-  const talk = session.applyTeamTalk('home', 'quiet');
-  const injured = session.getSlots('home').find((slot) => slot.slotGroup !== 'GK')!;
-  injured.injured = true;
-  const wait = session.waitForInjuredPlayer(injured.player.id);
-  const kinds = session.getCommandLog().map((command) => command.type);
-  check('Protest, halftime talk and injury-wait actions enter the command ledger', protest && talk && wait
-    && kinds.includes('PROTEST') && kinds.includes('TEAM_TALK') && kinds.includes('WAIT_INJURED'), `types=${kinds.join(',')} halftime=${session.getMinute()}`);
+  // Exercise real referee/injury decisions instead of reaching through the adapter's private state.
+  let found: { kinds: string[]; seed: number } | null = null;
+  for (let seed = input.seed; seed < input.seed + 100 && !found; seed++) {
+    const session = new MatchSession({ ...input, seed });
+    let protest = false, talk = false, wait = false;
+    while (!session.done && !(protest && talk && wait)) {
+      session.step();
+      if (!protest) for (const side of ['home', 'away'] as const) if (session.canProtest(side)) { protest = session.protest(side).ok; break; }
+      if (!talk && session.getMinute() >= 45 && session.getMinute() <= 46) talk = session.applyTeamTalk('home', 'quiet');
+      if (!wait) {
+        const injured = session.getSlots('home').find((slot) => slot.injured);
+        if (injured) wait = session.waitForInjuredPlayer(injured.player.id);
+      }
+    }
+    const kinds = session.getCommandLog().map((command) => command.type);
+    if (protest && talk && wait) found = { kinds, seed };
+  }
+  check('Protest, halftime talk and injury-wait actions enter the command ledger', !!found
+    && found.kinds.includes('PROTEST') && found.kinds.includes('TEAM_TALK') && found.kinds.includes('WAIT_INJURED'), `types=${found?.kinds.join(',') ?? 'missing'} seed=${found?.seed ?? 'none'}`);
 }
 
 {

@@ -55,13 +55,16 @@ const tactic = aiDefaultTactic(home, away, away.strength);
 
 // F5: protest requires an adverse decision, grants a +15 profile boost, and commands enforce 10-minute cooldown.
 {
-  const sess = new MatchSession({ homeClub: home, awayClub: away, homeSquad: squad, awaySquad: opponent, homeTactic: tactic, seed: seed + 10, goalPace: 'dengeli', randomness: 'normal', userSide: 'home' });
-  const prof = sess as unknown as { homeProf: { midfield: number }; protestWindowUntil: { home: number } };
+  let sess = new MatchSession({ homeClub: home, awayClub: away, homeSquad: squad, awaySquad: opponent, homeTactic: tactic, seed: seed + 10, goalPace: 'dengeli', randomness: 'normal', userSide: 'home' });
   const blocked = sess.protest('home');
-  const before = prof.homeProf.midfield;
-  prof.protestWindowUntil.home = sess.getMinute() + 2; // adverse referee call opens a short protest window
+  // Find an actual adverse referee decision rather than mutating private engine state.
+  for (let attempt = 0; attempt < 100 && !sess.canProtest('home'); attempt++) {
+    if (attempt > 0) sess = new MatchSession({ homeClub: home, awayClub: away, homeSquad: squad, awaySquad: opponent, homeTactic: tactic, seed: seed + 10 + attempt, goalPace: 'dengeli', randomness: 'normal', userSide: 'home' });
+    while (!sess.done && !sess.canProtest('home')) sess.step();
+  }
+  const before = sess.getTeamProfile('home').midfield;
   const first = sess.protest('home');
-  const after = prof.homeProf.midfield;
+  const after = sess.getTeamProfile('home').midfield;
   const second = sess.protest('home');
   const shout = sess.useShout('home', 'pump');
   const shoutAgain = sess.useShout('home', 'pump');

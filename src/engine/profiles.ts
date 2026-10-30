@@ -1,7 +1,7 @@
 // HM26 Maç Motoru §3.3 / §5 — Takım Maç Profili hesaplayıcı
 // Kadro + formasyon + taktik + kondisyon → 11 kanal puanı
 
-import {Player, TacticPlan, Formation, PositionGroup} from '../types';
+import type { Player, TacticPlan, Formation, PositionGroup } from '../types';
 import {effectivePlayer} from './ratings';
 import {cohesionFactor} from './tacticsStudio';
 

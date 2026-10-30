@@ -1,7 +1,7 @@
 // Match insights are factual projections of this result's recorded stats and selected plans.
-import { Club, TacticPlan } from '../types';
-import { MatchStats } from './engine';
-import { TeamMatchProfile } from './profiles';
+import type { Club, TacticPlan } from '../types';
+import type { MatchStats } from './core/contracts';
+import type { TeamMatchProfile } from './profiles';
 
 interface TeamsRef { home: Club; away: Club }
 interface ProfRef { homeProf: TeamMatchProfile; awayProf: TeamMatchProfile; homeTac: TacticPlan; awayTac: TacticPlan }

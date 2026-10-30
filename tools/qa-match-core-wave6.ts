@@ -2,7 +2,7 @@
 import { CLUBS } from '../src/data/clubs';
 import { genSquad } from '../src/data/gen';
 import { aiDefaultTactic, type MatchInput } from '../src/engine/engine';
-import { autoLineup, isActiveOnPitch, teamProfile } from '../src/engine/profiles';
+import { autoLineup, isActiveOnPitch, teamProfile, type LineupSlot } from '../src/engine/profiles';
 import { MatchSession } from '../src/engine/session';
 import { pickSlot, runPossession } from '../src/engine/possession';
 
@@ -16,6 +16,11 @@ const baseInput: MatchInput = {
 };
 const checks: { name: string; pass: boolean; detail: string }[] = [];
 const check = (name: string, pass: boolean, detail: string) => checks.push({ name, pass, detail });
+// Deliberate fault injection for rare dismissal/injury cases; public snapshots stay detached.
+const internalSlots = (session: MatchSession, side: 'home' | 'away'): LineupSlot[] => {
+  const core = (session as unknown as { core: { homeLine: { slots: LineupSlot[] }; awayLine: { slots: LineupSlot[] } } }).core;
+  return side === 'home' ? core.homeLine.slots : core.awayLine.slots;
+};
 function rngFor(seed: number): () => number {
   let a = seed >>> 0;
   return () => { a = (a + 0x6d2b79f5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
@@ -63,7 +68,7 @@ function rngFor(seed: number): () => number {
   const session = new MatchSession({ ...baseInput, seed: 82010 });
   const excluded = new Set<string>();
   for (const side of ['home', 'away'] as const) {
-    const slots = session.getSlots(side);
+    const slots = internalSlots(session, side);
     const keeper = slots.find((slot) => slot.slotGroup === 'GK')!;
     const forward = slots.find((slot) => slot.slotGroup === 'ST')!;
     if (side === 'home') keeper.sentOff = true; else keeper.injured = true;
@@ -83,7 +88,7 @@ function rngFor(seed: number): () => number {
 
 {
   const session = new MatchSession({ ...baseInput, seed: 82020 });
-  const outgoing = session.getSlots('home').find((slot) => slot.slotGroup !== 'GK')!;
+  const outgoing = internalSlots(session, 'home').find((slot) => slot.slotGroup !== 'GK')!;
   const incoming = session.getBench('home')[0];
   outgoing.sentOff = true;
   const dismissedRejected = !session.queueSub('home', outgoing.player.id, incoming.id);
@@ -129,7 +134,7 @@ function rngFor(seed: number): () => number {
 
 {
   const session = new MatchSession({ ...baseInput, seed: 82040 });
-  const player = session.getSlots('home').find((slot) => slot.slotGroup !== 'GK')!;
+  const player = internalSlots(session, 'home').find((slot) => slot.slotGroup !== 'GK')!;
   player.injured = true; player.liveFitness = 30;
   const startSecond = session.getElapsedSeconds();
   const accepted = session.waitForInjuredPlayer(player.player.id);

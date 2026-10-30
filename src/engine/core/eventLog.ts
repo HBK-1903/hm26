@@ -21,7 +21,11 @@ export class EventLog {
 
     const sequence = this.events.length + 1;
     const id = `${this.matchId}:${String(sequence).padStart(EVENT_ID_WIDTH, '0')}`;
-    const event = Object.freeze({ ...draft, id }) as CoreMatchEvent;
+    // Decision traces contain a nested utility map; detach/freeze it as well as
+    // the event so presentation code cannot rewrite historical replay facts.
+    const event = Object.freeze(draft.type === 'TACTIC_CHANGE' && draft.decisionTrace
+      ? { ...draft, decisionTrace: Object.freeze({ ...draft.decisionTrace, utilities: Object.freeze({ ...draft.decisionTrace.utilities }) }), id }
+      : { ...draft, id }) as CoreMatchEvent;
     this.events.push(event);
     this.lastSecond = draft.second;
     return event;

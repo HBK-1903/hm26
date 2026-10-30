@@ -73,6 +73,7 @@ try {
   // Feature-specific suites that used to be runnable only individually.
   const focused = [
     ['MatchCore event/reducer contracts', 'qa:match-core'],
+    ['Production simulation isolation, legacy adapter and replay', 'qa:production-core'],
     ['MatchCore state and deterministic input', 'qa:match-core:wave2'],
     ['MatchCore live/instant and replay parity', 'qa:match-core:wave3'],
     ['MatchCore shot and VAR consistency', 'qa:match-core:wave4'],
@@ -181,7 +182,7 @@ try {
     '- **Tarayıcı ortamı:** Chromium indirme ve paylaşımlı sistem kütüphanelerini kontrol etme/kurma adımları ile launch smoke testi otomasyona eklendi.',
     '- **Ek kapsam:** maç çekirdeği, klasik röportajlar, transfer/akademi/kulüp kültürü/uluslararası kupa ve ek arayüz testleri de artık bu sıraya dahildir.',
     '- **Yönetim bütçesi:** mevcut güven, lig performansı ve mali verilere dayalı onay/ret; sezon başına tek onay, redden sonra 30 günlük bekleme ve kayıt/yeniden açma testleri kapsamdadır.',
-    '- **Teknik sınır:** ayrı `MatchCore` sınıfı saat/durum iskeletidir; oynanan maçlar ortak `MatchSession` içinde simüle edilir. Simülasyonun ayrı çekirdeğe taşınması, yol haritasında kalan mimari iştir; mevcut maç akışı bu nedenle başarısız sayılmaz.',
+    '- **Maç çekirdeği:** canlı ve hızlı maçlar callback içermeyen, kopyalanmış girdi kullanan ortak üretim çekirdeğinde çalışır; eski oturum ve komut tekrar oynatma yolları uyumluluk adaptörleriyle korunur.',
     '- **Uyarılar:** `qa-extended` 37/37 testte sıfır başarısızlıkla iki istatistiksel uyarı üretir (100 maçlık skor dağılımı örneklemi ve farklı skor çeşitliliği). Çok dengesiz rakip eşleşmelerinde uç skorlar için ayrıca denge takibi önerilir. Build Phaser lazy-chunk boyut uyarısı verir; Phaser maç ekranında lazy-load edilir.',
     '- **Dağıtım:** bu koşu yerel build/QA’dır; üretime deployment yapılmadı.',
     '',

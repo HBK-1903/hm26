@@ -1,9 +1,9 @@
 // HM26 Maç Motoru §6/§7 — Possession zinciri üretimi ve bölge geçişi
 // v0.9.10: zincir artık OYUNCU SEVİYESİNDE — her adımda top kimde (ballHolder),
 // kime pas (receiver), hangi niyetle (PassIntent) ve rakipte topu kim kapmaya çalışıyor (interceptor).
-import { ZoneId, forwardNeighbors, laneOf, bandOf } from './zones';
-import { TeamMatchProfile, LineupSlot, effective, isActiveOnPitch } from './profiles';
-import { PositionGroup, TacticPlan } from '../types';
+import { forwardNeighbors, laneOf, bandOf, type ZoneId } from './zones';
+import { effective, isActiveOnPitch, type TeamMatchProfile, type LineupSlot } from './profiles';
+import type { PositionGroup, TacticPlan } from '../types';
 
 export type PassIntent =
   | 'distribute'   // kaleciden oyun kurma
