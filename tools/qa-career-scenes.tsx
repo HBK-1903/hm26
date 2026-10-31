@@ -103,7 +103,7 @@ await click(btn('Transferler'), 'Transfer filtresi');
 check('Transfer filtresi gerçek yön ve bedeli gösterir', body().includes('Gerçek Transfer') && body().includes('₺2,00M') && !body().includes('Gerçek Lig Kupası'));
 await act(async () => { await g.saveNow(); });
 let saved = (await readSave(career.slot))?.blob as SaveBlob & Record<string, any>;
-check('Hikâye gezintisi şema, maç, transfer ve kupa kayıtlarını değiştirmez', SAVE_VERSION === 4 && saved.version === 4 && JSON.stringify(saved.matchReports) === JSON.stringify(sceneSave.matchReports) && JSON.stringify(saved.transferLog) === JSON.stringify(sceneSave.transferLog) && JSON.stringify(saved.career.trophyCabinet) === JSON.stringify(sceneSave.career.trophyCabinet) && !Object.keys(saved).some((k) => /^(careerTimeline|careerStory|arrivalScene|matchAward)$/i.test(k)), `v=${saved.version} reports=${JSON.stringify(saved.matchReports) === JSON.stringify(sceneSave.matchReports)} transfers=${JSON.stringify(saved.transferLog) === JSON.stringify(sceneSave.transferLog)} trophies=${JSON.stringify(saved.career.trophyCabinet) === JSON.stringify(sceneSave.career.trophyCabinet)} keys=${Object.keys(saved).filter((k) => /^(careerTimeline|careerStory|arrivalScene|matchAward)$/i.test(k))}`);
+check('Hikâye gezintisi şema, maç, transfer ve kupa kayıtlarını değiştirmez', SAVE_VERSION === 5 && saved.version === SAVE_VERSION && JSON.stringify(saved.matchReports) === JSON.stringify(sceneSave.matchReports) && JSON.stringify(saved.transferLog) === JSON.stringify(sceneSave.transferLog) && JSON.stringify(saved.career.trophyCabinet) === JSON.stringify(sceneSave.career.trophyCabinet) && !Object.keys(saved).some((k) => /^(careerTimeline|careerStory|arrivalScene|matchAward)$/i.test(k)), `v=${saved.version} reports=${JSON.stringify(saved.matchReports) === JSON.stringify(sceneSave.matchReports)} transfers=${JSON.stringify(saved.transferLog) === JSON.stringify(sceneSave.transferLog)} trophies=${JSON.stringify(saved.career.trophyCabinet) === JSON.stringify(sceneSave.career.trophyCabinet)} keys=${Object.keys(saved).filter((k) => /^(careerTimeline|careerStory|arrivalScene|matchAward)$/i.test(k))}`);
 
 await mount('hub', sceneSave);
 await click(byId('hub-career-story'), 'Kariyer kısayolu');
@@ -150,7 +150,7 @@ await click(btn('Hazırlığa Dön'), 'Gelişi kapat');
 check('Geliş bitince hazırlık ekranı ve manuel maç düğmesi kalır', !q('[data-testid="arrival-scene"]') && !!btn('Maça Başla'));
 await act(async () => { await g.saveNow(); });
 saved = (await readSave(career.slot))?.blob as SaveBlob & Record<string, any>;
-check('Geliş izleme sonuç, fikstür ve kayıt şemasını değiştirmez', saved.version === 4 && JSON.stringify(saved.fixtures) === JSON.stringify(prepSave.fixtures) && JSON.stringify(saved.matchReports) === JSON.stringify(prepSave.matchReports));
+check('Geliş izleme sonuç, fikstür ve kayıt şemasını değiştirmez', saved.version === SAVE_VERSION && JSON.stringify(saved.fixtures) === JSON.stringify(prepSave.fixtures) && JSON.stringify(saved.matchReports) === JSON.stringify(prepSave.matchReports));
 await click(byId('open-arrival'), 'Gelişten manuel maça geçiş');
 await click(all<HTMLButtonElement>('[role="dialog"] button').find((el) => el.textContent?.trim() === 'Maça Başla') ?? null, 'Geliş içindeki maç başlatma');
 check('Geliş penceresindeki maç düğmesi yalnız kullanıcı basınca gerçek canlı maçı açar', sessionActive && !q('[data-testid="arrival-scene"]') && !!q('[role="timer"]'));

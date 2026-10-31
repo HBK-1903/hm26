@@ -5,7 +5,7 @@ import { Card, Btn, Badge, Sheet, Seg } from '../components/ui/kit';
 import { GameIcon } from '../components/icons';
 import { FORMATIONS, GAME_PLANS, PLAN_SLOTS } from '../data/meta';
 import { autoLineup, FORMATION_SLOTS } from '../engine/profiles';
-import { engineSlotForBoard, engineToBoard } from '../engine/lineupOrder';
+import { boardToEngine, engineSlotForBoard, engineToBoard } from '../engine/lineupOrder';
 import { positionMod } from '../engine/ratings';
 import { canSlotGroup, cohesionEffectPct, cohesionFactor, fitnessRing, tacticalFamiliarity } from '../engine/tacticsStudio';
 import { Formation, Player } from '../types';
@@ -26,25 +26,54 @@ export const TacticsScreen: React.FC<{ pendingXI?: Player | null; onClearXI?: ()
   const [planIdx, setPlanIdx] = useState(0);
   const plan = g.tactics[planIdx];
   const [tab, setTab] = useState<'formation' | 'plan' | 'instr'>('formation');
-  const [drawer, setDrawer] = useState<'setpieces' | null>(null);
+  const [drawer, setDrawer] = useState<'setpieces' | 'roster' | 'bench' | null>(null);
+  const [benchDraft, setBenchDraft] = useState<string[]>([]);
   const [editName, setEditName] = useState(false);
-  const xi = useMemo(() => autoLineup(g.mySquad, plan.formation, undefined, new Set(g.riskPlayIds ?? [])), [g.mySquad, plan.formation, g.riskPlayIds]);
+  const [availabilityWarning, setAvailabilityWarning] = useState<string | null>(null);
+  const xi = useMemo(() => autoLineup(
+    g.mySquad, plan.formation,
+    plan.customLineup?.length === 11 ? boardToEngine(plan.formation, plan.customLineup) : undefined,
+    new Set(g.riskPlayIds ?? []), plan.customBench,
+  ), [g.mySquad, plan.formation, plan.customLineup, plan.customBench, g.riskPlayIds]);
   const [slotPick, setSlotPick] = useState<number | null>(null); // FAZ 2: dokunulan saha yuvası
   // v0.9.4 G2-açıklama: uyumsuz hedefe iki aşamalı onay (ilk dokun uyarı/bilgi, ikinci dokun işlemi uygular)
   const [arm, setArm] = useState<string | null>(null);
   // v0.9.5: yedek kartlar da her zaman tıklanabilir — önce yedeğe dokun, sonra uyumlu yuvaya dokun (kulübeden-sahaya akışı)
   const [benchPick, setBenchPick] = useState<string | null>(null);
 
-  // The board keeps its original slot order for saved lineups; derive its
-  // automatic players from the engine's equivalent slots.
-  const autoIds = useMemo(() => engineToBoard(plan.formation, xi.slots.map((slot) => slot.player.id)), [xi, plan.formation]);
-  const lineupIds: (string | null)[] = plan.customLineup && plan.customLineup.length === 11 ? plan.customLineup : autoIds;
+  // Use the engine's actual selection in board order, including replacements for
+  // sold, duplicate, injured or suspended IDs in older manual lineups.
+  const lineupIds = useMemo(() => engineToBoard(plan.formation, xi.slots.map((slot) => slot.player.id)), [xi, plan.formation]);
   const lineup = lineupIds.map((id) => g.mySquad.find((p) => p.id === id) ?? null);
   const benchAll = useMemo(() => {
-    const usedIds = new Set(lineupIds.filter(Boolean) as string[]);
-    return [...g.mySquad].filter((p) => !usedIds.has(p.id)).sort((a, b) => b.ratings.gen - a.ratings.gen);
+    const seen = new Set(lineupIds.filter(Boolean) as string[]);
+    return g.mySquad.filter((player) => {
+      if (seen.has(player.id)) return false;
+      seen.add(player.id);
+      return true;
+    }).sort((a, b) => b.ratings.gen - a.ratings.gen);
   }, [g.mySquad, lineupIds]);
-  const bench = plan.customBench?.length ? plan.customBench.map((id) => g.mySquad.find((p) => p.id === id)).filter(Boolean) as Player[] : benchAll.slice(0, 6);
+  // Saved bench preferences come first, but never hide the rest of the squad or
+  // duplicate a player already on the board (old saves can contain stale IDs).
+  const benchById = new Map(benchAll.map((player) => [player.id, player]));
+  const preferred = [...new Set(plan.customBench ?? [])].flatMap((id) => {
+    const player = benchById.get(id);
+    return player ? [player] : [];
+  });
+  const preferredIds = new Set(preferred.map((player) => player.id));
+  const bench = [...preferred, ...benchAll.filter((player) => !preferredIds.has(player.id))];
+  const matchBenchIds = new Set(xi.bench.map((player) => player.id));
+  const forcedIds = new Set((plan.customLineup?.length === 11 ? plan.customLineup : []).filter((id): id is string => !!id));
+  // Match the engine's eligibility exactly, including approved injury risks and
+  // low-fitness players explicitly forced in an old manual lineup.
+  const benchEligible = (player: Player) => player.suspendedMatches <= 0
+    && (player.injuredDays <= 0 || !!g.riskPlayIds?.includes(player.id))
+    && (player.fitness >= 40 || forcedIds.has(player.id));
+  const benchLimit = Math.min(9, benchAll.filter(benchEligible).length);
+  const openBenchSelection = () => {
+    setBenchDraft(xi.bench.map((player) => player.id));
+    setDrawer('bench');
+  };
 
   const swapSlot = (slotIdx: number, newId: string) => {
     const next11 = [...lineupIds];
@@ -53,8 +82,12 @@ export const TacticsScreen: React.FC<{ pendingXI?: Player | null; onClearXI?: ()
     next11[slotIdx] = newId;
     // Find the previous slot before replacing it, otherwise an earlier target creates a duplicate.
     if (inIdx !== -1 && inIdx !== slotIdx) next11[inIdx] = old;
-    const nextBench = [...g.mySquad].filter((p) => !next11.includes(p.id)).sort((a, b) => b.ratings.gen - a.ratings.gen).slice(0, 6).map((p) => p.id);
-    setPlan({ customLineup: next11, customBench: nextBench });
+    // Do not discard a manually chosen match bench when the XI changes. If a
+    // selected substitute goes on, the displaced starter takes that place.
+    const nextBench = plan.customBench && [...new Set(plan.customBench
+      .map((id) => id === newId ? old : id)
+      .filter((id): id is string => !!id && !next11.includes(id)))].slice(0, 9);
+    setPlan({ customLineup: next11, ...(plan.customBench ? { customBench: nextBench } : {}) });
     setSlotPick(null);
     setBenchPick(null);
   };
@@ -64,14 +97,23 @@ export const TacticsScreen: React.FC<{ pendingXI?: Player | null; onClearXI?: ()
     if (a === b) return;
     const next11 = [...lineupIds];
     [next11[a], next11[b]] = [next11[b], next11[a]];
-    setPlan({ customLineup: next11, customBench: benchAll.map((p) => p.id).filter((id) => !next11.includes(id)).slice(0, 6) });
+    setPlan({ customLineup: next11 });
     setSlotPick(null);
     setBenchPick(null);
   };
 
+  const unavailable = (player: Player): string | null => player.suspendedMatches > 0
+    ? `${player.name} cezalı olduğu için maçta oynayamaz.`
+    : player.injuredDays > 0 && !g.riskPlayIds?.includes(player.id)
+      ? `${player.name} sakat. Maç hazırlığında iğne onayı verilmeden oynayamaz.`
+      : null;
+
   const onSlotTap = (i: number) => {
     // Jr-09/QA: Kadro'dan "İlk 11'e Al" ile gelen oyuncu doğrudan dokunulan yuvaya yerleşir
     if (pendingXI) {
+      const reason = unavailable(pendingXI);
+      if (reason) { setAvailabilityWarning(reason); return; }
+      setAvailabilityWarning(null);
       // v0.9.4: uyumsuz hedef → önce açıklama, tekrar dokun onaylama
         if (!canSlot(SHAPE[plan.formation].slots[i].group, pendingXI)) {
         const key = `pend:${i}`;
@@ -85,7 +127,11 @@ export const TacticsScreen: React.FC<{ pendingXI?: Player | null; onClearXI?: ()
     // v0.9.5: önce yedek seçildiyse dokunulan yuvaya sahaya alınır (uyumsuzsal gerçek ceza %si + iki aşamalı onay)
     if (benchPick) {
       const bp = benchAll.find((b) => b.id === benchPick);
-      if (bp && !canSlot(SHAPE[plan.formation].slots[i].group, bp)) {
+      if (!bp) { setBenchPick(null); setArm(null); return; }
+      const reason = unavailable(bp);
+      if (reason) { setAvailabilityWarning(reason); return; }
+      setAvailabilityWarning(null);
+      if (!canSlot(SHAPE[plan.formation].slots[i].group, bp)) {
         const key = `bp:${benchPick}:${i}`;
         if (arm !== key) { setArm(key); return; }
       }
@@ -116,6 +162,31 @@ export const TacticsScreen: React.FC<{ pendingXI?: Player | null; onClearXI?: ()
 
   const setPlan = (patch: Partial<typeof plan>) => g.updateTactic(planIdx, { ...plan, ...patch });
 
+  const onBenchTap = (player: Player, fromRoster = false) => {
+    if (pendingXI) return;
+    const reason = unavailable(player);
+    if (reason) { setAvailabilityWarning(reason); return; }
+    setAvailabilityWarning(null);
+    if (slotPick === null) {
+      setArm(null);
+      setBenchPick(benchPick === player.id ? null : player.id);
+      if (fromRoster) setDrawer(null);
+      return;
+    }
+    const group = SHAPE[plan.formation].slots[slotPick]?.group ?? 'GK';
+    if (!canSlot(group, player)) {
+      const key = `bench:${player.id}`;
+      if (arm !== key) { setArm(key); return; }
+    }
+    setArm(null);
+    swapSlot(slotPick, player.id);
+    if (fromRoster) setDrawer(null);
+  };
+
+  const rosterWarning = slotPick !== null && arm?.startsWith('bench:')
+    ? benchAll.find((player) => player.id === arm.slice(6))
+    : undefined;
+
   return (
     <div className="h-full flex flex-col">
       <div className="px-4 pt-4 pb-2 shrink-0">
@@ -132,7 +203,7 @@ export const TacticsScreen: React.FC<{ pendingXI?: Player | null; onClearXI?: ()
         {/* §5.8: 5 taktik plan şeridi */}
         <div className="flex gap-1.5 overflow-x-auto no-scrollbar" aria-label="Taktik planları">
           {g.tactics.map((_, i) => (
-            <button key={i} onClick={() => { setArm(null); setSlotPick(null); setBenchPick(null); setPlanIdx(i); }} className={`shrink-0 min-h-[44px] px-3 rounded-lg text-[11px] font-bold border ${i === planIdx ? 'text-amber border-amber/60 bg-amber/10' : 'text-muted border-line bg-surface'}`}>
+            <button key={i} onClick={() => { setArm(null); setSlotPick(null); setBenchPick(null); setAvailabilityWarning(null); setPlanIdx(i); }} className={`shrink-0 min-h-[44px] px-3 rounded-lg text-[11px] font-bold border ${i === planIdx ? 'text-amber border-amber/60 bg-amber/10' : 'text-muted border-line bg-surface'}`}>
               {PLAN_SLOTS[i]}
             </button>
           ))}
@@ -156,7 +227,7 @@ export const TacticsScreen: React.FC<{ pendingXI?: Player | null; onClearXI?: ()
               {cohesionPct && <span className={`num text-[9.5px] font-extrabold ${cohesionPct.startsWith('+') ? 'text-ok' : 'text-danger'}`}>{cohesionPct}%</span>}
             </span>
             {plan.customLineup && <span className="text-[9px] text-muted border border-line rounded px-1.5 py-0.5">Manuel dizilim</span>}
-            <button onClick={() => setPlan({ customLineup: undefined, customBench: undefined })} className="text-amber text-[10.5px] font-bold min-h-[44px] underline underline-offset-2">Otomatik 11</button>
+            <button onClick={() => { setArm(null); setSlotPick(null); setBenchPick(null); setAvailabilityWarning(null); setPlan({ customLineup: undefined }); }} className="text-amber text-[10.5px] font-bold min-h-[44px] underline underline-offset-2">Otomatik 11</button>
           </span>
         </div>
         {familiarity.fresh && (
@@ -165,10 +236,11 @@ export const TacticsScreen: React.FC<{ pendingXI?: Player | null; onClearXI?: ()
       </div>
 
       <div className="flex-1 overflow-y-auto no-scrollbar px-4 pt-1 pb-6 space-y-3">
+        {availabilityWarning && drawer !== 'roster' && <div role="alert" className="bg-warn/10 border border-warn/40 rounded-lg px-3 py-2 text-[12px] text-warn">{availabilityWarning}</div>}
         {pendingXI && (
           <div className="flex items-center justify-between gap-2 bg-ok/10 border border-ok/40 rounded-lg px-2.5 py-1.5 text-[11.5px] text-ok font-semibold m26-in">
             <span>Sahaya al: <b>{pendingXI.name}</b> — uygun yuvalar yeşil parlıyor, birine dokun.</span>
-            <button className="min-w-[44px] min-h-[44px] text-danger font-bold shrink-0" onClick={() => { setArm(null); onClearXI?.(); }} aria-label="İlk 11 atamasını iptal et">✕</button>
+            <button className="min-w-[44px] min-h-[44px] text-danger font-bold shrink-0" onClick={() => { setArm(null); setAvailabilityWarning(null); onClearXI?.(); }} aria-label="İlk 11 atamasını iptal et">✕</button>
           </div>
         )}
         {/* v0.9.4 G2: turuncu üçgen / uyumsuz atama açıklamaları */}
@@ -239,7 +311,7 @@ export const TacticsScreen: React.FC<{ pendingXI?: Player | null; onClearXI?: ()
             const isPenalty = player && plan.setPieces.penalty === player.id;
             return (
               
-              <button key={i} data-compat={compatible ? '1' : undefined} onClick={() => onSlotTap(i)}
+              <button key={i} data-lineup-id={player?.id} data-slot-index={i} data-compat={compatible ? '1' : undefined} onClick={() => onSlotTap(i)}
                 className="absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center justify-center gap-[3px] min-w-[64px] min-h-[48px]"
                 style={{ left: `${slot.x}%`, top: `${slot.y}%` }}
                 aria-label={player ? `${player.name} (${POS_LABEL[player.group]} ${player.ratings.gen}★, kondisyon %${player.fitness}) değiştir${oop ? ' — mevki dışı konumda' : ''}` : `Yuva ${i + 1} boş`}
@@ -278,43 +350,39 @@ export const TacticsScreen: React.FC<{ pendingXI?: Player | null; onClearXI?: ()
           <span className="w-3.5 h-3.5 inline-block shrink-0 mt-px"><GameIcon id={('info') as string} className="w-full h-full" /></span>
           {pendingXI ? `${pendingXI.name} için yeşil parlayan bir yuvaya dokun.` : benchPick ? `${benchAll.find((b) => b.id === benchPick)?.name ?? 'Seçili yedek'} için yeşil parlayan bir yuvaya dokun — sahaya girer.` : slotPick === null ? 'Önce bir oyuncuya, sonra diğerine dokunarak yer değişimini dene. Veya kulübeden bir yedeğe dokun → uyumlu yuvalar parlar. Turuncu üçgen: oyuncu mevki grubu dışında — güç cezalıdır.' : 'Başka bir yuvaya dokun: iki oyuncu yer değiştirir · alttaki yedeğe dokun: sahaya alınır.'}
         </p>
-        <div className="text-muted text-[9px] tracking-[0.08em] font-extrabold px-1 pt-1">YEDEKLER</div>
-        <div className="flex gap-1.5 overflow-x-auto no-scrollbar">
+        <div className="flex items-center justify-between gap-2 px-1 pt-1">
+          <div className="text-muted text-[9px] tracking-[0.08em] font-extrabold">İLK 11 DIŞINDA · {bench.length} OYUNCU</div>
+          <button type="button" onClick={() => setDrawer('roster')} className="min-h-[44px] text-amber text-[11px] font-bold underline underline-offset-2">
+            Tümünü gör ({bench.length})
+          </button>
+        </div>
+        <p className="text-muted text-[10px] leading-snug px-1 !mt-0">Tüm oyuncular burada; maç kadrosuna en fazla 9 yedek alınır.</p>
+        <button type="button" onClick={openBenchSelection} className="w-full min-h-touch rounded-xl border border-amber/50 bg-amber/10 text-amber text-[11.5px] font-bold">
+          Maç yedeklerini seç · {xi.bench.length}/9
+        </button>
+        <div className="flex gap-1.5 overflow-x-auto no-scrollbar" aria-label="İlk 11 dışındaki oyuncular">
           {(() => {
             const pickedGroup = slotPick !== null ? SHAPE[plan.formation].slots[slotPick]?.group ?? null : null;
-            return (slotPick !== null ? benchAll : bench).slice(0, 8).map((p) => {
-            // v0.9.5: 6 yedek kartının tamamı her zaman tıklanabilir — boşta iken dokun, yuvayı seçtir (yeşil parlatma); yuva seçiliyken dokun, sahaya al
+            return bench.map((p) => {
             const benchFit = fitnessRing(p.fitness);
             const benchCompat = pickedGroup ? canSlot(pickedGroup, p) : false;
             const dimmed = pickedGroup !== null && !benchCompat;
             return (
             <button key={p.id}
+              data-roster-id={p.id}
               data-benchpick={benchPick === p.id ? 'true' : undefined}
               data-bench-compat={pickedGroup !== null && benchCompat ? '1' : undefined}
               data-bench-fit={benchFit.tone}
               aria-pressed={benchPick === p.id}
               aria-label={slotPick === null && !pendingXI ? `${p.name} — sahaya almak için seç, sonra yuvaya dokun` : `${p.name} — seçili yuvaya sahaya al${dimmed ? ' (mevki dışı, ceza uygulanır)' : ''}`}
-              onClick={() => {
-                if (slotPick === null) {
-                  if (pendingXI) return; // pendingXI akışında yedek kartları rol oynamaz
-                  setArm(null);
-                  setBenchPick(benchPick === p.id ? null : p.id);
-                  return;
-                }
-                // v0.9.4: yedek uyumsuzsa önce açıklama; tekrar dokun onaylama
-                const sg = SHAPE[plan.formation].slots[slotPick]?.group ?? 'GK';
-                if (!canSlot(sg, p)) {
-                  const key = `bench:${p.id}`;
-                  if (arm !== key) { setArm(key); return; }
-                }
-                setArm(null);
-                swapSlot(slotPick, p.id);
-              }}
+              onClick={() => onBenchTap(p)}
               className={`relative shrink-0 min-w-[64px] min-h-[48px] bg-surface border rounded-lg px-2 py-2 text-center transition-transform active:scale-95 ${benchPick === p.id ? 'border-amber ring-2 ring-amber/50' : pickedGroup !== null ? (benchCompat ? 'border-[#4ade80] ring-2 ring-[#4ade80]/40' : 'border-line opacity-45') : 'border-line'}`}>
               <span className="absolute top-1 right-1 w-2 h-2 rounded-full" data-bench-dot={benchFit.tone} style={{ background: benchFit.tone === 'red' ? '#ef4444' : benchFit.tone === 'amber' ? '#f3c64e' : '#4ade80' }} title={`Kondisyon %${p.fitness} · ${benchFit.label}`} />
               {arm === `bench:${p.id}` && <span className="block text-[9px] text-warn font-bold">⚠ tekrar dokun = onay</span>}
               <span className="block text-[10px] text-primary font-semibold truncate max-w-[64px]">{p.name.split(' ').slice(-1)[0]}</span>
               <span className="block text-muted text-[9px] mt-1">{POS_LABEL[p.group]} · <span className="num">{p.ratings.gen}</span>★</span>
+              <span className={`block text-[8px] mt-0.5 ${matchBenchIds.has(p.id) ? 'text-ok' : 'text-muted'}`}>{matchBenchIds.has(p.id) ? 'Maç yedeği' : 'Maç dışında'}</span>
+              {p.suspendedMatches > 0 ? <span className="block text-[9px] text-danger">Cezalı</span> : p.injuredDays > 0 ? <span className="block text-[9px] text-warn">{g.riskPlayIds?.includes(p.id) ? 'İğne onaylı' : 'Sakat'}</span> : null}
               {slotPick !== null
                 ? (benchCompat
                     ? <span className="block text-[8px] text-[#4ade80] font-bold mt-0.5">Sahaya al →</span>
@@ -338,7 +406,7 @@ export const TacticsScreen: React.FC<{ pendingXI?: Player | null; onClearXI?: ()
             </div>
             <div className="grid grid-cols-3 gap-2">
               {FORMATIONS.map((f) => (
-                <button key={f} onClick={() => { setArm(null); g.updateTactic(planIdx, { ...plan, formation: f, customLineup: undefined, customBench: undefined }); }} className={`min-h-touch rounded-xl border text-[13px] font-bold num ${plan.formation === f ? 'bg-amber text-base border-amber' : 'bg-base text-primary border-line'}`}>{f}</button>
+                <button key={f} onClick={() => { setArm(null); setSlotPick(null); setBenchPick(null); setAvailabilityWarning(null); g.updateTactic(planIdx, { ...plan, formation: f, customLineup: undefined }); }} className={`min-h-touch rounded-xl border text-[13px] font-bold num ${plan.formation === f ? 'bg-amber text-base border-amber' : 'bg-base text-primary border-line'}`}>{f}</button>
               ))}
             </div>
             <div className="mt-4 space-y-3.5">
@@ -409,6 +477,63 @@ export const TacticsScreen: React.FC<{ pendingXI?: Player | null; onClearXI?: ()
 
         <Btn variant="secondary" onClick={() => setDrawer('setpieces')} clubColor={g.myClub.color1}>Duran Toplar & Görevler</Btn>
       </div>
+
+      <Sheet open={drawer === 'roster'} onClose={() => setDrawer(null)} title={`İlk 11 dışındaki oyuncular (${bench.length})`} tall>
+        <p className="text-secondary text-[12px] leading-snug mb-3">
+          {pendingXI ? 'Önce sahadaki seçimi tamamla veya iptal et.' : slotPick === null ? 'Bir oyuncu seç, ardından sahada değiştirmek istediğin yuvaya dokun.' : 'Seçili saha yuvasına almak için bir oyuncuya dokun.'}
+          {' '}Maçta en fazla 9 yedek bulunur; sakat veya cezalı oyuncuların uygunluğu maç hazırlığında kontrol edilir.
+        </p>
+        {availabilityWarning && <div role="alert" className="bg-warn/10 border border-warn/40 rounded-xl px-3 py-2 mb-3 text-[12px] text-warn">{availabilityWarning}</div>}
+        {rosterWarning && slotPick !== null && !availabilityWarning && (
+          <div role="alert" className="bg-warn/10 border border-warn/40 rounded-xl px-3 py-2 mb-3 text-[12px] text-warn leading-snug">
+            <b>{rosterWarning.name}</b> bu yuvada mevki dışı oynar; gücü yaklaşık %{penaltyOf(slotPick, rosterWarning)} düşer. Onaylamak için aynı oyuncuya tekrar dokun.
+          </div>
+        )}
+        <div className="space-y-1.5" aria-label="Tüm ilk 11 dışı oyuncular">
+          {bench.map((player) => {
+            const pickedGroup = slotPick !== null ? SHAPE[plan.formation].slots[slotPick]?.group : null;
+            const compatible = pickedGroup ? canSlot(pickedGroup, player) : false;
+            const status = player.suspendedMatches > 0 ? 'Cezalı' : player.injuredDays > 0 ? (g.riskPlayIds?.includes(player.id) ? 'İğne onaylı' : 'Sakat') : null;
+            return (
+              <button key={player.id} type="button" data-roster-list-id={player.id} data-roster-compat={pickedGroup && compatible ? '1' : undefined} onClick={() => onBenchTap(player, true)}
+                aria-pressed={benchPick === player.id} aria-label={`${player.name}, ${POS_LABEL[player.group]}, ${player.ratings.gen} genel${status ? `, ${status}` : ''}${pickedGroup && !compatible ? ', mevki dışı' : ''}`}
+                className={`w-full min-h-[52px] flex items-center gap-3 text-left rounded-xl border px-3 py-2 ${benchPick === player.id ? 'border-amber bg-amber/10' : pickedGroup && compatible ? 'border-ok/60 bg-ok/5' : 'border-line bg-surface'}`}>
+                <span className="num w-8 shrink-0 text-amber text-[11px] font-bold">{POS_LABEL[player.group]}</span>
+                <span className="min-w-0 flex-1 text-primary text-[12px] font-semibold break-words">{player.name}{status && <span className="block text-warn text-[10px]">{status}</span>}</span>
+                <span className="num shrink-0 text-secondary text-[11px]">{player.ratings.gen}★ · %{player.fitness}</span>
+              </button>
+            );
+          })}
+          {bench.length === 0 && <p className="text-muted text-[12px] py-3">İlk 11 dışında oyuncu yok.</p>}
+        </div>
+      </Sheet>
+
+      <Sheet open={drawer === 'bench'} onClose={() => setDrawer(null)} title="Maç yedeklerini seç" tall>
+        <div className="space-y-3" data-testid="match-bench-picker">
+          <p className="text-secondary text-[12px] leading-snug">Maç kadrosuna alınacak yedekleri seç. Değiştirmek için önce bir oyuncuyu çıkar, sonra yenisini ekle. Sakat, cezalı veya kondisyonu yetersiz oyuncular alınamaz; iğne onayı olanlar seçilebilir. Motor boş yerleri otomatik doldurduğu için {benchLimit} müsait yedeğin tamamını seçmelisin.</p>
+          <div className="flex items-center justify-between gap-2 rounded-xl border border-line bg-base px-3 py-2" aria-live="polite">
+            <span className="text-primary text-[12px] font-bold">Seçilen maç yedekleri</span>
+            <span className="num text-amber text-[13px] font-black" data-testid="match-bench-count">{benchDraft.length}/{benchLimit}</span>
+          </div>
+          <div className="space-y-1.5" aria-label="Yedek seçimi oyuncuları">
+            {bench.map((player) => {
+              const selected = benchDraft.includes(player.id);
+              const eligible = benchEligible(player);
+              const status = player.suspendedMatches > 0 ? 'Cezalı' : player.injuredDays > 0 && !g.riskPlayIds?.includes(player.id) ? 'Sakat' : player.fitness < 40 && !forcedIds.has(player.id) ? 'Kondisyon yetersiz' : player.injuredDays > 0 ? 'İğne onaylı' : null;
+              return <button key={player.id} type="button" data-bench-choice={player.id} aria-pressed={selected} disabled={!eligible || (!selected && benchDraft.length >= benchLimit)}
+                onClick={() => setBenchDraft((ids) => ids.includes(player.id) ? ids.filter((id) => id !== player.id) : [...ids, player.id])}
+                className={`w-full min-h-[52px] flex items-center gap-3 rounded-xl border px-3 py-2 text-left disabled:opacity-45 ${selected ? 'border-amber bg-amber/10' : 'border-line bg-surface'}`}>
+                <span className="w-8 shrink-0 text-amber text-[11px] font-bold">{POS_LABEL[player.group]}</span>
+                <span className="min-w-0 flex-1 text-primary text-[12px] font-semibold break-words">{player.name}{status && <span className="block text-warn text-[10px]">{status}</span>}</span>
+                <span className="shrink-0 text-[11px] text-secondary">{selected ? '✓ Seçili' : 'Seç'} · {player.ratings.gen}★</span>
+              </button>;
+            })}
+            {bench.length === 0 && <p className="text-muted text-[12px] py-2">İlk 11 dışında oyuncu yok.</p>}
+          </div>
+          <Btn variant="amber" className="w-full" disabled={benchDraft.length !== benchLimit} onClick={() => { setPlan({ customBench: benchDraft }); setDrawer(null); }}>Yedekleri Kaydet</Btn>
+          <Btn variant="secondary" className="w-full" onClick={() => { setPlan({ customBench: undefined }); setDrawer(null); }}>Yedekleri Otomatik Seç</Btn>
+        </div>
+      </Sheet>
 
       <Sheet open={drawer === 'setpieces'} onClose={() => setDrawer(null)} title="Duran Toplar">
         <div className="space-y-3">

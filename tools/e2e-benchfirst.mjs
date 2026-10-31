@@ -1,4 +1,4 @@
-// HM26 E2E — v0.9.5 FAZ A+ : taktik tahtasında 11 yuva + 6 yedek kartı hep tıklanabilir (kulübeden-sahaya akışı)
+// HM26 E2E — taktik tahtasında 11 yuva ve ilk 11 dışındaki tüm oyuncular tıklanabilir.
 import { chromium } from 'playwright';
 const BASE = process.env.HM26_BASE_URL ?? 'http://localhost:4173';
 let failures = 0;
@@ -25,12 +25,14 @@ try {
   const slotCount = await slots.count();
   ok('G1 11/11 saha yuvası tıklanabilir düğme', slotCount === 11, `bulunan=${slotCount}`);
 
-  // G2: 6 yedek kartı görünür ve ENGELLİ DEĞİL
+  // G2: sayaçtaki tüm ilk 11 dışı oyuncular listelenir, hiçbiri tekrarlanmaz.
   const benchCards = page.locator('button[aria-label*="sahaya almak için seç"]');
   const benchCount = await benchCards.count();
+  const expectedCount = Number((await page.getByText(/İLK 11 DIŞINDA · \d+ OYUNCU/).innerText()).match(/\d+(?= OYUNCU)/)?.[0]);
+  const ids = await benchCards.evaluateAll((els) => els.map((el) => el.getAttribute('data-roster-id')));
   let disabledCount = 0;
   for (let i = 0; i < benchCount; i++) if (await benchCards.nth(i).isDisabled()) disabledCount++;
-  ok('G2 6/6 yedek kartı tıklanabilir (disabled yok)', benchCount === 6 && disabledCount === 0, `bulunan=${benchCount} disabled=${disabledCount}`);
+  ok('G2 tüm ilk 11 dışı oyuncular tekrarsız ve tıklanabilir', benchCount === expectedCount && benchCount >= 6 && new Set(ids).size === benchCount && disabledCount === 0, `bulunan=${benchCount}/${expectedCount} disabled=${disabledCount}`);
 
   // G3: yedek önce → kart seçilir, işaret ve ipucu çıkar
   await benchCards.first().click({ force: true });

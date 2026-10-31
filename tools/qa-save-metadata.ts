@@ -30,7 +30,7 @@ check('İlk sezon doğru yazılır', () => assert.equal(firstMeta.season, '2026�
 check('İkinci sezon doğru yazılır', () => assert.equal(secondMeta.season, '2027–28'));
 check('Kayıt verisi ve sürümü değiştirilmez', () => {
   assert.equal(JSON.stringify(second), before);
-  assert.equal(SAVE_VERSION, 4);
+  assert.equal(SAVE_VERSION, 5);
   assert.deepEqual((awaitedSecond.blob as SaveBlob & { matchReports: unknown[] }).matchReports, [{ id: 'korunacak-mac' }]);
 });
 

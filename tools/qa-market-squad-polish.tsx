@@ -33,7 +33,9 @@ import { pitchFormationSlots } from '../src/components/assets/pitchPresentation'
 import { needleOutcome } from '../src/engine/medical';
 import { canSlotGroup } from '../src/engine/tacticsStudio';
 import { MatchSession } from '../src/engine/session';
-import { buildEngineInput, matchEventsToDemo } from '../src/engine/adapter';
+import { aiDefaultTactic } from '../src/engine/tactics';
+import { makeLiveCheckpoint, restoreLiveCheckpoint, type LiveMatchViewState } from '../src/engine/liveCheckpoint';
+import { buildEngineInput, matchEngineToDemo, matchEventsToDemo } from '../src/engine/adapter';
 import { compactMatchEvents, EV_GOAL, EV_RED } from '../src/engine/matchEvents';
 import type { Career, DemoFixture, Formation } from '../src/types';
 import type { MatchStateEvent } from '../src/engine/engine';
@@ -157,6 +159,75 @@ const homeClub = clubById(career.clubId), awayClub = clubById('sakarya_vadi');
 const session = new MatchSession(buildEngineInput({ homeClub, awayClub, homeSquad: g.mySquad, awaySquad: g.squads[awayClub.id], homeTactic: { ...g.tactics[0], customBench: [selectedBench.id] }, seed: 8801, settings: career.settings }));
 check('Canlı maç kulübesi seçilen yedeği gerçekten içerir', session.getBench('home')[0]?.id === selectedBench.id);
 
+// Squad badges must reflect the production MatchSession, not the first six
+// stored preferences or invalid IDs from an older manual lineup.
+const sameIds = (a: string[], b: string[]) => a.length === b.length && new Set(a).size === a.length && a.every((id) => b.includes(id));
+const squadBadges = () => {
+  const cards = all('[data-squad-player-id]');
+  const hasBadge = (card: HTMLElement, badge: string) => Array.from(card.querySelectorAll('span')).some((node) => node.textContent?.trim() === badge);
+  return {
+    xi: cards.filter((card) => hasBadge(card, 'XI')).map((card) => card.dataset.squadPlayerId!),
+    bench: cards.filter((card) => hasBadge(card, 'YDK')).map((card) => card.dataset.squadPlayerId!),
+    count: cards.length,
+  };
+};
+const verifySquadBadges = async (snapshot: SaveBlob, label: string) => {
+  await mount('squad', snapshot);
+  const match = new MatchSession(buildEngineInput({ homeClub, awayClub, homeSquad: g.mySquad, awaySquad: g.squads[awayClub.id], homeTactic: g.tactics[0], seed: 8801, settings: career.settings, riskIds: g.riskPlayIds }));
+  const expectedXI = match.getSlots('home').map((slot) => slot.player.id);
+  const expectedBench = match.getBench('home').map((p) => p.id);
+  const actual = squadBadges();
+  check(`${label}: XI rozetleri gerçek ilk 11 ile eşleşir`, sameIds(actual.xi, expectedXI), `ekran=${actual.xi.length}, motor=${expectedXI.length}`);
+  check(`${label}: YDK rozetleri gerçek yedeklerle eşleşir`, sameIds(actual.bench, expectedBench), `ekran=${actual.bench.length}, motor=${expectedBench.length}`);
+  return { match, actual, expectedXI, expectedBench };
+};
+await verifySquadBadges(baseline, 'Otomatik kadro');
+const bigger = structuredClone(baseline) as SaveBlob & Record<string, any>;
+for (const p of g.squads['ist_halic'].slice(0, 2)) bigger.playerClub[p.id] = career.clubId;
+const full = await verifySquadBadges(bigger, '24 kişilik kadro');
+check('24 kişilik kadroda 11+9 rozet ve maç dışında 4 oyuncu vardır', full.actual.count === 24 && full.expectedXI.length === 11 && full.expectedBench.length === 9 && full.actual.count - full.actual.xi.length - full.actual.bench.length === 4);
+const largerSquad = g.mySquad;
+const duplicate = structuredClone(bigger) as SaveBlob & Record<string, any>;
+const duplicatePlayer = largerSquad.find((p) => full.expectedBench.includes(p.id))!;
+duplicate.extraSquads[career.clubId] = [...(duplicate.extraSquads[career.clubId] ?? []), duplicatePlayer];
+const duplicated = await verifySquadBadges(duplicate, 'Mükerrer eski oyuncu kaydı');
+check('Aynı kimlikte oyuncu kadroda bir kez ve doğru toplamla görünür', g.mySquad.length === 25 && duplicated.actual.count === 24 && q('[data-testid="squad-count"]')?.textContent === '24');
+const counts = (q('[data-testid="fitness-breakdown"]')?.textContent ?? '').match(/Formda (\d+).*Yorgun (\d+).*Riskli (\d+)/);
+check('Kondisyon dağılımı da çift oyuncu saymaz', !!counts && counts.slice(1).reduce((total, value) => total + Number(value), 0) === 24);
+check('Kadro görünümü eski kayıt verisini değiştirmez', JSON.stringify((g.snapshotForBackup() as any).extraSquads[career.clubId]) === JSON.stringify(duplicate.extraSquads[career.clubId]));
+const planned = structuredClone(bigger) as SaveBlob & Record<string, any>;
+planned.tactics[0].formation = '4-4-2';
+const plannedLineup = autoLineup(largerSquad, '4-4-2');
+const plannedBoard = engineToBoard('4-4-2', plannedLineup.slots.map((slot) => slot.player.id));
+planned.tactics[0].customLineup = plannedBoard;
+planned.tactics[0].customBench = plannedLineup.bench.slice(0, 6).map((p) => p.id);
+await verifySquadBadges(planned, 'Manuel 11 ve altı eski yedek tercihi');
+const stale = structuredClone(planned) as SaveBlob & Record<string, any>;
+stale.tactics[0].customLineup[0] = 'sold-player-not-in-squad';
+stale.tactics[0].customLineup[1] = stale.tactics[0].customLineup[2];
+stale.tactics[0].customBench = [stale.tactics[0].customLineup[2], 'sold-player-not-in-squad', plannedLineup.bench[0].id, plannedLineup.bench[0].id];
+await verifySquadBadges(stale, 'Eksik ve mükerrer eski kadro');
+const tiredDuplicate = structuredClone(stale) as SaveBlob & Record<string, any>;
+const tiredDuplicateId = tiredDuplicate.tactics[0].customLineup[2];
+tiredDuplicate.playerPatch[tiredDuplicateId] = { ...tiredDuplicate.playerPatch[tiredDuplicateId], fitness: 50 };
+await mount('squad', tiredDuplicate);
+const duplicateDesk = q('[data-testid="rotation-desk"]')!;
+await click(duplicateDesk.querySelector<HTMLButtonElement>('[aria-controls="rotation-desk-content"]'), 'Mükerrer rotasyon masasını aç');
+check('Mükerrer eski ilk 11 kaydı rotasyon önerisini tekrarlamaz', Array.from(duplicateDesk.querySelectorAll('[data-advice-kind="rest"]')).filter((row) => row.textContent?.includes(g.playerOf(tiredDuplicateId)!.name)).length === 1);
+const unavailable = structuredClone(planned) as SaveBlob & Record<string, any>;
+const injuredId = plannedBoard[1]!, suspendedId = plannedBoard[2]!;
+unavailable.playerPatch[injuredId] = { ...unavailable.playerPatch[injuredId], injuredDays: 10 };
+unavailable.playerPatch[suspendedId] = { ...unavailable.playerPatch[suspendedId], suspendedMatches: 2 };
+const blocked = await verifySquadBadges(unavailable, 'Sakat ve cezalı oyunculu kadro');
+check('Onaysız sakat ve cezalı oyuncular maç kadrosu rozeti almaz', ![...blocked.actual.xi, ...blocked.actual.bench].some((id) => id === injuredId || id === suspendedId));
+const risk = structuredClone(unavailable) as SaveBlob & Record<string, any>;
+risk.riskPlayIds = [injuredId];
+const approved = await verifySquadBadges(risk, 'İğne onaylı kadro');
+check('İğne onaylı ilk 11 oyuncusu XI rozeti alır, cezalı oyuncu almaz', approved.actual.xi.includes(injuredId) && ![...approved.actual.xi, ...approved.actual.bench].includes(suspendedId));
+await act(async () => { await g.saveNow(); });
+const badgesSave = (await readSave(career.slot))?.blob as SaveBlob;
+await verifySquadBadges(badgesSave, 'Kayıt yeniden açıldığında');
+
 // Older saves stored manual XIs in the original visual board order, not engine order.
 // Verify all six formations keep the exact board positions and enter both match sides correctly.
 const oldBoardIndices: Record<Formation, readonly number[]> = {
@@ -264,6 +335,48 @@ await act(async () => {
 });
 check('Onaylı sakat oyuncu seçili ilk 11 ile gerçekten sahaya çıkar', riskyPlayed.includes(riskId));
 check('Maç ve sağlık güncellemesi birlikte işlendiğinde nüks kaybolmaz', (g.playerOf(riskId)?.injuredDays ?? 0) > 8 && !g.riskPlayIds?.includes(riskId));
+
+// Live result commits risk and discipline together with checkpoint removal. Use
+// a real carded protest and finished engine result, not fabricated player rows.
+const liveRisk = structuredClone(risky) as SaveBlob & Record<string, any>;
+liveRisk.career.managerYellowCards = 1;
+liveRisk.career.managerSuspendedMatches = 0;
+await mount('none', liveRisk);
+const liveSide = riskyFixture.homeId === career.clubId ? 'home' : 'away';
+const liveHome = clubById(riskyFixture.homeId), liveAway = clubById(riskyFixture.awayId);
+let protested: MatchSession | undefined;
+for (let seed = 56000; seed < 56200 && !protested; seed++) {
+  const current = new MatchSession(buildEngineInput({ homeClub: liveHome, awayClub: liveAway,
+    homeSquad: g.squads[liveHome.id], awaySquad: g.squads[liveAway.id],
+    homeTactic: liveSide === 'home' ? g.tactics[riskTacticIdx] : aiDefaultTactic(liveHome, liveAway),
+    awayTactic: liveSide === 'away' ? g.tactics[riskTacticIdx] : undefined,
+    seed, settings: g.career.settings, userSide: liveSide, riskIds: g.riskPlayIds }));
+  while (!current.done) {
+    current.step();
+    if (!current.done && current.getTouchlineState(liveSide).protestAvailable) {
+      if (current.protest(liveSide).carded) protested = current;
+      break;
+    }
+  }
+}
+if (!protested) throw new Error('Gerçek kartlı itiraz senaryosu bulunamadı');
+const realLive = protested.finishNow();
+const liveResult = { ...matchEngineToDemo(realLive), homeId: liveHome.id, awayId: liveAway.id };
+const liveView: LiveMatchViewState = {
+  events: matchEventsToDemo(realLive.events), speed: 'x4', paused: true, activeTab: 'pitch', pitchView: 'pitch', heatEnabled: false, heatTeam: 'all', heatSamples: [],
+  showTouchline: false, showTeamTalk: false, teamTalkPromptShown: true, crowdShoutUsed: false, decision: null, lastDecisionShown: '',
+  showSubPicker: false, showTacticPicker: false, coachFired: [], phase: 'report', interviewChoice: null, managerSuspendedAtStart: false, managerCards: 1,
+};
+const liveCheckpoint = makeLiveCheckpoint(protested, riskyFixture, g.seasonNo, riskTacticIdx, liveView);
+check('Kartlı ve iğne onaylı gerçek maçın son checkpointi doğrulanır', restoreLiveCheckpoint(liveCheckpoint, g.seasonNo, career.clubId, riskyFixture.day).done && (liveResult.playerRows[riskId]?.min ?? 0) > 0);
+let checkpointSaved = false;
+await act(async () => { checkpointSaved = await g.saveLiveCheckpoint(liveCheckpoint); });
+await act(async () => { g.playLeagueMatch(riskyFixture, liveResult, riskTacticIdx, undefined, { managerCards: 1, managerSuspendedAtStart: false }); await g.saveNow(); });
+const liveCommitted = (await readSave(career.slot))?.blob as SaveBlob & Record<string, any>;
+check('Canlı sonuç, nüks, menajer cezası ve checkpoint silinmesi tek kayıtla işlenir', checkpointSaved && !liveCommitted.liveMatchCheckpoint && !liveCommitted.riskPlayIds?.includes(riskId) && liveCommitted.playerPatch[riskId].injuredDays > 8 && liveCommitted.career.managerYellowCards === 0 && liveCommitted.career.managerSuspendedMatches === 1 && liveCommitted.matchReports.filter((row: any) => row.day === riskyFixture.day && row.homeId === riskyFixture.homeId && row.awayId === riskyFixture.awayId).length === 1);
+await act(async () => { g.playLeagueMatch(riskyFixture, liveResult, riskTacticIdx, undefined, { managerCards: 1, managerSuspendedAtStart: false }); await g.saveNow(); });
+const repeatedLive = (await readSave(career.slot))?.blob as SaveBlob & Record<string, any>;
+check('Canlı sonuç iki kez istense bile sakatlık, ceza ve istatistikler tekrarlanmaz', JSON.stringify(repeatedLive.playerPatch[riskId]) === JSON.stringify(liveCommitted.playerPatch[riskId]) && repeatedLive.career.managerSuspendedMatches === 1 && JSON.stringify(repeatedLive.playerStats) === JSON.stringify(liveCommitted.playerStats) && repeatedLive.matchReports.length === liveCommitted.matchReports.length);
 
 // Existing saves remain loadable and the persistent match archive stays bounded at 256.
 const previousArchive = g.matchReports?.[0];

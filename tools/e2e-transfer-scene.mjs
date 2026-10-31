@@ -109,7 +109,7 @@ try {
     return { transfers: saved?.blob?.transferLog?.length ?? 0, version: saved?.blob?.version };
   });
   // İmza sonrası zamanlanmış kayıt asenkron olabilir; tarayıcı arayüzü tamamlanmıştır.
-  check('İmzadan sonra kariyer IndexedDB kaydı mevcut', persisted.version === 4 && persisted.transfers >= 1, JSON.stringify(persisted));
+  check('İmzadan sonra kariyer IndexedDB kaydı mevcut', persisted.version === 5 && persisted.transfers >= 1, JSON.stringify(persisted));
   console.log(`Seçilen aday: ${selectedRow.replace(/\s+/g, ' ').slice(0, 100)}`);
 
   // Ayrı test fikstürü: var olan kayıtta 85 GEN bir serbest oyuncu oluştur; gerçek kariyeri etkilemez.
@@ -124,6 +124,9 @@ try {
     const star = { ...template, id: 'fa_e2e_yildiz', clubId: 'FA', name: 'Test Yıldızı', foreign: false, wage: 20, contractYears: 0,
       ratings: { ...template.ratings, gen: 85 }, potential: 85, kitNumber: undefined };
     entry.blob.extraPlayers.push(star);
+    // Search ordering may select a better-paid first free agent; isolate the
+    // introduction rule from that unrelated prior transfer's wage headroom.
+    entry.blob.budget.wbExtra = (entry.blob.budget.wbExtra ?? 0) + 1;
     await new Promise((resolve, reject) => { const tx = db.transaction('saves', 'readwrite'); tx.objectStore('saves').put(entry); tx.oncomplete = () => resolve(); tx.onerror = () => reject(tx.error); });
   });
   await page.reload({ waitUntil: 'networkidle' });

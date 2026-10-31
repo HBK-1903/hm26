@@ -87,7 +87,7 @@ try {
   await update.getByRole('button', { name: 'Güncelle', exact: true }).click();
   await update.getByText(/Kariyer kaydedilemedi; güncelleme yapılmadı/).waitFor({ timeout: 15_000 });
   check('Kaydetme hatasında güncelleme ve yeniden açılış durdurulur', await page.evaluate(async () => !!(await navigator.serviceWorker.getRegistration()).waiting) && (await readSave(page)).blob.career.settings.highContrast === initial.blob.career.settings.highContrast);
-  check('Güncelleme öncesi maçın baştan oynanacağı bildirilir', confirmations.some((m) => /devam eden maç baştan oynanır/i.test(m)));
+  check('Güncelleme öncesi kayıtlı maç noktası ve yedek önerisi bildirilir', confirmations.some((m) => /son güvenli noktasından/i.test(m) && /yedek alman önerilir/i.test(m)));
 
   await page.evaluate(() => { IDBDatabase.prototype.transaction = window.__originalTransaction; });
   alertAccept(page, confirmations);

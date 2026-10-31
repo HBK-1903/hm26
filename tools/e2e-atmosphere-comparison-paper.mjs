@@ -143,7 +143,7 @@ try {
   await page.keyboard.press('Escape');
   check('Escape karşılaştırmayı kapatır ve kadroya döner', await dialog.count() === 0 && await page.getByRole('heading', { name: 'Kadro', exact: true }).isVisible());
   const savedAfter = await readSave();
-  check('Karşılaştırma bütçeyi, oyuncuları ve kayıt sürümünü değiştirmez', savedAfter.version === 4 && JSON.stringify(savedBefore.budget) === JSON.stringify(savedAfter.budget) && JSON.stringify(savedBefore.playerPatch) === JSON.stringify(savedAfter.playerPatch));
+  check('Karşılaştırma bütçeyi, oyuncuları ve kayıt sürümünü değiştirmez', savedAfter.version === 5 && JSON.stringify(savedBefore.budget) === JSON.stringify(savedAfter.budget) && JSON.stringify(savedBefore.playerPatch) === JSON.stringify(savedAfter.playerPatch));
   const squadPlayerButton = page.locator('button').filter({ has: page.locator('svg[data-hm26-player-avatar]') }).first();
   const squadId = await squadPlayerButton.locator('svg[data-player-id]').getAttribute('data-player-id');
   await squadPlayerButton.click();

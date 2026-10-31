@@ -50,7 +50,7 @@ try {
   await page.getByRole('button', { name: 'Buraya dosya içe aktar' }).first().click();
   await (await chooser).setFiles({ name: 'eski-kariyer.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(fixture)) });
   const imported = await waitForSave((record) => record?.blob?.career?.manager?.name === 'Eski Sürüm Testi');
-  check('İlk sürümden v2 kariyer koşullar korunarak içe aktarılır', imported.blob.version === 4 && imported.blob.budget.tb === 6);
+  check('İlk sürümden v2 kariyer koşullar korunarak içe aktarılır', imported.blob.version === 5 && imported.blob.budget.tb === 6);
   const card = page.locator('.bg-surface').filter({ hasText: 'Eski Sürüm Testi' }).first();
   await card.getByRole('button', { name: 'Devam Et' }).click();
   await notice(); await goFinance();

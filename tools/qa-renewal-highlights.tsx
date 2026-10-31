@@ -135,7 +135,7 @@ check('Aynı olayda çift imza tek kez işlenir', first!.ok && !second!.ok && g.
 check('İmza gerçek sözleşme süresini ve maaşı değiştirir', g.playerOf(player.id)?.contractYears === 4 && g.playerOf(player.id)?.wage === 173);
 await act(async () => { await g.saveNow(); });
 const saved = (await readSave(career.slot))?.blob as SaveBlob & Record<string, any>;
-check('Kayıt sürümü değişmedi, pazarlık için yeni kalıcı alan yok', saved.version === 4 && SAVE_VERSION === 4 && !Object.keys(saved).some((k) => /renewal|highlight|negotiation/i.test(k)));
+check('Pazarlık için yeni kalıcı alan yok; kayıt sürümü 5', saved.version === SAVE_VERSION && SAVE_VERSION === 5 && !Object.keys(saved).some((k) => /renewal|highlight|negotiation/i.test(k)));
 await mount('none', saved);
 check('Yenilenmiş maaş, süre ve bütçe kayıt/yükleme sonrasında korunuyor', g.playerOf(player.id)?.contractYears === 4 && g.playerOf(player.id)?.wage === 173 && g.budget.tb === 9.1);
 await mount('none', withContract());

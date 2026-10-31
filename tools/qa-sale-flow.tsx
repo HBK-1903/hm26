@@ -147,7 +147,7 @@ await clickId('sale-announcement');
 check('Satış tanıtım anonsu ses ve altyazıyla oynar', plays.at(-1)?.includes('/announcer-') && /Sunucu/.test(q('[data-testid="transfer-subtitle"]')?.textContent ?? ''));
 await act(async () => { await g.saveNow(); });
 const soldSave = (await readSave(career.slot))?.blob as SaveBlob & Record<string, any>;
-check('Satış kaydı sürüm 4; sahne veya üslup için yeni kalıcı alan yok', !!soldSave && soldSave.version === SAVE_VERSION && SAVE_VERSION === 4 && !Object.keys(soldSave).some((key) => /saleFlow|saleStage|dialogueTone|negotiationStage/i.test(key)));
+check('Satış kaydı sürüm 5; sahne veya üslup için yeni kalıcı alan yok', !!soldSave && soldSave.version === SAVE_VERSION && SAVE_VERSION === 5 && !Object.keys(soldSave).some((key) => /saleFlow|saleStage|dialogueTone|negotiationStage/i.test(key)));
 await mount(soldSave);
 check('Kaydı yeniden açınca satılan oyuncu, net bütçe ve geçmiş korunur', g.squads[buyer.id].some((p) => p.id === originalPlayer.id) && !g.mySquad.some((p) => p.id === originalPlayer.id) && g.budget.tb === Math.round((startingBudget + 1.6) * 100) / 100 && g.transferLog[0]?.sellOnPaid === 0.4);
 let duplicate: ReturnType<typeof g.respondOffer>;

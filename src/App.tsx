@@ -27,7 +27,7 @@ function GameUpdateNotice({ applyUpdate, dismissUpdate }: { applyUpdate: () => v
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
   const update = async () => {
-    if (busy || !window.confirm('Güncelleme oyunu yeniden açar. Kariyer kaydedilir; devam eden maç baştan oynanır. Devam edilsin mi?')) return;
+    if (busy || !window.confirm('Güncelleme oyunu yeniden açar. Kariyer ve devam eden maç kaydedilir; maç son güvenli noktasından açılabilir. Son değişiklikler veya sürüm uyumsuzluğu için önce yedek alman önerilir. Devam edilsin mi?')) return;
     setBusy(true);
     const saved = await game.saveNow(true);
     setBusy(false);

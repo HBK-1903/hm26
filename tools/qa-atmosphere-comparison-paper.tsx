@@ -179,7 +179,7 @@ check('Her iki oyuncunun kayıtlı tarafı ve alternatif mevkileri tabloda göst
 await click(q<HTMLButtonElement>('[role="dialog"] [aria-label="Kapat"]'), 'Karşılaştırmayı kapat');
 await act(async () => { await g.saveNow(); });
 const afterComparison = (await readSave(career.slot))?.blob as SaveBlob & Record<string, any>;
-check('Karşılaştırma yeni kayıt alanı eklemez; bütçe ve oyuncu yamaları değişmez', SAVE_VERSION === 4 && afterComparison.version === 4 && JSON.stringify(afterComparison.playerPatch) === JSON.stringify(baseline.playerPatch) && JSON.stringify(afterComparison.budget) === JSON.stringify(baseline.budget) && !Object.keys(afterComparison).some((key) => /comparison|weeklyPaper|atmosphere/i.test(key)));
+check('Karşılaştırma yeni kayıt alanı eklemez; bütçe ve oyuncu yamaları değişmez', SAVE_VERSION === 5 && afterComparison.version === SAVE_VERSION && JSON.stringify(afterComparison.playerPatch) === JSON.stringify(baseline.playerPatch) && JSON.stringify(afterComparison.budget) === JSON.stringify(baseline.budget) && !Object.keys(afterComparison).some((key) => /comparison|weeklyPaper|atmosphere/i.test(key)));
 await mount('market', baseline);
 const marketRow = q<HTMLElement>('[data-testid="market-player"]')!;
 const marketId = marketRow.dataset.playerId;
