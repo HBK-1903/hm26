@@ -31,6 +31,7 @@ function Seed({ ready }: { ready: (snapshot: any) => void }) {
     const plan = snapshot.tactics[0];
     const xi = autoLineup(squad, plan.formation);
     const board = engineToBoard(plan.formation, xi.slots.map((slot) => slot.player.id));
+    if (scenario === 'longname') plan.name = 'ÇokUzunPlanAdı'.repeat(12);
     if (scenario === 'duplicate') {
       const duplicate = squad.find((p) => !board.includes(p.id))!;
       snapshot.extraSquads[g.career.clubId] = [duplicate];

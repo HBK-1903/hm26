@@ -13,6 +13,13 @@ const check = (name, condition, detail = '') => { condition ? passed++ : failed+
 const sameSet = (a, b) => a.length === b.length && new Set(a).size === a.length && a.every((x) => b.includes(x));
 const model = (page) => page.evaluate(() => window.__rosterModel());
 const rosterDialog = (page) => page.getByRole('dialog', { name: /İlk 11 dışındaki oyuncular/ });
+const squadBadges = (page) => page.locator('[data-squad-player-id]').evaluateAll((cards) => {
+  const has = (card, label) => [...card.querySelectorAll('span')].some((span) => span.textContent.trim() === label);
+  return {
+    xi: cards.filter((card) => has(card, 'XI')).map((card) => card.dataset.squadPlayerId),
+    bench: cards.filter((card) => has(card, 'YDK')).map((card) => card.dataset.squadPlayerId),
+  };
+});
 const openRoster = async (page) => { await page.getByRole('button', { name: /Tümünü gör \(\d+\)/ }).click(); const dialog = rosterDialog(page); await dialog.waitFor(); return dialog; };
 const finish = async (dialog) => { await dialog.getByRole('button', { name: 'Kapat', exact: true }).click(); };
 
@@ -45,6 +52,11 @@ try {
       check(`${prefix}: 24 kişiden ilk 11 dışında kalan 13 oyuncu eksiksiz`, data.squad.length === 24 && initialXI.length === 11 && reserveIds.length === 13 && sameSet(stripIds, reserveIds));
       check(`${prefix}: gerçek maç kadrosu en fazla 9 yedek ve ilk 11 ile ayrık`, data.matchBench.length === 9 && data.matchBench.every((id) => reserveIds.includes(id)) && new Set(data.matchBench).size === 9);
       check(`${prefix}: görünür sayaç ve maç kadrosu sınırı anlaşılır`, await page.getByRole('button', { name: 'Tümünü gör (13)' }).isVisible() && await page.getByText(/maç kadrosuna en fazla 9 yedek/i).count() === 1);
+      await page.getByRole('button', { name: 'Test: Kadro', exact: true }).click();
+      let badges = await squadBadges(page);
+      check(`${prefix}: kadro XI/YDK rozetleri gerçek maçın 11+9 oyuncusuyla eşleşir`, sameSet(badges.xi, data.lineup) && sameSet(badges.bench, data.matchBench));
+      check(`${prefix}: kadro rozetlerinin hangi planı gösterdiği yazılır ve ekran taşmaz`, await page.getByText(/XI \/ YDK: Ana Plan/).isVisible() && !(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1)));
+      await page.getByRole('button', { name: 'Test: Taktik', exact: true }).click();
       let dialog = await openRoster(page);
       let modalIds = await dialog.locator('[data-roster-list-id]').evaluateAll((els) => els.map((el) => el.dataset.rosterListId));
       check(`${prefix}: tam liste 13 oyuncuyu tekrarsız ve tam adlarıyla gösterir`, sameSet(modalIds, reserveIds) && (await dialog.locator('[data-roster-list-id]').allTextContents()).every((text, i) => text.includes(data.squad.find((p) => p.id === modalIds[i]).name)));
@@ -77,6 +89,10 @@ try {
       const displaced = initialXI.filter((id) => !data.lineup.includes(id));
       check(`${prefix}: çıkan oyuncu listeye döner, kayıp veya mükerrer yok`, displaced.length === 1 && modalIds.includes(displaced[0]) && modalIds.length === 13 && new Set(modalIds).size === 13);
       await finish(dialog);
+      await page.getByRole('button', { name: 'Test: Kadro', exact: true }).click();
+      badges = await squadBadges(page);
+      check(`${prefix}: taktik değişikliğinden sonra kadro rozetleri maç seçimiyle güncellenir`, sameSet(badges.xi, data.lineup) && sameSet(badges.bench, data.matchBench));
+      await page.getByRole('button', { name: 'Test: Taktik', exact: true }).click();
 
       await page.getByRole('button', { name: 'Otomatik 11', exact: true }).click();
       await page.locator('[data-slot-index="0"]').click();
@@ -137,6 +153,9 @@ try {
       modalIds = await dialog.locator('[data-roster-list-id]').evaluateAll((els) => els.map((el) => el.dataset.rosterListId));
       check(`${prefix}: eski/çift/satılmış kimlikler gerçek motor 11'iyle düzeltilir`, boardIds.length === 11 && sameSet(boardIds, data.lineup) && !boardIds.includes('sold-player-not-in-squad') && sameSet(modalIds, reserveIds) && modalIds.length === 13);
       await finish(dialog);
+      await page.getByRole('button', { name: 'Test: Kadro', exact: true }).click();
+      badges = await squadBadges(page);
+      check(`${prefix}: eski kayıttaki kadro rozetleri düzeltilmiş 11+9 ile eşleşir`, sameSet(badges.xi, data.lineup) && sameSet(badges.bench, data.matchBench));
       await visit('duplicate');
       data = await model(page);
       dialog = await openRoster(page);
@@ -161,7 +180,17 @@ try {
       await approved.click();
       const approvedTargets = page.locator('[data-slot-index][data-compat="1"]');
       if (await approvedTargets.count()) await approvedTargets.first().click();
-      check(`${prefix}: iğne onaylı oyuncu gerçek maçın ilk 11'ine alınabilir`, (await model(page)).lineup.includes(approvedId));
+      data = await model(page);
+      check(`${prefix}: iğne onaylı oyuncu gerçek maçın ilk 11'ine alınabilir`, data.lineup.includes(approvedId));
+      await page.getByRole('button', { name: 'Test: Kadro', exact: true }).click();
+      badges = await squadBadges(page);
+      check(`${prefix}: iğne onayı ve ceza kadro rozetlerine doğru yansır`, badges.xi.includes(approvedId) && ![...badges.xi, ...badges.bench].includes(blockedIds[1]) && sameSet(badges.xi, data.lineup) && sameSet(badges.bench, data.matchBench));
+
+      await visit('longname');
+      await page.getByRole('button', { name: 'Test: Kadro', exact: true }).click();
+      const planLabel = page.locator('[title^="XI / YDK:"]');
+      const box = await planLabel.boundingBox();
+      check(`${prefix}: uzun plan adı ekrandan taşmaz, tamamı ipucunda saklıdır`, !!box && box.x >= 0 && box.x + box.width <= width && (await planLabel.getAttribute('title')).includes('ÇokUzunPlanAdı'.repeat(12)) && !(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1)));
 
       await visit('ratings');
       data = await model(page);

@@ -1,7 +1,8 @@
 # HM26 — Sıralı Otomatik QA
 **Çalıştırma:** 2026-10-31T09:15:27.020Z
 **Sonuç:** 98/98 geçti · 0 başarısız
-**Kaynak:** `9b91108` üzerine bu PR'daki kadro, lig, AI istatistiği ve test değişiklikleri; Node 22 ve Chromium 153 ile yerel çalışma.
+**Tam koşu kaynağı:** `f1108cd` uygulama ve test dosyaları; Node 22 ve Chromium 153 ile yerel çalışma.
+**Sonraki kadro rozeti düzeltmesi:** `f1108cd` sonrasındaki değişiklikte build, gerçek maç oturumu/IndexedDB ile kadro-piyasa kontrolleri (57/57), Kadro UI testi ve 320/390 px açık-koyu Chromium kontrolleri (172/172) ayrıca geçti. Aşağıdaki 98/98 tam koşu bu son düzeltmeden öncedir.
 | # | Aşama | Sonuç |
 |---:|---|---|
 | 1 | QA runner exit, signal and timeout handling | ✅ PASS |

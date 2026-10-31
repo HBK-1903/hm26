@@ -7,7 +7,7 @@ import { GameIcon, ICONS } from '../components/icons';
 import { PlayerPortrait } from '../components/assets/Portrait';
 import { ComparisonDesk } from '../components/players/ComparisonDesk';
 import { autoLineup, FORMATION_SLOTS } from '../engine/profiles';
-import { engineToBoard } from '../engine/lineupOrder';
+import { boardToEngine, engineToBoard } from '../engine/lineupOrder';
 import { Crest } from '../components/assets/Crest';
 import { clubById } from '../data/clubs';
 import { fitnessBreakdown, formTrend, recentRatings, rotationAdvice, type FormTrend } from '../engine/squadInsights';
@@ -47,12 +47,17 @@ export const SquadScreen: React.FC<{ goXI: (p: Player) => void }> = ({ goXI }) =
 
   const avgGen = Math.round(g.mySquad.reduce((x, p) => x + p.ratings.gen, 0) / Math.max(1, g.mySquad.length));
   const riskCount = g.mySquad.filter((p) => p.fitness < 60 || p.injuredDays > 0 || p.suspendedMatches > 0).length;
-  // Jr-09/QA: Ana Plan'ın aktif ilk 11 + yedek kimlikleri (kadro kartında XI / YDK rozeti)
+  // XI / YDK badges describe the first plan's actual match selection, not just
+  // saved preferences. The engine fills up to nine available, unique substitutes.
   const plan0 = g.tactics[0];
   const xiAuto = useMemo(() => autoLineup(g.mySquad, plan0.formation, undefined, new Set(g.riskPlayIds ?? [])), [g.mySquad, plan0.formation, g.riskPlayIds]);
-  const xiAutoIds = useMemo(() => xiAuto.slots.map((slot) => slot.player.id), [xiAuto]);
-  const xiIds = useMemo(() => new Set(((plan0.customLineup && plan0.customLineup.length === 11 ? plan0.customLineup : xiAutoIds).filter(Boolean) as string[])), [plan0.customLineup, xiAutoIds]);
-  const benchIds = useMemo(() => new Set(plan0.customBench?.length ? plan0.customBench : g.mySquad.filter((p) => !xiIds.has(p.id)).sort((a, b) => b.ratings.gen - a.ratings.gen).slice(0, 6).map((p) => p.id)), [plan0.customBench, g.mySquad, xiIds]);
+  const matchLineup = useMemo(() => autoLineup(
+    g.mySquad, plan0.formation,
+    plan0.customLineup ? boardToEngine(plan0.formation, plan0.customLineup) : undefined,
+    new Set(g.riskPlayIds ?? []), plan0.customBench,
+  ), [g.mySquad, plan0.formation, plan0.customLineup, plan0.customBench, g.riskPlayIds]);
+  const xiIds = useMemo(() => new Set(matchLineup.slots.map((slot) => slot.player.id)), [matchLineup]);
+  const benchIds = useMemo(() => new Set(matchLineup.bench.map((p) => p.id)), [matchLineup]);
   // Dalga 3: kadro içgörüleri — tamamen mevcut veri/maç arşivinden türetilir (yeni şema yok)
   const breakdown = useMemo(() => fitnessBreakdown(g.mySquad), [g.mySquad]);
   const xiSlots = useMemo(() => {
@@ -141,8 +146,8 @@ export const SquadScreen: React.FC<{ goXI: (p: Player) => void }> = ({ goXI }) =
             className="flex-1 bg-transparent min-h-[42px] text-primary text-[12.5px] focus:outline-none placeholder:text-muted" />
         </div>
         <div className="flex items-center justify-between px-0.5">
-          <span className="text-muted text-[9px] tracking-[0.08em] font-extrabold">{list.length} OYUNCU</span>
-          <button onClick={() => setSort(sort === 'gen' ? 'form' : sort === 'form' ? 'age' : 'gen')} className="text-amber text-[10.5px] font-bold min-h-[44px]">
+          <span className="text-muted text-[9px] tracking-[0.08em] font-extrabold min-w-0 truncate" title={`XI / YDK: ${plan0.name} maç kadrosu`}>{list.length} OYUNCU <span className="normal-case tracking-normal">· XI / YDK: {plan0.name}</span></span>
+          <button onClick={() => setSort(sort === 'gen' ? 'form' : sort === 'form' ? 'age' : 'gen')} className="text-amber text-[10.5px] font-bold min-h-[44px] shrink-0 ml-2">
             {sort === 'gen' ? 'Genel ↓' : sort === 'form' ? 'Form ↓' : 'Yaş ↑'}
           </button>
         </div>
@@ -159,7 +164,7 @@ export const SquadScreen: React.FC<{ goXI: (p: Player) => void }> = ({ goXI }) =
           const formCls = { ok: 'text-ok', info: 'text-info', warn: 'text-warn', danger: 'text-danger' }[formKind];
           const trend = trendById.get(p.id); // Dalga 3: yalnız ≥4 gerçek maç varsa ok çıkar
           return (
-            <button key={p.id} onClick={() => setQuick(p)} className="w-full text-left flex items-center gap-2.5 bg-surface border border-line rounded-xl p-2.5 min-h-[68px]">
+            <button key={p.id} data-squad-player-id={p.id} onClick={() => setQuick(p)} className="w-full text-left flex items-center gap-2.5 bg-surface border border-line rounded-xl p-2.5 min-h-[68px]">
               <span className="w-[36px] h-[39px] rounded-lg overflow-hidden border border-line/60 bg-elevated shrink-0"><PlayerPortrait player={p} size={36} /></span>
               <span className="flex-1 min-w-0">
                 <span className="text-primary text-[12.5px] font-bold leading-tight truncate block">{p.name}{p.important && <span className="text-amber text-[10px]" title="Önemli oyuncu"> ★</span>}</span>
