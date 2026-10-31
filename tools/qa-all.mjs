@@ -46,6 +46,7 @@ async function ensurePreview() {
 try {
   if (!existsSync(`${root}/node_modules/.bin/tsc`)) run('Install locked dependencies', 'npm', ['ci'], 300_000);
   run('QA runner exit, signal and timeout handling', process.execPath, ['tools/qa-child-status.test.mjs'], 60_000);
+  run('Browser save readiness handles delay and stale data', process.execPath, ['tools/qa-browser-save.test.mjs'], 60_000);
   run('Production build + TypeScript + offline manifest', 'npm', ['run', 'build'], 300_000);
   run('QA preview server startup and cleanup', process.execPath, ['tools/qa-preview.test.mjs'], 60_000);
   run('PWA headers, manifest, icons and update lifecycle', 'npm', ['run', 'qa:pwa'], 120_000);
@@ -143,6 +144,7 @@ try {
   else if (!previewReady) rows.push({ name: 'Playwright preview server', code: 1, stdout: '', stderr: 'Could not start or reach http://127.0.0.1:4173' });
   else {
     const ui = [
+      ['Delayed career save readiness E2E', 'tools/e2e-career-save-readiness.mjs'],
       ['New career advanced world settings and save E2E', 'tools/e2e-career-world.mjs'],
       ['Embedded asset rendering E2E', 'tools/e2e-assets.mjs'],
       ['Icon system E2E', 'tools/e2e-icons.mjs'],
