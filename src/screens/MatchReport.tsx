@@ -10,7 +10,7 @@ import { Crest } from '../components/assets/Crest';
 import { clubById } from '../data/clubs';
 import { expectedMatchPoints } from '../engine/analytics';
 
-export const MatchReport: React.FC<{ result: DemoMatchResult; fixture: DemoFixture; onDone: () => void; onEndDay?: () => void }> = ({ result, onDone, onEndDay }) => {
+export const MatchReport: React.FC<{ result: DemoMatchResult; fixture: DemoFixture; onDone: () => void; onEndDay?: () => void; saveDisabled?: boolean }> = ({ result, onDone, onEndDay, saveDisabled = false }) => {
   const g = useGame();
   const home = clubById(result.homeId);
   const away = clubById(result.awayId);
@@ -271,9 +271,9 @@ export const MatchReport: React.FC<{ result: DemoMatchResult; fixture: DemoFixtu
       <div className="shrink-0 px-4 py-3 border-t border-line/50 bg-base" data-testid="match-report-footer">
         <div className="space-y-2">
           {onEndDay && (
-            <Btn variant="amber" testId="end-day-after-match" className="w-full !min-h-[50px]" onClick={onEndDay}>Kaydet ve Günü Bitir →</Btn>
+            <Btn variant="amber" testId="end-day-after-match" className="w-full !min-h-[50px]" disabled={saveDisabled} onClick={onEndDay}>Kaydet ve Günü Bitir →</Btn>
           )}
-          <Btn variant={onEndDay ? 'secondary' : 'amber'} className="w-full !min-h-[46px]" onClick={onDone}>Sonucu Kaydet — Ana Merkez</Btn>
+          <Btn variant={onEndDay ? 'secondary' : 'amber'} className="w-full !min-h-[46px]" disabled={saveDisabled} onClick={onDone}>Sonucu Kaydet — Ana Merkez</Btn>
         </div>
       </div>
     </div>

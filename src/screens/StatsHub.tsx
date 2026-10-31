@@ -6,6 +6,7 @@ import React, { useMemo, useState } from 'react';
 import { useGame } from '../store/game';
 import { Card, Badge, Sheet } from '../components/ui/kit';
 import { ExpandableRanking } from '../components/ui/ExpandableRanking';
+import { ExpandableRecords } from '../components/ui/ExpandableRecords';
 import { clubById, clubByIdSafe } from '../data/clubs';
 import type { MatchArchiveEntry } from '../types';
 import { MatchHighlights } from '../components/match/MatchHighlights';
@@ -137,8 +138,8 @@ export const StatsHub: React.FC = () => {
   const myBuckets = useMemo(() => goalBuckets(myMatches), [myMatches]);
   const myXgTrend = useMemo(() => xgTrend(myMatches), [myMatches]);
   const myXgVerdict = useMemo(() => xgVerdict(myMatches), [myMatches]);
-  const recentReports = useMemo(() => reports.filter((r) => r.homeId === g.career.clubId || r.awayId === g.career.clubId)
-    .slice().sort((a, b) => b.seasonNo - a.seasonNo || b.day - a.day).slice(0, 10), [reports, g.career.clubId]);
+  // The archive may also contain matches from a previous managed club.
+  const recentReports = useMemo(() => reports.slice().sort((a, b) => (b.seasonNo ?? 0) - (a.seasonNo ?? 0) || b.day - a.day), [reports]);
   const archiveEvents = useMemo(() => archivedHighlightEvents(archiveMatch?.events, (id) => g.playerOf(id)?.name), [archiveMatch, g.playerOf]);
   const archiveHome = archiveMatch ? clubByIdSafe(archiveMatch.homeId) : undefined;
   const archiveAway = archiveMatch ? clubByIdSafe(archiveMatch.awayId) : undefined;
@@ -178,19 +179,19 @@ export const StatsHub: React.FC = () => {
         {tab === 'analiz' && (
           <>
             <Card className="!p-0 overflow-hidden" >
-              <div className="px-4 py-2.5 border-b border-line font-display font-bold text-[13px]">🎬 Son Maçların Özetleri</div>
+              <div className="px-4 py-2.5 border-b border-line font-display font-bold text-[13px]">🎬 Kayıtlı Maç Özetleri</div>
               {recentReports.length === 0 ? <div className="px-4 py-3 text-muted text-[12px]">Arşivde henüz maçın yok. Oynanan maçlar burada görünür.</div>
-                : <div data-testid="archive-highlights-list">{recentReports.map((report) => {
+                : <ExpandableRecords items={recentReports} preview={10} label="Maç özetleri" testId="archive-highlights-list" rowKey={(report) => report.id} render={(report) => {
                   const home = clubByIdSafe(report.homeId);
                   const away = clubByIdSafe(report.awayId);
-                  return <button type="button" key={report.id} data-testid="archive-highlight-open" onClick={() => setArchiveMatch(report)}
-                    aria-label={`${home?.short ?? report.homeId} ${report.hg}–${report.ag} ${away?.short ?? report.awayId} özetini aç`}
+                  return <button type="button" data-testid="archive-highlight-open" onClick={() => setArchiveMatch(report)}
+                    aria-label={`${home?.name ?? report.homeId} ${report.hg}–${report.ag} ${away?.name ?? report.awayId} özetini aç`}
                     className="w-full min-h-touch flex items-center gap-2 text-left px-4 py-2.5 border-b border-line/40 last:border-0 hover:bg-base/60">
-                    <span className="flex-1 min-w-0"><span className="block text-primary text-[12px] font-bold truncate">{home?.short ?? report.homeId} <span className="text-amber num">{report.hg}–{report.ag}</span> {away?.short ?? report.awayId}</span><span className="text-muted text-[10px]">{COMP_LABEL[report.comp]} · {report.day}. gün</span></span>
+                    <span className="flex-1 min-w-0"><span className="block text-primary text-[12px] font-bold break-words">{home?.name ?? report.homeId} <span className="text-amber num">{report.hg}–{report.ag}</span> {away?.name ?? report.awayId}</span><span className="text-muted text-[10px]">S{report.seasonNo} · {COMP_LABEL[report.comp]} · {report.day}. gün</span></span>
                     <span className="text-amber text-[11px] font-bold shrink-0">Özeti Aç ›</span>
                   </button>;
-                })}</div>}
-              <p className="px-4 py-2 text-muted text-[10.5px]">Arşivde yalnızca kaydedilmiş olaylar gösterilir.</p>
+                }} />}
+              <p className="px-4 py-2 text-muted text-[10.5px]">Yalnızca kaydedilmiş maçlar ve olaylar gösterilir; arşiv en fazla 256 maç tutar.</p>
             </Card>
             {/* Dalga 6: Takımım — ev/deplasman performansı (yalnız gerçek arşiv) */}
             <Card className="!p-0 overflow-hidden">

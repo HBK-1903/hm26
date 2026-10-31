@@ -129,7 +129,7 @@ try {
   await page.getByTestId('renewal-sign').dblclick();
   check('Çift imza sonrası yenileme tamamlanır, tanıtım sahnesi açılmaz', await flow.getAttribute('data-stage') === 'signed' && await scene.getAttribute('data-scene') === 'negotiation');
   saved = await waitForSave((b) => b?.playerPatch?.[playerId]?.contractYears === 4);
-  check('Gerçek kayıt: yeni ücret ve tek bonus ödemesi', saved.version === 4 && saved.playerPatch[playerId].wage === 173 && saved.budget.tb === 9.1 && saved.inbox.filter((m) => m.title === 'Sözleşme yenilendi').length === 1);
+  check('Gerçek kayıt: yeni ücret ve tek bonus ödemesi', saved.version === 5 && saved.playerPatch[playerId].wage === 173 && saved.budget.tb === 9.1 && saved.inbox.filter((m) => m.title === 'Sözleşme yenilendi').length === 1);
   await screenshot('03-renewal-signed-390');
   await page.getByRole('button', { name: 'Sözleşmelere Dön' }).click();
 
@@ -196,7 +196,7 @@ try {
   await screenshot('05-highlights-390');
   await quick.getByRole('button', { name: "Ana Merkez'e Dön" }).click();
   const matchSave = await waitForSave((b) => (b?.matchReports?.length ?? 0) > 0);
-  check('Gerçek maç sonucu ve sıkıştırılmış olaylar kaydedilir', matchSave.version === 4 && Array.isArray(matchSave.matchReports[0].events) && matchSave.matchReports[0].events.length > 0);
+  check('Gerçek maç sonucu ve sıkıştırılmış olaylar kaydedilir', matchSave.version === 5 && Array.isArray(matchSave.matchReports[0].events) && matchSave.matchReports[0].events.length > 0);
   await page.getByRole('button', { name: /Daha/ }).first().click();
   await page.getByRole('button', { name: /İstatistik/ }).first().click();
   await page.getByRole('tab', { name: 'Lig Analizi' }).click();

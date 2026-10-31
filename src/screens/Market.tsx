@@ -2,12 +2,13 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useGame } from '../store/game';
 import { Card, Badge, Btn, Sheet, Seg, useToast } from '../components/ui/kit';
+import { ExpandableRecords } from '../components/ui/ExpandableRecords';
 import { GameIcon, ICONS } from '../components/icons';
 import { PlayerPortrait } from '../components/assets/Portrait';
 import { Crest } from '../components/assets/Crest';
 import { clubById, clubByIdSafe } from '../data/clubs';
 import { playerValue } from '../data/gen';
-import { resolveMarketShortlist, selectClubOpportunities } from '../data/marketOpportunities';
+import { marketSearchPlayers, resolveMarketShortlist, selectClubOpportunities } from '../data/marketOpportunities';
 import { currentMarketFreeAgents, marketRefreshDays } from '../data/playerComparison';
 import { ComparisonDesk } from '../components/players/ComparisonDesk';
 import { FOREIGN_QUOTA } from '../data/market';
@@ -88,6 +89,7 @@ export const MarketScreen: React.FC<{ go?: (s: Screen) => void }> = ({ go }) => 
   const short = g.career.pending.marketShortlist ?? [];
   const [offer, setOffer] = useState<Player | null>(null);
   const [search, setSearch] = useState('');
+  const [searchLimit, setSearchLimit] = useState(24);
   const [posF, setPosF] = useState('all');
   const [budgetOnly, setBudgetOnly] = useState(false);
   // v0.9.9: oyuncu arama değer/serbest filtreleri
@@ -159,10 +161,18 @@ export const MarketScreen: React.FC<{ go?: (s: Screen) => void }> = ({ go }) => 
     (posF === 'all' || p.group === posF) &&
     (searchKey(p.name).includes(searchTerm) || searchKey(clubByIdSafe(p.clubId)?.name ?? (isFreeP(p) ? 'serbest bosman' : '')).includes(searchTerm));
 
-  const filtered = market.filter((m) => matchSearch(m.p) && priceOk(m.p));
+  // Discovery opportunities remain curated; search covers the entire current
+  // world and cycle's free agents, including players outside that small pool.
+  const searchPool = useMemo(() => {
+    const candidates = marketSearchPlayers(g.squads, g.career.clubId, currentMarketFreeAgents(g.career.seed, Math.floor(g.career.day / cycle), g.myLeague));
+    const opportunities = new Map(market.map((item) => [item.p.id, item]));
+    return candidates.map((p) => opportunities.get(p.id) ?? { p, reason: isFreeP(p) ? 'Serbest oyuncu' : 'Kulüp kadrosundaki oyuncu' });
+  }, [g.squads, g.career.clubId, g.career.seed, g.career.day, g.myLeague, cycle, market]);
+  const filtered = searchPool.filter((m) => matchSearch(m.p) && priceOk(m.p));
   const visibleSearch = filtered.filter((m) => !budgetOnly || priceOf(m.p) <= g.budget.tb);
   const visibleOpportunities = market.filter((m) => !budgetOnly || priceOf(m.p) <= g.budget.tb).slice(0, 8);
   const filtersActive = !!searchTerm || posF !== 'all' || valF !== 'all' || freeOnly || budgetOnly;
+  useEffect(() => { setSearchLimit(24); }, [search, posF, valF, freeOnly, budgetOnly]);
   const resetFilters = () => { setSearch(''); setPosF('all'); setValF('all'); setFreeOnly(false); setBudgetOnly(false); };
   const savedShortlistPlayers = g.career.pending.marketShortlistPlayers ?? [];
   const shortlistRows = resolveMarketShortlist(short, savedShortlistPlayers, (id) => g.playerOf(id) ?? market.find((item) => item.p.id === id)?.p ?? null)
@@ -248,8 +258,12 @@ export const MarketScreen: React.FC<{ go?: (s: Screen) => void }> = ({ go }) => 
                 )}
               </div>
             </div>
+            <p className="text-muted text-[10.5px] leading-snug">Arama, diğer kulüplerin tüm güncel kadrolarını ve serbest oyuncuları kapsar.</p>
             {visibleSearch.length === 0 && <div className="text-muted text-center py-8 border border-dashed border-line rounded-xl text-[12px] leading-relaxed">Bu kriterde piyasada oyuncu yok. Aramayı veya filtreleri değiştirmeyi dene.</div>}
-            {visibleSearch.map(renderRow)}
+            {visibleSearch.slice(0, searchLimit).map(renderRow)}
+            {visibleSearch.length > searchLimit && <button type="button" onClick={() => setSearchLimit((limit) => limit + 24)} className="w-full min-h-touch rounded-xl border border-amber/50 bg-amber/10 text-amber text-[12px] font-bold">
+              Daha fazla oyuncu göster · {Math.min(searchLimit, visibleSearch.length)}/{visibleSearch.length}
+            </button>}
           </>
         )}
         {tab === 'kisa' && (shortlistRows.length === 0
@@ -412,8 +426,8 @@ const TransferHistory: React.FC = () => {
   return (
     <div className="space-y-2">
       {log.length === 0 && <p className="text-center text-secondary text-sm py-8">Bu kariyerde henüz transfer yok — ilk transferin burada arşivlenecek.</p>}
-      {log.slice(0, 40).map((t) => (
-        <div key={t.id} className={`flex items-center gap-2.5 rounded-lg border px-3 py-2.5 text-[12px] ${t.kind === 'in' ? 'border-ok/40 bg-ok/5' : t.kind === 'out' ? 'border-danger/40 bg-danger/5' : 'border-line/40 bg-base'}`}>
+      <ExpandableRecords items={log} preview={40} label="Transfer geçmişi" testId="transfer-history-list" className="space-y-2" rowKey={(t) => t.id} render={(t) => (
+        <div data-testid="transfer-history-row" className={`flex items-center gap-2.5 rounded-lg border px-3 py-2.5 text-[12px] ${t.kind === 'in' ? 'border-ok/40 bg-ok/5' : t.kind === 'out' ? 'border-danger/40 bg-danger/5' : 'border-line/40 bg-base'}`}>
           <GameIcon id={t.kind === 'youth' ? 'sprout' : 'market'} className="w-5 h-5 text-secondary" />
           <div className="flex-1 min-w-0">
             <div className="text-primary font-bold truncate">{t.playerName} <span className="text-muted font-normal">· {G_SHORT[t.group]} · {t.age}y</span></div>
@@ -422,7 +436,7 @@ const TransferHistory: React.FC = () => {
           </div>
           <span className={`num font-bold ${t.kind === 'out' ? 'text-ok' : 'text-amber'}`}>{t.fee > 0 ? `₺${t.fee.toFixed(1)}M` : '—'}</span>
         </div>
-      ))}
+      )} />
     </div>
   );
 };

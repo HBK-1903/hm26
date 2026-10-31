@@ -10,7 +10,7 @@ import { aiDefaultTactic } from '../src/engine/tactics';
 import { autoLineup } from '../src/engine/profiles';
 import { clubById } from '../src/data/clubs';
 import { computeSeasonAwards } from '../src/data/awards';
-import { deleteSave, parseImportFile, readSave, writeSave } from '../src/store/persist';
+import { deleteSave, parseImportFile, readSave, writeSave, SAVE_VERSION } from '../src/store/persist';
 import scoreFingerprint from './fixtures/ai-score-fingerprint.json';
 import oldBackup from './fixtures/save-v2-original.json';
 
@@ -111,15 +111,15 @@ try {
   check('AI maçlarına sahte puan veya kart eklenmez', Object.values(rows).every((r) => r.ratingSum === 0 && r.yellows === 0 && r.reds === 0));
   check('Menajerin oynanmamış maçı ve kadrosu AI sayacına girmez', game.fixtures.some((f) => f.day === 27 && !f.played && (f.homeId === career.clubId || f.awayId === career.clubId)) && (beforeSquads[career.clubId] ?? []).every((p) => !rows[p.id]));
   const mixedSnapshot: any = clone(game.snapshotForBackup());
-  check('Kayıt sürümü ve üst seviye alanları değişmedi', mixedSnapshot.version === 4 && JSON.stringify(Object.keys(mixedSnapshot).sort()) === JSON.stringify(beforeKeys), `eklenen=${Object.keys(mixedSnapshot).filter((key) => !beforeKeys.includes(key)).join(',')} kaybolan=${beforeKeys.filter((key) => !(key in mixedSnapshot)).join(',')}`);
+  check('AI katılımı ek kalıcı alan oluşturmaz', mixedSnapshot.version === SAVE_VERSION && JSON.stringify(Object.keys(mixedSnapshot).sort()) === JSON.stringify(beforeKeys), `eklenen=${Object.keys(mixedSnapshot).filter((key) => !beforeKeys.includes(key)).join(',')} kaybolan=${beforeKeys.filter((key) => !(key in mixedSnapshot)).join(',')}`);
   const savedStats = clone(mixedSnapshot.playerStats);
-  const imported: any = parseImportFile(JSON.stringify({ format: 'hm26-save', version: 4, exportedAt: 1, blob: mixedSnapshot })).blob;
+  const imported: any = parseImportFile(JSON.stringify({ format: 'hm26-save', version: 4, exportedAt: 1, blob: { ...mixedSnapshot, version: 4 } })).blob;
   await mount(imported);
   check('Yedekten yüklemede yeni katılım/gol toplamları korunur', JSON.stringify(game.playerStats) === JSON.stringify(savedStats));
   await deleteSave(1);
   await writeSave(game.snapshotForBackup());
   const durable = await readSave(1);
-  check('IndexedDB kaydı gerçek oyuncu katılımlarını korur', durable?.blob.version === 4 && JSON.stringify(durable?.blob.playerStats) === JSON.stringify(savedStats));
+  check('IndexedDB kaydı gerçek oyuncu katılımlarını korur', durable?.blob.version === SAVE_VERSION && JSON.stringify(durable?.blob.playerStats) === JSON.stringify(savedStats));
   await deleteSave(1);
   const repeated = clone(imported); repeated.career.day = 26; repeated.day = 26;
   await mount(repeated); await advance();
@@ -205,7 +205,7 @@ try {
   await mount(oldBackup.blob);
   check('Gerçek v2 kariyeri açılır, uluslararası alanlar güvenle tamamlanır', game.career.clubId === oldBackup.blob.career.clubId && game.international.cups.length === 2);
   await advance();
-  check('Gerçek v2 kariyerinde gün ilerler ve geçerli sürümde yedek üretilir', game.career.day === 2 && game.snapshotForBackup().version === 4);
+  check('Gerçek v2 kariyerinde gün ilerler ve geçerli sürümde yedek üretilir', game.career.day === 2 && game.snapshotForBackup().version === SAVE_VERSION);
 
   const ratingStats: any = { mixed: { apps: 12, ratingSum: 14 }, ungraded: { apps: 12, ratingSum: 0 }, legacy: { apps: 4, ratingSum: 28 } };
   const row = (rating: number) => ({ min: 90, rating, g: 0, a: 0, yellow: 0, red: 0, posGroup: 'CM' });

@@ -31,6 +31,7 @@ import { addSeasonCultureHonors, assessFfp, clubSeasonTransferTotals, normalizeC
 import { assessBoardBudget, boardBudgetMessageId, type BoardBudgetAssessment } from '../data/boardBudget';
 import { applyInterviewEffect, INTERVIEW_INBOX_TITLE, type InterviewOption } from '../data/interview';
 import { bumpFamiliarity } from '../engine/tacticsStudio';
+import type { LiveMatchCheckpoint } from '../engine/liveCheckpoint';
 import { advanceInternationalSeason, archiveInternationalSeason, buildInternationalSeason, internationalFixtures, normalizeInternationalSeason, recordInternationalResult, recordInternationalScorers, type InternationalArchiveEntry, type InternationalCup, type InternationalSeason } from '../data/international';
 
 export const SEED_BASE = 20260803;
@@ -124,6 +125,28 @@ interface PersistedState {
   promises?: Record<string, MinutePromise>;  // Dalga 6: süre sözleri (playerId → söz)
   minuteNoted?: Record<string, number>;      // Dalga 6: son dakika-şikayeti bildirimi günü (30g soğuma)
   riskPlayIds?: string[];                    // v0.9.9: iğneyle oynatma onayı verilen sakat oyuncular (tek maçlık kumar)
+  liveMatchCheckpoint?: LiveMatchCheckpoint; // v5: saved atomically with the career, absent outside a live match
+}
+
+function resolveNeedleRisk(cur: PersistedState, playedIds: string[], worldSeed: number, playerOf: (id: string) => Player | null): { state: PersistedState; aggravated: string[] } {
+  const approved = cur.riskPlayIds ?? [];
+  const played = approved.filter((id) => playedIds.includes(id));
+  const aggravated: string[] = [];
+  const patch = { ...cur.playerPatch };
+  const newInbox = [...cur.inbox];
+  played.forEach((id, i) => {
+    const result = needleOutcome(worldSeed + cur.career.day * 131 + i * 17);
+    const p = playerOf(id);
+    const prev = patch[id] ?? {};
+    if (result.aggravated) {
+      const nd = (prev.injuredDays ?? p?.injuredDays ?? 0) + result.extraDays;
+      const prevInj = prev.injury ?? p?.injury;
+      patch[id] = { ...prev, injuredDays: nd, injury: prevInj ? { ...prevInj, daysRemaining: nd } : undefined };
+      aggravated.push(id);
+      newInbox.unshift({ id: `risk-${id}-${cur.career.day}`, kind: 'kritik', title: `💉 Nüks: ${prevInj?.name ?? 'Sakatlık'}`, body: `İğneyle oynatma kumarı tutmadı — sakatlık ${result.extraDays} gün uzadı (toplam ~${nd} gün). Sağlık ekibi yoğun bakımda.`, day: cur.career.day, read: false });
+    }
+  });
+  return { state: { ...cur, playerPatch: patch, inbox: newInbox, riskPlayIds: (cur.riskPlayIds ?? []).filter((id) => !approved.includes(id)) }, aggravated };
 }
 
 interface AdvanceResult { blocked: boolean; reason?: string; summary: string[] }
@@ -147,7 +170,9 @@ interface GameActions {
   clearSeasonFinale: () => void;
   advanceDay: () => AdvanceResult;
   buildDemoMatch: (homeId: string, awayId: string, tacticName: string, tacticIdx?: number) => DemoMatchResult;
-  playLeagueMatch: (fx: DemoFixture, overrideResult?: DemoMatchResult, tacticIdx?: number, interview?: InterviewOption) => DemoMatchResult;
+  playLeagueMatch: (fx: DemoFixture, overrideResult?: DemoMatchResult, tacticIdx?: number, interview?: InterviewOption, live?: { managerCards: number; managerSuspendedAtStart: boolean }) => DemoMatchResult;
+  saveLiveCheckpoint: (checkpoint: LiveMatchCheckpoint) => Promise<boolean>;
+  discardLiveCheckpoint: () => Promise<boolean>;
   updateTactic: (idx: number, t: TacticPlan) => void;
   setInbox: (fn: (m: InboxMsg[]) => InboxMsg[]) => void;
   setCareer: (fn: (c: Career) => Career) => void;
@@ -318,6 +343,7 @@ export function GameProvider({ career: initialCareer, snapshot, initialUpdatedAt
   // null = new empty slot; undefined = legacy caller with no metadata revision available.
   const saveRevisionRef = useRef<number | null | undefined>(snapshot ? initialUpdatedAt : null);
   const restoreLockRef = useRef(false);
+  const checkpointDiscardingRef = useRef(false);
   const mountedRef = useRef(true);
   const [saveError, setSaveError] = useState<string | null>(null);
   useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
@@ -437,7 +463,7 @@ export function GameProvider({ career: initialCareer, snapshot, initialUpdatedAt
   }, []);
 
   const saveNow = useCallback(async (): Promise<boolean> => {
-    if (!mountedRef.current || restoreLockRef.current) return false;
+    if (!mountedRef.current || restoreLockRef.current || checkpointDiscardingRef.current) return false;
     const s = stateRef.current;
     let full: SaveBlob;
     try {
@@ -466,6 +492,49 @@ export function GameProvider({ career: initialCareer, snapshot, initialUpdatedAt
     });
     saveQueueRef.current = task.then(() => undefined);
     return task;
+  }, [snapshotForBackup]);
+
+  // Every acknowledged live checkpoint is written with the whole career and the
+  // same IndexedDB revision check as ordinary saves/backup restores.
+  const saveLiveCheckpoint = useCallback(async (checkpoint: LiveMatchCheckpoint): Promise<boolean> => {
+    const current = stateRef.current;
+    const previous = current.liveMatchCheckpoint;
+    if (checkpointDiscardingRef.current || (previous && previous.input?.matchId !== checkpoint.input.matchId) ||
+        checkpoint.fixture.day !== current.career.day || checkpoint.seasonNo !== current.seasonNo) return false;
+    const next = { ...current, liveMatchCheckpoint: checkpoint };
+    stateRef.current = next;
+    setSt(next);
+    return saveNow();
+  }, [saveNow]);
+
+  const discardLiveCheckpoint = useCallback(async (): Promise<boolean> => {
+    if (checkpointDiscardingRef.current || restoreLockRef.current || !mountedRef.current) return false;
+    checkpointDiscardingRef.current = true;
+    let full: SaveBlob;
+    try { full = snapshotForBackup(); }
+    catch {
+      checkpointDiscardingRef.current = false;
+      if (mountedRef.current) setSaveError('Maç kaydı silinemedi; mevcut durum korunuyor.');
+      return false;
+    }
+    delete full.liveMatchCheckpoint;
+    const task = saveQueueRef.current.then(async () => {
+      try {
+        const saved = await writeSave(full, { expectedUpdatedAt: saveRevisionRef.current });
+        saveRevisionRef.current = saved.updatedAt;
+        const next = { ...stateRef.current };
+        delete next.liveMatchCheckpoint;
+        stateRef.current = next; setSt(next);
+        if (mountedRef.current) setSaveError(null);
+        return true;
+      } catch (error) {
+        console.error('[save] Maç kaydı silinemedi:', error);
+        if (mountedRef.current) setSaveError(error instanceof SaveConflictError ? error.message : 'Maç kaydı silinemedi; mevcut durum korunuyor. Depolamayı kontrol edip tekrar dene.');
+        return false;
+      }
+    });
+    saveQueueRef.current = task.then(() => undefined);
+    try { return await task; } finally { checkpointDiscardingRef.current = false; }
   }, [snapshotForBackup]);
 
   // Group related settings/budget/inbox changes from the same interaction into one save.
@@ -1063,6 +1132,7 @@ export function GameProvider({ career: initialCareer, snapshot, initialUpdatedAt
 
   const advanceDay = useCallback((): AdvanceResult => {
     const s = stateRef.current;
+    if (s.liveMatchCheckpoint) return { blocked: true, reason: 'Devam eden maçını tamamlamadan gün ilerlemez.', summary: [] };
     const stDay = s.career.day;
     const todayFixtures = allMyFixtures.filter((f) => !f.played && f.day === stDay);
     const jobless = !!s.career.jobSearch; // Dalga 1 (v0.5): işsiz menajer günü maç engeli olmadan geçirir
@@ -1301,10 +1371,13 @@ export function GameProvider({ career: initialCareer, snapshot, initialUpdatedAt
     return buildQuickMatchResult(input, homeId, awayId);
   }, [worldSeed, squads, stateRef]);
 
-  const playLeagueMatch = useCallback((fx: DemoFixture, overrideResult?: DemoMatchResult, tacticIdx = 0, interview?: InterviewOption): DemoMatchResult => {
+  const playLeagueMatch = useCallback((fx: DemoFixture, overrideResult?: DemoMatchResult, tacticIdx = 0, interview?: InterviewOption, live?: { managerCards: number; managerSuspendedAtStart: boolean }): DemoMatchResult => {
     // P0 (SPEC Böl.I/1): canlı maçtan gelen sonuç varsa DIRECT kullan — aksi halde bağımsız re-simülasyon skoru çöpe atardı
     const res = overrideResult ?? buildDemoMatch(fx.homeId, fx.awayId, stateRef.current.tactics[tacticIdx]?.name ?? stateRef.current.tactics[0]?.name ?? 'Ana Plan', tacticIdx);
-    setSt((s) => {
+    const s = stateRef.current;
+    if (live && (!s.liveMatchCheckpoint || s.liveMatchCheckpoint.fixture.day !== fx.day || s.liveMatchCheckpoint.fixture.homeId !== fx.homeId || s.liveMatchCheckpoint.fixture.awayId !== fx.awayId)) return res;
+    if (!live && s.liveMatchCheckpoint) throw new Error('Devam eden canlı maç tamamlanmadan yeni maç başlatılamaz.');
+    {
       let next = finishUserFixture(s, fx, res.hg, res.ag, res.xgHome, res.xgAway);
       // Wave 13: exact engine/player-row evidence is now read from the adapter's public projection (legacy nested result remains supported).
       const engineRows = (res as unknown as { engine?: { playerRows: Record<string, { min: number; g: number; a: number; yellow: number; red: number; rating: number; conceded?: number; saves?: number; posGroup?: string }> } }).engine?.playerRows
@@ -1436,12 +1509,22 @@ export function GameProvider({ career: initialCareer, snapshot, initialUpdatedAt
       } else if (conf < 40) {
         next = { ...next, inbox: [{ id: `wrn-${fx.day}`, kind: 'yonetim', title: 'İş Güvenliği Uyarısı', body: 'Yönetim sonuçlardan memnun değil. Yakın dönemde iyileşme bekleniyor.', day: s.career.day, read: false }, ...next.inbox] };
       }
+      if (live) {
+        let discipline = { managerYellowCards: next.career.managerYellowCards ?? 0, managerSuspendedMatches: next.career.managerSuspendedMatches ?? 0 };
+        for (let i = 0; i < live.managerCards; i++) discipline = registerManagerYellowRule(discipline.managerYellowCards, discipline.managerSuspendedMatches);
+        next = { ...next, career: { ...next.career, managerYellowCards: discipline.managerYellowCards, managerSuspendedMatches: consumeManagerBan(discipline.managerSuspendedMatches, live.managerSuspendedAtStart) } };
+        const playedIds = Object.entries(res.playerRows ?? {}).filter(([, row]) => row.min > 0).map(([id]) => id);
+        next = resolveNeedleRisk(next, playedIds, worldSeed, playerOf).state;
+        // Clearing the checkpoint and committing all result/discipline/risk effects
+        // are captured by the same subsequent IndexedDB transaction.
+        delete next.liveMatchCheckpoint;
+      }
       stateRef.current = next;
-      return next;
-    });
+      setSt(next);
+    }
     setTimeout(() => { void saveNow(); }, 200);
     return res;
-  }, [buildDemoMatch, finishUserFixture, saveNow, digestEngineRows, squads]);
+  }, [buildDemoMatch, finishUserFixture, saveNow, digestEngineRows, squads, worldSeed, playerOf]);
 
   const updateTactic = useCallback((idx: number, t: TacticPlan) => {
     setSt((s) => ({ ...s, tactics: s.tactics.map((x, i) => (i === idx ? t : x)) }));
@@ -1716,33 +1799,10 @@ export function GameProvider({ career: initialCareer, snapshot, initialUpdatedAt
 
   // v0.9.9 — İğne kumarı maç sonu çözümü: oynayan onaylılar %25 nüks (sakatlık 14-42g ekler)
   const applyRiskOutcome = useCallback((playedIds: string[]): string[] => {
-    const s = stateRef.current;
-    const approved = s.riskPlayIds ?? [];
-    const played = approved.filter((id) => playedIds.includes(id));
-    const aggravated: string[] = [];
-    setSt((cur) => {
-      const patch = { ...cur.playerPatch };
-      const newInbox = [...cur.inbox];
-      played.forEach((id, i) => {
-        const result = needleOutcome(worldSeed + cur.career.day * 131 + i * 17);
-        // after match-state commit, prefer patch values, then current player view
-        const p = playerOf(id);
-        const prev = patch[id] ?? {};
-        if (result.aggravated) {
-          const baseDays = prev.injuredDays ?? p?.injuredDays ?? 0;
-          const add = result.extraDays;
-          const nd = baseDays + add;
-          const prevInj = prev.injury ?? p?.injury;
-          patch[id] = { ...prev, injuredDays: nd, injury: prevInj ? { ...prevInj, daysRemaining: nd } : undefined };
-          aggravated.push(id);
-          newInbox.unshift({ id: `risk-${id}-${cur.career.day}`, kind: 'kritik', title: `💉 Nüks: ${prevInj?.name ?? 'Sakatlık'}`, body: `İğneyle oynatma kumarı tutmadı — sakatlık ${add} gün uzadı (toplam ~${nd} gün). Sağlık ekibi yoğun bakımda.`, day: cur.career.day, read: false });
-        }
-      });
-      // Onay her durumda tek maçlıktır: oynamadıysa da izni sonraki maça taşıma.
-      return { ...cur, playerPatch: patch, inbox: newInbox, riskPlayIds: (cur.riskPlayIds ?? []).filter((x) => !approved.includes(x)) };
-    });
+    const outcome = resolveNeedleRisk(stateRef.current, playedIds, worldSeed, playerOf);
+    stateRef.current = outcome.state; setSt(outcome.state);
     setTimeout(() => { void saveNow(); }, 200);
-    return aggravated;
+    return outcome.aggravated;
   }, [playerOf, saveNow, worldSeed]);
 
   // v0.9.9 — Ağabeylik (mentoring): 29+ kurt ≤21 gence atanır
@@ -1990,7 +2050,7 @@ export function GameProvider({ career: initialCareer, snapshot, initialUpdatedAt
     ...st,
     myClub, myLeague, mySquad, squads, nextFixture, unread,
     effectiveStrength, boardBudgetRequest, saveNow, saveError, snapshotForBackup, restoreBackup,
-    advanceDay, buildDemoMatch, playLeagueMatch, updateTactic, setInbox, setCareer, updateMarketShortlist, recordManagerYellow, consumeManagerSuspension, setBudget, requestBoardBudget, addSquadPlayer, clearSeasonFinale,
+    advanceDay, buildDemoMatch, playLeagueMatch, saveLiveCheckpoint, discardLiveCheckpoint, updateTactic, setInbox, setCareer, updateMarketShortlist, recordManagerYellow, consumeManagerSuspension, setBudget, requestBoardBudget, addSquadPlayer, clearSeasonFinale,
     setTrainingFocus, signAcademyCandidate, passAcademyCandidate, acceptJob,
     buyPlayer, clinicTreat, setRiskPlay, applyRiskOutcome, setMentor, respondOffer, toggleTransferList, playerOf, clubOfPlayer, quoteRenewal, renewContract,
     loanIn, loanOut, promiseMinutes, minuteState, resolveCultureIssue,

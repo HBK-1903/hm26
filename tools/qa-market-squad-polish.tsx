@@ -33,7 +33,9 @@ import { pitchFormationSlots } from '../src/components/assets/pitchPresentation'
 import { needleOutcome } from '../src/engine/medical';
 import { canSlotGroup } from '../src/engine/tacticsStudio';
 import { MatchSession } from '../src/engine/session';
-import { buildEngineInput, matchEventsToDemo } from '../src/engine/adapter';
+import { aiDefaultTactic } from '../src/engine/tactics';
+import { makeLiveCheckpoint, restoreLiveCheckpoint, type LiveMatchViewState } from '../src/engine/liveCheckpoint';
+import { buildEngineInput, matchEngineToDemo, matchEventsToDemo } from '../src/engine/adapter';
 import { compactMatchEvents, EV_GOAL, EV_RED } from '../src/engine/matchEvents';
 import type { Career, DemoFixture, Formation } from '../src/types';
 import type { MatchStateEvent } from '../src/engine/engine';
@@ -333,6 +335,48 @@ await act(async () => {
 });
 check('Onaylı sakat oyuncu seçili ilk 11 ile gerçekten sahaya çıkar', riskyPlayed.includes(riskId));
 check('Maç ve sağlık güncellemesi birlikte işlendiğinde nüks kaybolmaz', (g.playerOf(riskId)?.injuredDays ?? 0) > 8 && !g.riskPlayIds?.includes(riskId));
+
+// Live result commits risk and discipline together with checkpoint removal. Use
+// a real carded protest and finished engine result, not fabricated player rows.
+const liveRisk = structuredClone(risky) as SaveBlob & Record<string, any>;
+liveRisk.career.managerYellowCards = 1;
+liveRisk.career.managerSuspendedMatches = 0;
+await mount('none', liveRisk);
+const liveSide = riskyFixture.homeId === career.clubId ? 'home' : 'away';
+const liveHome = clubById(riskyFixture.homeId), liveAway = clubById(riskyFixture.awayId);
+let protested: MatchSession | undefined;
+for (let seed = 56000; seed < 56200 && !protested; seed++) {
+  const current = new MatchSession(buildEngineInput({ homeClub: liveHome, awayClub: liveAway,
+    homeSquad: g.squads[liveHome.id], awaySquad: g.squads[liveAway.id],
+    homeTactic: liveSide === 'home' ? g.tactics[riskTacticIdx] : aiDefaultTactic(liveHome, liveAway),
+    awayTactic: liveSide === 'away' ? g.tactics[riskTacticIdx] : undefined,
+    seed, settings: g.career.settings, userSide: liveSide, riskIds: g.riskPlayIds }));
+  while (!current.done) {
+    current.step();
+    if (!current.done && current.getTouchlineState(liveSide).protestAvailable) {
+      if (current.protest(liveSide).carded) protested = current;
+      break;
+    }
+  }
+}
+if (!protested) throw new Error('Gerçek kartlı itiraz senaryosu bulunamadı');
+const realLive = protested.finishNow();
+const liveResult = { ...matchEngineToDemo(realLive), homeId: liveHome.id, awayId: liveAway.id };
+const liveView: LiveMatchViewState = {
+  events: matchEventsToDemo(realLive.events), speed: 'x4', paused: true, activeTab: 'pitch', pitchView: 'pitch', heatEnabled: false, heatTeam: 'all', heatSamples: [],
+  showTouchline: false, showTeamTalk: false, teamTalkPromptShown: true, crowdShoutUsed: false, decision: null, lastDecisionShown: '',
+  showSubPicker: false, showTacticPicker: false, coachFired: [], phase: 'report', interviewChoice: null, managerSuspendedAtStart: false, managerCards: 1,
+};
+const liveCheckpoint = makeLiveCheckpoint(protested, riskyFixture, g.seasonNo, riskTacticIdx, liveView);
+check('Kartlı ve iğne onaylı gerçek maçın son checkpointi doğrulanır', restoreLiveCheckpoint(liveCheckpoint, g.seasonNo, career.clubId, riskyFixture.day).done && (liveResult.playerRows[riskId]?.min ?? 0) > 0);
+let checkpointSaved = false;
+await act(async () => { checkpointSaved = await g.saveLiveCheckpoint(liveCheckpoint); });
+await act(async () => { g.playLeagueMatch(riskyFixture, liveResult, riskTacticIdx, undefined, { managerCards: 1, managerSuspendedAtStart: false }); await g.saveNow(); });
+const liveCommitted = (await readSave(career.slot))?.blob as SaveBlob & Record<string, any>;
+check('Canlı sonuç, nüks, menajer cezası ve checkpoint silinmesi tek kayıtla işlenir', checkpointSaved && !liveCommitted.liveMatchCheckpoint && !liveCommitted.riskPlayIds?.includes(riskId) && liveCommitted.playerPatch[riskId].injuredDays > 8 && liveCommitted.career.managerYellowCards === 0 && liveCommitted.career.managerSuspendedMatches === 1 && liveCommitted.matchReports.filter((row: any) => row.day === riskyFixture.day && row.homeId === riskyFixture.homeId && row.awayId === riskyFixture.awayId).length === 1);
+await act(async () => { g.playLeagueMatch(riskyFixture, liveResult, riskTacticIdx, undefined, { managerCards: 1, managerSuspendedAtStart: false }); await g.saveNow(); });
+const repeatedLive = (await readSave(career.slot))?.blob as SaveBlob & Record<string, any>;
+check('Canlı sonuç iki kez istense bile sakatlık, ceza ve istatistikler tekrarlanmaz', JSON.stringify(repeatedLive.playerPatch[riskId]) === JSON.stringify(liveCommitted.playerPatch[riskId]) && repeatedLive.career.managerSuspendedMatches === 1 && JSON.stringify(repeatedLive.playerStats) === JSON.stringify(liveCommitted.playerStats) && repeatedLive.matchReports.length === liveCommitted.matchReports.length);
 
 // Existing saves remain loadable and the persistent match archive stays bounded at 256.
 const previousArchive = g.matchReports?.[0];

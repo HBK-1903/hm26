@@ -177,7 +177,7 @@ check('İmzalanan bedelsiz oyuncu gerçek kadro, maaş, söz ve geçmişe işlen
 await gRef.saveNow();
 const storedStar = await readSave(career.slot);
 const savedData = storedStar?.blob as (SaveBlob & Record<string, any>) | undefined;
-check('İmza IndexedDB kaydına yazılıyor, sürüm 4 ve yeni sahne alanı yok', !!savedData && savedData.version === SAVE_VERSION && SAVE_VERSION === 4 && savedData.playerClub?.[star.id] === career.clubId && !Object.keys(savedData).some((key) => /transferScene|dialogueTone|negotiationStage/i.test(key)));
+check('İmza IndexedDB kaydına yazılıyor, sürüm 5 ve yeni sahne alanı yok', !!savedData && savedData.version === SAVE_VERSION && SAVE_VERSION === 5 && savedData.playerClub?.[star.id] === career.clubId && !Object.keys(savedData).some((key) => /transferScene|dialogueTone|negotiationStage/i.test(key)));
 await clickId('transfer-announcement');
 check('85 GEN anonsu yalnız yıldız bağlamındaki ses ve altyazıyı kullanır', audioPlays.at(-1)?.src.endsWith('/announcer-3.mp3') === true && (q('[data-testid="transfer-subtitle"]')?.textContent ?? '').includes('Yıldız transferimizi'));
 await clickText('Ana Merkeze Dön');

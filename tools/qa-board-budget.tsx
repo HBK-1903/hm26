@@ -82,7 +82,7 @@ try {
   const saved = await readSave(1);
   const blob = saved?.blob as any;
   check('Onay ve bütçe elle kayıt gerektirmeden aynı IndexedDB kaydına yazılır', blob?.budget.tb === 7.2 && blob.inbox.some((m: InboxMsg) => m.id === boardBudgetMessageId(club.id, 1, 60, true)));
-  check('Yeni kalıcı alan veya kayıt sürümü eklenmez', blob?.version === 4 && JSON.stringify(Object.keys(blob).sort()) === JSON.stringify(Object.keys(beforeRequest).sort()) && JSON.stringify(Object.keys(blob.career).sort()) === JSON.stringify(Object.keys(beforeRequest.career).sort()), `top=${Object.keys(blob ?? {}).filter((key) => !(key in beforeRequest)).join(',')}; career=${Object.keys(blob?.career ?? {}).filter((key) => !(key in beforeRequest.career)).join(',')}`);
+  check('Bütçe talebi yeni kalıcı alan eklemez', blob?.version === 5 && JSON.stringify(Object.keys(blob).sort()) === JSON.stringify(Object.keys(beforeRequest).sort()) && JSON.stringify(Object.keys(blob.career).sort()) === JSON.stringify(Object.keys(beforeRequest.career).sort()), `top=${Object.keys(blob ?? {}).filter((key) => !(key in beforeRequest)).join(',')}; career=${Object.keys(blob?.career ?? {}).filter((key) => !(key in beforeRequest.career)).join(',')}`);
   if (!saved) throw new Error('Onay kaydedilmedi');
   const imported = parseImportFile(JSON.stringify({ format: 'hm26-save', version: 4, exportedAt: 1, blob: saved.blob })).blob;
   await act(async () => root.render(<GameProvider key="reload" career={imported.career} snapshot={imported} initialUpdatedAt={saved.meta.updatedAt}><Capture /></GameProvider>));

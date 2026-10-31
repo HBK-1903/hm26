@@ -209,7 +209,7 @@ try {
     check('İki Türkçe anons çevrimdışı önbellekten çözülür ve sessiz değildir', clips.every((clip) => clip.status === 200 && clip.size > 1000 && clip.duration > 1 && clip.rms > .001), JSON.stringify(clips));
     await context.setOffline(false);
   }
-  check('Kayıt sürümü 4; yeni sahneler için kalıcı alan eklenmedi', saved.version === 4 && !Object.keys(saved).some((key) => /^(careerTimeline|careerStory|arrivalScene|matchAward|trainingGround)$/i.test(key)));
+  check('Kayıt sürümü 5; yeni sahneler için kalıcı alan eklenmedi', saved.version === 5 && !Object.keys(saved).some((key) => /^(careerTimeline|careerStory|arrivalScene|matchAward|trainingGround)$/i.test(key)));
   check('Tarayıcıda yakalanmamış uygulama hatası yok', errors.length === 0, errors.join(' | '));
 } catch (error) { failed++; console.error('❌ E2E akışı kesildi:', error?.stack ?? error); }
 finally { await context.setOffline(false).catch(() => {}); await browser.close(); }
