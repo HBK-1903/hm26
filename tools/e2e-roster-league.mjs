@@ -162,6 +162,10 @@ try {
       modalIds = await dialog.locator('[data-roster-list-id]').evaluateAll((els) => els.map((el) => el.dataset.rosterListId));
       check(`${prefix}: eski kayıttaki çift oyuncu taktik listesinde ve maç yedeğinde tekrarlanmaz`, data.squad.length === 25 && new Set(data.squad.map((p) => p.id)).size === 24 && modalIds.length === 13 && new Set(modalIds).size === 13 && data.matchBench.length === 9 && new Set(data.matchBench).size === 9 && data.matchBench.every((id) => !data.lineup.includes(id)));
       await finish(dialog);
+      await page.getByRole('button', { name: 'Test: Kadro', exact: true }).click();
+      badges = await squadBadges(page);
+      const squadIds = await page.locator('[data-squad-player-id]').evaluateAll((cards) => cards.map((card) => card.dataset.squadPlayerId));
+      check(`${prefix}: çift kayıt kadroda bir kez görünür, 24 oyuncu ve 11+9 rozet doğru`, squadIds.length === 24 && new Set(squadIds).size === 24 && (await page.getByTestId('squad-count').textContent()) === '24' && sameSet(badges.xi, data.lineup) && sameSet(badges.bench, data.matchBench));
 
       await visit('unavailable');
       dialog = await openRoster(page);
