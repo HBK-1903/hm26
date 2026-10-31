@@ -150,6 +150,7 @@ try {
       ['Embedded asset rendering E2E', 'tools/e2e-assets.mjs'],
       ['Icon system E2E', 'tools/e2e-icons.mjs'],
       ['Statistics and career history E2E', 'tools/e2e-stats.mjs'],
+      ['Complete statistics and league rankings E2E (320px and 390px)', 'tools/e2e-ranking.mjs'],
       ['Save-slot delete flow E2E', 'tools/e2e-slots.mjs'],
       ['Backup, storage failure, legacy migration and stale-tab E2E (390px)', 'tools/e2e-save-integrity.mjs'],
       ['Backup, storage failure, legacy migration and stale-tab E2E (320px)', 'tools/e2e-save-integrity.mjs', { HM26_VIEWPORT_WIDTH: '320' }],

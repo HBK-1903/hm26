@@ -1,6 +1,7 @@
 // HM26 — §5.8 Müsabakalar (Aşama 1: 3 lig puan tablosu + Miras Kupası grupları + eleme ağacı)
 import React, { useMemo, useState } from 'react';
 import { Card, Badge, Seg } from '../components/ui/kit';
+import { ExpandableRanking } from '../components/ui/ExpandableRanking';
 import { Crest } from '../components/assets/Crest';
 import { useGame } from '../store/game';
 import { GameIcon } from '../components/icons';
@@ -19,7 +20,7 @@ export const CompsScreen: React.FC = () => {
   const [cupGroup, setCupGroup] = useState('A');
   const [internationalCupId, setInternationalCupId] = useState<InternationalCupId>('champions');
   const internationalCup = g.international?.cups.find((competition) => competition.id === internationalCupId);
-  const internationalScorers = Object.values(internationalCup?.scorers ?? {}).sort((a, b) => b.goals - a.goals || a.playerId.localeCompare(b.playerId)).slice(0, 8);
+  const internationalScorers = Object.values(internationalCup?.scorers ?? {}).sort((a, b) => b.goals - a.goals || a.playerId.localeCompare(b.playerId));
 
   const myRank = g.table[g.myLeague].findIndex((r) => r.clubId === g.myClub.id) + 1;
 
@@ -184,29 +185,28 @@ export const CompsScreen: React.FC = () => {
               const stats = Object.values(g.playerStats ?? {});
               if (!stats.length) return <Card><p className="text-secondary text-[13px] text-center py-4">Sezon istatistikleri henüz oluşmadı. İlk resmi maçları oynayın.</p></Card>;
               const byLeague = stats.filter((s) => g.leagueOf[s.clubId] === league);
-              const topGoals = [...byLeague].sort((a, b) => b.goals - a.goals).slice(0, 15);
-              const topAssists = [...byLeague].sort((a, b) => b.assists - a.assists).slice(0, 15);
-              const topRating = [...byLeague].filter((s) => s.apps >= 3).sort((a, b) => (b.ratingSum / b.apps) - (a.ratingSum / a.apps)).slice(0, 10);
-              const LeagueShot = ({ list, metric, label }: { list: typeof stats; metric: (s: (typeof stats)[0]) => string; label: string }) => (
-                <Card>
-                  <div className="text-[12px] text-muted uppercase tracking-[0.08em] mb-2">{label}</div>
-                  <div className="space-y-1">
-                    {list.slice(0, 8).map((s, i) => {
-                      const p = (g.squads[s.clubId] ?? []).find((x) => x.id === s.playerId) ?? null;
-                      const club = clubByIdSafe(s.clubId);
-                      return (
-                        <div key={s.playerId} className="flex items-center gap-2 py-1 border-b border-line/40 last:border-0">
-                          <span className={`num w-5 text-center font-bold text-[11.5px] ${i === 0 ? 'text-accent' : i < 3 ? 'text-ok' : 'text-muted'}`}>{i + 1}</span>
-                          {p && <PlayerPortrait player={p} size={24} />}
-                          <span className="text-primary text-[12px] font-semibold flex-1 truncate">{p?.name ?? s.playerId}</span>
-                          {club && <span className="text-muted text-[10px]">{club.short}</span>}
-                          <span className="num font-bold text-primary text-[12px]">{metric(s)}</span>
-                        </div>
-                      );
-                    })}
-                    {!list.length && <p className="text-muted text-[11.5px] text-center py-2 italic">Bu ligde veri henüz yok</p>}
-                  </div>
-                </Card>
+              const topGoals = [...byLeague].sort((a, b) => b.goals - a.goals);
+              const topAssists = [...byLeague].sort((a, b) => b.assists - a.assists);
+              const topRating = [...byLeague].filter((s) => s.apps >= 3).sort((a, b) => (b.ratingSum / b.apps) - (a.ratingSum / a.apps));
+              const leagueShot = (list: typeof stats, metric: (s: (typeof stats)[0]) => string, label: string) => (
+                <ExpandableRanking
+                  title={label} rows={list} previewLimit={8} unit="oyuncu" rowKey={(row) => row.playerId}
+                  detailNote={`${LEAGUES[league].name} kulüplerindeki oyuncuların tüm müsabakalardaki sezon toplamları.`}
+                  empty={<p className="text-muted text-[11.5px] text-center py-2 italic">Bu ligde veri henüz yok</p>}
+                  renderRow={(s, i, detail) => {
+                    const p = (g.squads[s.clubId] ?? []).find((x) => x.id === s.playerId) ?? null;
+                    const club = clubByIdSafe(s.clubId);
+                    return (
+                      <div className={`flex items-center gap-2 ${detail ? 'px-1' : 'px-4'} py-1.5`}>
+                        <span className={`num w-5 shrink-0 text-center font-bold text-[11.5px] ${i === 0 ? 'text-amber' : i < 3 ? 'text-ok' : 'text-muted'}`}>{i + 1}</span>
+                        {p && <PlayerPortrait player={p} size={24} />}
+                        <span className={`text-primary text-[12px] font-semibold flex-1 min-w-0 ${detail ? 'break-words' : 'truncate'}`}>{p?.name ?? s.playerId}</span>
+                        {club && <span className="text-muted text-[10px] shrink-0">{club.short}</span>}
+                        <span className="num font-bold text-primary text-[12px] shrink-0">{metric(s)}</span>
+                      </div>
+                    );
+                  }}
+                />
               );
               return (
                 <>
@@ -215,9 +215,9 @@ export const CompsScreen: React.FC = () => {
                       <button key={l} onClick={() => setLeague(l)} className={`flex-1 min-h-touch rounded-xl text-[11px] font-bold border ${league === l ? 'bg-accent text-[var(--c-on-accent)] border-transparent' : 'bg-surface text-secondary border-line'}`}>{LEAGUES[l].short}</button>
                     ))}
                   </div>
-                  <LeagueShot list={topGoals} metric={(s) => `${s.goals} gol`} label="Gol Krallığı (sezon)" />
-                  <LeagueShot list={topAssists} metric={(s) => `${s.assists} asist`} label="Asist Krallığı (sezon)" />
-                  <LeagueShot list={topRating} metric={(s) => `${(s.ratingSum / s.apps).toFixed(1)}`} label="Ortalama Reyting (min 3 maç)" />
+                  {leagueShot(topGoals, (s) => `${s.goals} gol`, 'Gol Krallığı (sezon)')}
+                  {leagueShot(topAssists, (s) => `${s.assists} asist`, 'Asist Krallığı (sezon)')}
+                  {leagueShot(topRating, (s) => `${(s.ratingSum / s.apps).toFixed(1)}`, 'Ortalama Reyting (min 3 maç)')}
                 </>
               );
             })()}
@@ -300,10 +300,22 @@ export const CompsScreen: React.FC = () => {
               })}
             </div>
 
-            <Card>
-              <div className="text-primary text-[13px] font-bold mb-2">Uluslararası gol krallığı</div>
-              {internationalScorers.length ? <div className="space-y-1.5">{internationalScorers.map((scorer, index) => { const player = g.playerOf(scorer.playerId); const team = clubById(scorer.clubId); return <div key={scorer.playerId} className="flex items-center gap-2 border-b border-line/40 last:border-0 py-1.5"><span className={`num w-5 text-center font-bold ${index === 0 ? 'text-amber' : 'text-muted'}`}>{index + 1}</span>{player && <PlayerPortrait player={player} size={25} />}<span className="text-primary text-[12px] font-semibold truncate flex-1">{player?.name ?? scorer.playerId}</span><span className="text-muted text-[10px]">{team.short}</span><span className="num text-amber font-bold">{scorer.goals}</span></div>; })}</div> : <p className="text-secondary text-[12px]">İlk uluslararası maçlar oynandığında gol krallığı burada oluşur.</p>}
-            </Card>
+            <ExpandableRanking
+              title="Uluslararası gol krallığı" rows={internationalScorers} previewLimit={8} unit="oyuncu"
+              rowKey={(scorer) => scorer.playerId} detailNote={`${internationalCup.name} için kayıtlı golcüler.`}
+              empty={<p className="px-4 py-3 text-secondary text-[12px]">İlk uluslararası maçlar oynandığında gol krallığı burada oluşur.</p>}
+              renderRow={(scorer, index, detail) => {
+                const player = g.playerOf(scorer.playerId);
+                const team = clubByIdSafe(scorer.clubId);
+                return <div className={`flex items-center gap-2 ${detail ? 'px-1' : 'px-4'} py-1.5`}>
+                  <span className={`num w-5 shrink-0 text-center font-bold ${index === 0 ? 'text-amber' : 'text-muted'}`}>{index + 1}</span>
+                  {player && <PlayerPortrait player={player} size={25} />}
+                  <span className={`text-primary text-[12px] font-semibold flex-1 min-w-0 ${detail ? 'break-words' : 'truncate'}`}>{player?.name ?? scorer.playerId}</span>
+                  <span className="text-muted text-[10px] shrink-0">{team?.short ?? scorer.clubId}</span>
+                  <span className="num text-amber font-bold shrink-0">{scorer.goals}</span>
+                </div>;
+              }}
+            />
 
             {internationalCup.rounds.length ? internationalCup.rounds.map((round) => <Card key={round.name}>
               <div className="flex items-center justify-between mb-2"><div className="text-primary text-[13px] font-bold">{round.name}</div><span className="text-muted text-[10.5px]">Gün {round.day} · {dayToDate(round.day)}</span></div>

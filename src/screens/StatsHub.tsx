@@ -5,6 +5,7 @@ import { GameIcon } from '../components/icons';
 import React, { useMemo, useState } from 'react';
 import { useGame } from '../store/game';
 import { Card, Badge, Sheet } from '../components/ui/kit';
+import { ExpandableRanking } from '../components/ui/ExpandableRanking';
 import { clubById, clubByIdSafe } from '../data/clubs';
 import type { MatchArchiveEntry } from '../types';
 import { MatchHighlights } from '../components/match/MatchHighlights';
@@ -31,24 +32,24 @@ const EmptyBox: React.FC<{ icon: string; title: string; note: string }> = ({ ico
 
 interface RankRow { playerId: string; clubId: string; label: string; value: number; sub?: string }
 
-const RankTable: React.FC<{ title: string; rows: RankRow[]; mine?: string | null; max?: number }> = ({ title, rows, mine, max = 10 }) => {
-  const list = rows.slice(0, max);
-  return (
-    <Card className="!p-0 overflow-hidden">
-      <div className="px-4 py-2.5 border-b border-line font-display font-bold text-[13px]">{title}</div>
-      {list.map((r, i) => (
-        <div key={`${r.playerId}-${i}`} className={`flex items-center gap-2.5 px-4 py-2 border-b border-line/40 last:border-0 ${r.playerId === mine ? 'bg-amber/5' : ''}`}>
-          <span className={`num w-6 text-center text-[12px] font-extrabold ${i === 0 ? 'text-amber' : i < 3 ? 'text-primary' : 'text-muted'}`}>{i + 1}</span>
-          <div className="flex-1 min-w-0">
-            <div className="text-[13px] font-semibold truncate">{r.label}</div>
-            <div className="text-[10.5px] text-muted">{clubById(r.clubId)?.short ?? r.clubId}{r.sub ? ` · ${r.sub}` : ''}</div>
-          </div>
-          <span className="num text-[15px] font-extrabold text-ink">{r.value}</span>
+const RankTable: React.FC<{ title: string; rows: RankRow[]; mine?: string | null; max?: number }> = ({ title, rows, mine, max = 10 }) => (
+  <ExpandableRanking
+    title={title} rows={rows} previewLimit={max} unit="oyuncu"
+    rowKey={(row) => row.playerId}
+    detailNote="Lig, kupa ve diğer maçlardaki birikmiş kayıtlar birlikte gösterilir."
+    empty={<div className="px-4 py-3 text-muted text-[12px]">Henüz sıralama verisi yok.</div>}
+    renderRow={(r, i, detail) => (
+      <div className={`flex items-center gap-2.5 ${detail ? 'px-1' : 'px-4'} py-2 ${r.playerId === mine ? 'bg-amber/5' : ''}`}>
+        <span className={`num w-6 shrink-0 text-center text-[12px] font-extrabold ${i === 0 ? 'text-amber' : i < 3 ? 'text-primary' : 'text-muted'}`}>{i + 1}</span>
+        <div className="flex-1 min-w-0">
+          <div className={`text-[13px] font-semibold ${detail ? 'break-words' : 'truncate'}`}>{r.label}</div>
+          <div className={`text-[10.5px] text-muted ${detail ? 'break-words' : ''}`}>{clubByIdSafe(r.clubId)?.short ?? r.clubId}{r.sub ? ` · ${r.sub}` : ''}</div>
         </div>
-      ))}
-    </Card>
-  );
-};
+        <span className="num text-[15px] font-extrabold text-ink shrink-0">{r.value}</span>
+      </div>
+    )}
+  />
+);
 
 const medal = (i: number) => (i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '');
 
@@ -156,7 +157,7 @@ export const StatsHub: React.FC = () => {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 pb-4 grid gap-3 content-start">
+      <div className="flex-1 overflow-y-auto px-4 pb-4 grid auto-rows-max gap-3 content-start">
         {tab === 'krallik' && (
           <>
             {noDataYet
@@ -426,104 +427,94 @@ export const StatsHub: React.FC = () => {
                       </div>
                     </div>
                   )}
-                  <div>
-                    <div className="text-[10px] text-muted uppercase mb-1.5">Sakatlık geçmişi (maçtan çıkışlar)</div>
-                    {injuries.length === 0 ? (
-                      <p className="text-muted text-[11.5px]">Bu sezon maç içinde sakatlanarak oyundan çıkan oyuncu yok — kayıtlar maçlarda birikir.</p>
-                    ) : (
-                      <div className="space-y-1" data-testid="injury-list">
-                        {injuries.slice(0, 5).map((t) => (
-                          <div key={t.playerId} className="flex items-center justify-between text-[11.5px] bg-base rounded-lg px-2.5 py-1.5">
-                            <span className="font-semibold text-primary truncate">{g.playerOf(t.playerId)?.name ?? 'Oyuncu'}</span>
-                            <span className="num text-danger font-bold shrink-0 ml-2">{t.count} sakatlık</span>
-                          </div>
-                        ))}
+                  <ExpandableRanking
+                    embedded title="Sakatlık geçmişi (maçtan çıkışlar)" rows={injuries} previewLimit={5} unit="oyuncu"
+                    rowKey={(row) => row.playerId} listTestId="injury-list" listClassName="space-y-1" rowClassName=""
+                    detailNote="Yalnızca maç arşivine kaydedilen sakatlıklar yer alır."
+                    empty={<p className="text-muted text-[11.5px]">Bu sezon maç içinde sakatlanarak oyundan çıkan oyuncu yok — kayıtlar maçlarda birikir.</p>}
+                    renderRow={(t, _i, detail) => (
+                      <div className="flex items-center justify-between text-[11.5px] bg-base rounded-lg px-2.5 py-1.5">
+                        <span className={`font-semibold text-primary min-w-0 ${detail ? 'break-words' : 'truncate'}`}>{g.playerOf(t.playerId)?.name ?? 'Oyuncu'}</span>
+                        <span className="num text-danger font-bold shrink-0 ml-2">{t.count} sakatlık</span>
                       </div>
                     )}
-                  </div>
+                  />
                 </div>
               </div>
             </Card>
 
             {/* v4: hakem profilleri */}
-            <Card className="!p-0 overflow-hidden">
-              <div data-testid="referee-profile-card">
-                <div className="px-4 py-2.5 border-b border-line font-display font-bold text-[13px]">📋 Hakem Profilleri</div>
-                {refereeProfiles.length === 0 ? (
-                  <div className="px-4 py-3 text-muted text-[12px]">Hakem etiketi taşıyan maç raporu birikince profiller burada belirir.</div>
-                ) : (
-                  <div className="divide-y divide-line/40">
-                    {refereeProfiles.slice(0, 6).map((rf) => (
-                      <div key={rf.label} className="px-4 py-2.5 flex items-center gap-2" data-referee={rf.label}>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-[12px] font-bold text-primary truncate">{rf.label}</div>
-                          <div className="text-[10px] text-muted num">{rf.matches} maçın · maç başı {rf.foulsPerMatch} faul · {rf.yellows} sarı {rf.reds} kırmızı</div>
-                        </div>
-                        <Badge kind={rf.strictness === 'strict' ? 'danger' : rf.strictness === 'lenient' ? 'ok' : 'muted'}>
-                          {rf.strictness === 'strict' ? 'Sıkı' : rf.strictness === 'lenient' ? 'Yumuşak' : 'Dengeli'}
-                        </Badge>
-                        <span className="num text-[11px] font-extrabold text-secondary w-16 text-right shrink-0">{rf.myWins}G {rf.myDraws}B {rf.myLosses}M</span>
-                      </div>
-                    ))}
+            <ExpandableRanking
+              title="📋 Hakem Profilleri" rows={refereeProfiles} previewLimit={6} unit="hakem"
+              testId="referee-profile-card" rowKey={(rf) => rf.label}
+              detailNote="Yalnızca hakem bilgisi içeren kayıtlı maçlar kullanılır."
+              empty={<div className="px-4 py-3 text-muted text-[12px]">Hakem etiketi taşıyan maç raporu birikince profiller burada belirir.</div>}
+              renderRow={(rf, _i, detail) => (
+                <div className={`${detail ? 'px-1' : 'px-4'} py-2.5 flex items-center gap-2`} data-referee={rf.label}>
+                  <div className="flex-1 min-w-0">
+                    <div className={`text-[12px] font-bold text-primary ${detail ? 'break-words' : 'truncate'}`}>{rf.label}</div>
+                    <div className="text-[10px] text-muted num">{rf.matches} maçın · maç başı {rf.foulsPerMatch} faul · {rf.yellows} sarı {rf.reds} kırmızı</div>
                   </div>
-                )}
-              </div>
-            </Card>
+                  <Badge kind={rf.strictness === 'strict' ? 'danger' : rf.strictness === 'lenient' ? 'ok' : 'muted'}>
+                    {rf.strictness === 'strict' ? 'Sıkı' : rf.strictness === 'lenient' ? 'Yumuşak' : 'Dengeli'}
+                  </Badge>
+                  <span className="num text-[11px] font-extrabold text-secondary w-16 text-right shrink-0">{rf.myWins}G {rf.myDraws}B {rf.myLosses}M</span>
+                </div>
+              )}
+            />
 
-            <Card className="!p-0 overflow-hidden">
-              <div className="px-4 py-2.5 border-b border-line font-display font-bold text-[13px]">⚖️ xPTS Adalet Tablosu</div>
-              <div className="px-4 py-2 text-[10.5px] text-muted leading-snug border-b border-line/40">
-                Maçların xG’lerinden Poisson modeliyle hesaplanan <b>beklenen puan</b> ile gerçek puan farkı.
+            <ExpandableRanking
+              title="⚖️ xPTS Adalet Tablosu" rows={xptsRows.length ? leagueClubs : []} previewLimit={leagueClubs.length} unit="takım"
+              rowKey={(club) => club.id}
+              description={<>Maçların xG’lerinden Poisson modeliyle hesaplanan <b>beklenen puan</b> ile gerçek puan farkı.
                 {xptsSource === 'league'
                   ? ' Tüm lig maçlarının xG’si fikstürlerden okunur; böylece bütün kulüpler aynı haftada tabloya girer.'
-                  : ' Eski kayıtlarda lig geneli xG bulunmadığından veri yalnız senin oynadığın lig maçlarından birikir.'}
-              </div>
-              {xptsRows.length === 0
-                ? <div className="px-4 py-3 text-muted text-[12px]">Henüz arşivde lig maçı yok — ilk maçların ardından tablo burada belirir.</div>
-                : leagueClubs.map((club) => {
-                  const row = xptsRows.find((x) => x.clubId === club.id);
-                  const real = actualPts.get(club.id) ?? 0;
-                  const isMine = club.id === g.career.clubId;
-                  const diff = row ? real - row.xpts : 0;
-                  const luck = !row ? null : row.matches < 5 ? null : diff >= 4 ? '🍀 Şanslı' : diff <= -4 ? '😰 Hakkı yeniyor' : '➖ Dengeli';
-                  return (
-                    <div key={club.id} className={`flex items-center gap-2 px-4 py-2 border-b border-line/40 last:border-0 ${isMine ? 'bg-amber/5' : ''}`}>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-[12.5px] font-semibold truncate">{club.name}{isMine && <span className="text-amber text-[10px] font-bold ml-1">SEN</span>}</div>
-                        <div className="text-[10px] text-muted num">{row ? `${row.matches} maç · xG ${row.xgf} – ${row.xga}` : 'veri birikiyor…'}</div>
-                      </div>
-                      {row && luck && <span className="text-[9.5px] font-bold text-secondary shrink-0">{luck}</span>}
-                      <div className="text-right shrink-0 w-[74px]">
-                        <div className="num text-[13px] font-extrabold text-ink">{row ? row.xpts.toFixed(1) : '—'} <span className="text-[9px] text-muted font-normal">xPTS</span></div>
-                        <div className="num text-[10px] text-muted">{real} gerçek</div>
-                      </div>
+                  : ' Eski kayıtlarda lig geneli xG bulunmadığından veri yalnız senin oynadığın lig maçlarından birikir.'}</>}
+              detailNote={xptsSource === 'league' ? 'Fikstürdeki xG verileri kullanılır.' : 'Eski kayıtlarda yalnızca arşivlenen maçlar kullanılır.'}
+              empty={<div className="px-4 py-3 text-muted text-[12px]">Henüz arşivde lig maçı yok — ilk maçların ardından tablo burada belirir.</div>}
+              renderRow={(club, _i, detail) => {
+                const row = xptsRows.find((x) => x.clubId === club.id);
+                const real = actualPts.get(club.id) ?? 0;
+                const isMine = club.id === g.career.clubId;
+                const diff = row ? real - row.xpts : 0;
+                const luck = !row ? null : row.matches < 5 ? null : diff >= 4 ? '🍀 Şanslı' : diff <= -4 ? '😰 Hakkı yeniyor' : '➖ Dengeli';
+                return (
+                  <div className={`flex items-center gap-2 ${detail ? 'px-1' : 'px-4'} py-2 ${isMine ? 'bg-amber/5' : ''}`}>
+                    <div className="flex-1 min-w-0">
+                      <div className={`text-[12.5px] font-semibold ${detail ? 'break-words' : 'truncate'}`}>{club.name}{isMine && <span className="text-amber text-[10px] font-bold ml-1">SEN</span>}</div>
+                      <div className="text-[10px] text-muted num">{row ? `${row.matches} maç · xG ${row.xgf} – ${row.xga}` : 'veri birikiyor…'}</div>
                     </div>
-                  );
-                })}
-            </Card>
+                    {row && luck && <span className="text-[9.5px] font-bold text-secondary shrink-0">{luck}</span>}
+                    <div className="text-right shrink-0 w-[74px]">
+                      <div className="num text-[13px] font-extrabold text-ink">{row ? row.xpts.toFixed(1) : '—'} <span className="text-[9px] text-muted font-normal">xPTS</span></div>
+                      <div className="num text-[10px] text-muted">{real} gerçek</div>
+                    </div>
+                  </div>
+                );
+              }}
+            />
 
-            <Card className="!p-0 overflow-hidden">
-              <div className="px-4 py-2.5 border-b border-line font-display font-bold text-[13px]">🕊️ Fair Play Ligi</div>
-              <div className="px-4 py-2 text-[10.5px] text-muted leading-snug border-b border-line/40">
-                Düşük puan centilmenlik demek: sarı kart 1, kırmızı kart 3, faul 0.25 puan. Sıralama maç başına puanla yapılır.
-              </div>
-              {fairPlayRows.length === 0
-                ? <div className="px-4 py-3 text-muted text-[12px]">Kart ve faul verisi ilk lig maçlarından sonra birikir.</div>
-                : fairPlayRows.map((r, i) => {
-                  const club = clubById(r.clubId);
-                  const isMine = r.clubId === g.career.clubId;
-                  return (
-                    <div key={r.clubId} className={`flex items-center gap-2.5 px-4 py-2 border-b border-line/40 last:border-0 ${isMine ? 'bg-amber/5' : ''}`}>
-                      <span className={`num w-5 text-center text-[12px] font-extrabold ${i === 0 ? 'text-amber' : 'text-muted'}`}>{i + 1}</span>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-[12.5px] font-semibold truncate">{club?.name ?? r.clubId}{isMine && <span className="text-amber text-[10px] font-bold ml-1">SEN</span>}</div>
-                        <div className="text-[10px] text-muted num">{r.yellows} sarı · {r.reds} kırmızı · {r.fouls} faul · {r.matches} maç</div>
-                      </div>
-                      <span className="num text-[13px] font-extrabold text-ink">{r.perMatch.toFixed(2)}</span>
+            <ExpandableRanking
+              title="🕊️ Fair Play Ligi" rows={fairPlayRows} previewLimit={fairPlayRows.length} unit="takım"
+              rowKey={(row) => row.clubId}
+              description="Düşük puan centilmenlik demek: sarı kart 1, kırmızı kart 3, faul 0.25 puan. Sıralama maç başına puanla yapılır."
+              detailNote="Yalnızca arşive kaydedilmiş lig maçlarının verileri yer alır."
+              empty={<div className="px-4 py-3 text-muted text-[12px]">Kart ve faul verisi ilk lig maçlarından sonra birikir.</div>}
+              renderRow={(r, i, detail) => {
+                const club = clubByIdSafe(r.clubId);
+                const isMine = r.clubId === g.career.clubId;
+                return (
+                  <div className={`flex items-center gap-2.5 ${detail ? 'px-1' : 'px-4'} py-2 ${isMine ? 'bg-amber/5' : ''}`}>
+                    <span className={`num w-5 shrink-0 text-center text-[12px] font-extrabold ${i === 0 ? 'text-amber' : 'text-muted'}`}>{i + 1}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className={`text-[12.5px] font-semibold ${detail ? 'break-words' : 'truncate'}`}>{club?.name ?? r.clubId}{isMine && <span className="text-amber text-[10px] font-bold ml-1">SEN</span>}</div>
+                      <div className="text-[10px] text-muted num">{r.yellows} sarı · {r.reds} kırmızı · {r.fouls} faul · {r.matches} maç</div>
                     </div>
-                  );
-                })}
-            </Card>
+                    <span className="num text-[13px] font-extrabold text-ink shrink-0">{r.perMatch.toFixed(2)}</span>
+                  </div>
+                );
+              }}
+            />
           </>
         )}
 
