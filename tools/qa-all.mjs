@@ -1,8 +1,9 @@
 // HM26: sıralı tam regresyon otomasyonu. Build/core/stress/features ve her UI E2E'yi tek akışta çalıştırır.
 // Kullanım: npm run qa:all
-import { spawn, spawnSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { existsSync, writeFileSync } from 'node:fs';
 import { qaChildStatus, qaFailureAnnotation } from './qa-child-status.mjs';
+import { startQaPreview, stopQaPreview } from './qa-preview.mjs';
 
 const root = process.cwd();
 const reportPath = `${root}/QA-AUTOMATION-LATEST.md`;
@@ -31,7 +32,7 @@ async function ensurePreview() {
     const response = await fetch('http://127.0.0.1:4173', { signal: AbortSignal.timeout(1200) });
     if (response.ok) { console.log('\n[QA] Preview :4173 hazır; mevcut server kullanılacak.'); return true; }
   } catch { /* start local preview below */ }
-  previewProcess = spawn('npm', ['run', 'preview', '--', '--host', '0.0.0.0', '--port', '4173'], { cwd: root, stdio: 'ignore' });
+  previewProcess = startQaPreview(root);
   for (let i = 0; i < 40; i++) {
     await new Promise((resolve) => setTimeout(resolve, 500));
     try {
@@ -46,6 +47,7 @@ try {
   if (!existsSync(`${root}/node_modules/.bin/tsc`)) run('Install locked dependencies', 'npm', ['ci'], 300_000);
   run('QA runner exit, signal and timeout handling', process.execPath, ['tools/qa-child-status.test.mjs'], 60_000);
   run('Production build + TypeScript + offline manifest', 'npm', ['run', 'build'], 300_000);
+  run('QA preview server startup and cleanup', process.execPath, ['tools/qa-preview.test.mjs'], 60_000);
   run('PWA headers, manifest, icons and update lifecycle', 'npm', ['run', 'qa:pwa'], 120_000);
   run('Content-derived service-worker build identity', 'npm', ['run', 'qa:sw-manifest'], 60_000);
   run('Save integrity, legacy migration and transaction conflicts (jsdom)', 'npm', ['run', 'qa:save-integrity'], 120_000);
@@ -172,7 +174,7 @@ try {
 } catch (error) {
   rows.push({ name: 'QA automation runner', code: 1, stdout: '', stderr: String(error) });
 } finally {
-  if (previewProcess) { previewProcess.kill('SIGTERM'); }
+  await stopQaPreview(previewProcess);
   const pass = rows.filter((row) => row.code === 0).length;
   const fail = rows.length - pass;
   const failingStages = rows.filter((row) => row.code !== 0).map((row) => row.name);
