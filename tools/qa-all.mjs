@@ -112,6 +112,7 @@ try {
   run('Squad rotation and health regression (jsdom)', 'npm', ['run', 'qa:wave3:ui'], 180_000);
   run('Matchday preparation regression (jsdom)', 'npm', ['run', 'qa:wave5:ui'], 180_000);
   run('Batched halftime event and decision flow (jsdom)', 'npm', ['run', 'qa:live:halftime'], 180_000);
+  run('Injury treatment and return do not repeat decisions (jsdom)', 'npm', ['run', 'qa:match-finish'], 180_000, { HM26_INJURY_DECISION_TEST: '1' });
   run('Match finish, last-whistle reaction and manual interview (jsdom)', 'npm', ['run', 'qa:match-finish'], 180_000, { HM26_FINAL_BATCH: 'card' });
   run('Cancelled goal live presentation, audio and match finish (jsdom)', 'npm', ['run', 'qa:match-finish'], 180_000, { HM26_CANCELLED_GOAL: '1' });
   run('Match finish recovery after simulated engine failure (jsdom)', 'npm', ['run', 'qa:match-finish'], 180_000, { HM26_FAULT: 'finish' });
@@ -167,6 +168,7 @@ try {
       ['Match arrival, award, training and career story E2E', 'tools/e2e-career-scenes.mjs'],
       ['Market filters and live tactic flow E2E (390px)', 'tools/e2e-v099.mjs'],
       ['Market filters and live tactic flow E2E (320px)', 'tools/e2e-v099.mjs', { HM26_VIEWPORT_WIDTH: '320' }],
+      ['Injury treatment and return E2E (320px home, 390px away)', 'tools/e2e-injury-decision.mjs'],
       ['Live scorebug, feed, accessible Phaser pitch and action E2E (v0.9.12)', 'tools/e2e-live-v0911.mjs'],
       ['Deterministic Phaser motion and pause E2E', 'tools/e2e-pitch-motion.mjs'],
       ['PWA offline shell + cached bundles E2E (v0.9.12)', 'tools/e2e-offline-v0911.mjs'],

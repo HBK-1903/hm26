@@ -1,6 +1,6 @@
 # HM26 — Sıralı Otomatik QA
 **Çalıştırma:** 2026-10-31T00:44:31.418Z
-**Kaynak:** `9187074` üzerindeki yerel tam koşu. Sonraki değişiklik canlı günlük testinin kararlı karşılaştırmasını kapsar; 320 ve 390 piksel kontrolleri ayrıca çalıştırılmıştır.
+**Kaynak:** `9187074` üzerindeki yerel tam koşu. Sonraki değişiklikler canlı günlük testinin kararlı karşılaştırmasını ve tekrarlayan sakatlık kararını düzeltir; bunların 320/390 piksel tarayıcı ve bileşen kontrolleri ayrıca çalıştırılmıştır.
 **Sonuç:** 93/93 geçti · 0 başarısız
 | # | Aşama | Sonuç |
 |---:|---|---|
