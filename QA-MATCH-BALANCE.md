@@ -19,4 +19,6 @@ Ayrı 10.000 maçlık normal lig/favori taraması ve düşük–normal–yüksek
 
 Bu değerler belirli, sentetik kadrolar ve seed'lere ait test sonuçlarıdır; gerçek lig verisi ya da her kariyerde aynı oranların garantisi değildir. Denge sınırları bu örneklem incelenerek seçilmiştir; daha büyük ve farklı kariyer örneklemleri ayrıca değerlidir.
 
+**Bilinen sınır:** Güç farkı yüksek, iki tarafın yüksek pres yaptığı belirli bir kadro eşleşmesinde 600 maçta yalnızca 34 faul ve hiç penaltı görüldü. Aynı örneklemde önceki motor da 27 faul ve bir penaltı üretmişti. Bu, mevcut topa sahip olma modelinde bazı eşleşmelerin faul/penaltı bakımından gerçekçi olmaması demektir; bu çalışmada faul sıklığı yeniden dengelenmedi. Hakem ve duran top testi bu eşleşmeyi korurken dengeli bir eşleşme daha kullanır ve gerçek penaltı → vuruş zincirini de doğrular.
+
 Yeni maçların akışı bilerek değiştiğinden eski sürümün aynı seed ile ürettiği sonuç birebir garanti edilmez. Mevcut kayıt ve maç arşivleri yeniden simüle edilmez veya değiştirilmez; aynı motor sürümünde komutlarla tekrar oynatma deterministiktir. Kayıt şeması ve arşiv sınırı değişmedi.
