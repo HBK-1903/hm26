@@ -1,7 +1,7 @@
 # HM26 — Sıralı Otomatik QA
-**Çalıştırma:** 2026-10-31T00:44:31.418Z
-**Kaynak:** `9187074` üzerindeki yerel tam koşu. Sonraki değişiklikler canlı günlük testinin kararlı karşılaştırmasını ve tekrarlayan sakatlık kararını düzeltir; bunların 320/390 piksel tarayıcı ve bileşen kontrolleri ayrıca çalıştırılmıştır.
-**Sonuç:** 93/93 geçti · 0 başarısız
+**Çalıştırma:** 2026-10-31T01:22:34.923Z
+**Sonuç:** 95/95 geçti · 0 başarısız
+**Kaynak:** `72411b3` commit’inden hazırlanmış temiz kaynak görüntüsü; aynı commit için GitHub Node 18 ve Node 22/Chromium görevleri de geçti.
 | # | Aşama | Sonuç |
 |---:|---|---|
 | 1 | QA runner exit, signal and timeout handling | ✅ PASS |
@@ -61,43 +61,46 @@
 | 55 | Squad rotation and health regression (jsdom) | ✅ PASS |
 | 56 | Matchday preparation regression (jsdom) | ✅ PASS |
 | 57 | Batched halftime event and decision flow (jsdom) | ✅ PASS |
-| 58 | Match finish, last-whistle reaction and manual interview (jsdom) | ✅ PASS |
-| 59 | Cancelled goal live presentation, audio and match finish (jsdom) | ✅ PASS |
-| 60 | Match finish recovery after simulated engine failure (jsdom) | ✅ PASS |
-| 61 | Matchday progression and end-day regression (jsdom) | ✅ PASS |
-| 62 | Team insights and statistics UI (jsdom) | ✅ PASS |
-| 63 | Player analytics and match history UI (jsdom) | ✅ PASS |
-| 64 | Scout, interview and press profile UI (jsdom) | ✅ PASS |
-| 65 | News and career analytics UI (jsdom) | ✅ PASS |
-| 66 | Match preparation and league analytics UI (jsdom) | ✅ PASS |
-| 67 | Playwright Chromium launch smoke test | ✅ PASS |
-| 68 | Delayed career save readiness E2E | ✅ PASS |
-| 69 | New career advanced world settings and save E2E | ✅ PASS |
-| 70 | Embedded asset rendering E2E | ✅ PASS |
-| 71 | Icon system E2E | ✅ PASS |
-| 72 | Statistics and career history E2E | ✅ PASS |
-| 73 | Save-slot delete flow E2E | ✅ PASS |
-| 74 | Backup, storage failure, legacy migration and stale-tab E2E (390px) | ✅ PASS |
-| 75 | Backup, storage failure, legacy migration and stale-tab E2E (320px) | ✅ PASS |
-| 76 | Board budget approval and reload on migrated career E2E (390px) | ✅ PASS |
-| 77 | Board budget approval and reload on migrated career E2E (320px) | ✅ PASS |
-| 78 | Service-worker two-release and offline isolation E2E | ✅ PASS |
-| 79 | Save-before-update and multi-tab game update E2E | ✅ PASS |
-| 80 | Full profile → starting XI E2E | ✅ PASS |
-| 81 | Out-of-position warning E2E | ✅ PASS |
-| 82 | Bench-first tactical flow E2E | ✅ PASS |
-| 83 | Medical/mentoring/trade E2E | ✅ PASS |
-| 84 | Transfer theatre, signing and offline media E2E | ✅ PASS |
-| 85 | Market potential, rotation and sale negotiation E2E | ✅ PASS |
-| 86 | Contract renewal and recorded match highlights E2E | ✅ PASS |
-| 87 | Live reactions, player comparison and weekly paper E2E | ✅ PASS |
-| 88 | Match arrival, award, training and career story E2E | ✅ PASS |
-| 89 | Market filters and live tactic flow E2E (390px) | ✅ PASS |
-| 90 | Market filters and live tactic flow E2E (320px) | ✅ PASS |
-| 91 | Live scorebug, feed, accessible Phaser pitch and action E2E (v0.9.12) | ✅ PASS |
-| 92 | Deterministic Phaser motion and pause E2E | ✅ PASS |
-| 93 | PWA offline shell + cached bundles E2E (v0.9.12) | ✅ PASS |
+| 58 | Injury treatment and return do not repeat decisions (jsdom) | ✅ PASS |
+| 59 | Match finish, last-whistle reaction and manual interview (jsdom) | ✅ PASS |
+| 60 | Cancelled goal live presentation, audio and match finish (jsdom) | ✅ PASS |
+| 61 | Match finish recovery after simulated engine failure (jsdom) | ✅ PASS |
+| 62 | Matchday progression and end-day regression (jsdom) | ✅ PASS |
+| 63 | Team insights and statistics UI (jsdom) | ✅ PASS |
+| 64 | Player analytics and match history UI (jsdom) | ✅ PASS |
+| 65 | Scout, interview and press profile UI (jsdom) | ✅ PASS |
+| 66 | News and career analytics UI (jsdom) | ✅ PASS |
+| 67 | Match preparation and league analytics UI (jsdom) | ✅ PASS |
+| 68 | Playwright Chromium launch smoke test | ✅ PASS |
+| 69 | Delayed career save readiness E2E | ✅ PASS |
+| 70 | New career advanced world settings and save E2E | ✅ PASS |
+| 71 | Embedded asset rendering E2E | ✅ PASS |
+| 72 | Icon system E2E | ✅ PASS |
+| 73 | Statistics and career history E2E | ✅ PASS |
+| 74 | Save-slot delete flow E2E | ✅ PASS |
+| 75 | Backup, storage failure, legacy migration and stale-tab E2E (390px) | ✅ PASS |
+| 76 | Backup, storage failure, legacy migration and stale-tab E2E (320px) | ✅ PASS |
+| 77 | Board budget approval and reload on migrated career E2E (390px) | ✅ PASS |
+| 78 | Board budget approval and reload on migrated career E2E (320px) | ✅ PASS |
+| 79 | Service-worker two-release and offline isolation E2E | ✅ PASS |
+| 80 | Save-before-update and multi-tab game update E2E | ✅ PASS |
+| 81 | Full profile → starting XI E2E | ✅ PASS |
+| 82 | Out-of-position warning E2E | ✅ PASS |
+| 83 | Bench-first tactical flow E2E | ✅ PASS |
+| 84 | Medical/mentoring/trade E2E | ✅ PASS |
+| 85 | Transfer theatre, signing and offline media E2E | ✅ PASS |
+| 86 | Market potential, rotation and sale negotiation E2E | ✅ PASS |
+| 87 | Contract renewal and recorded match highlights E2E | ✅ PASS |
+| 88 | Live reactions, player comparison and weekly paper E2E | ✅ PASS |
+| 89 | Match arrival, award, training and career story E2E | ✅ PASS |
+| 90 | Market filters and live tactic flow E2E (390px) | ✅ PASS |
+| 91 | Market filters and live tactic flow E2E (320px) | ✅ PASS |
+| 92 | Injury treatment and return E2E (320px home, 390px away) | ✅ PASS |
+| 93 | Live scorebug, feed, accessible Phaser pitch and action E2E (v0.9.12) | ✅ PASS |
+| 94 | Deterministic Phaser motion and pause E2E | ✅ PASS |
+| 95 | PWA offline shell + cached bundles E2E (v0.9.12) | ✅ PASS |
 ## Bulgular ve açık işler
+- **Sakatlık senaryosu:** gerçek Chromium’daki 320/390 px ekran testi, sakatlık ve dönüş olayları ile tedavi yanıtını test fixture’ında kontrollü olarak üretir; gerçek motorun iki dakika bekleme ve dönüş davranışı ayrıca Wave 6 testiyle doğrulandı.
 - **Bu koşudaki testler:** tüm aşamalar geçti; test kapsamı dışındaki kusurlar ayrıca incelenmelidir.
 - **Otomasyon düzeltmesi:** eski E2E betiklerindeki :3001 adresleri ortak `HM26_BASE_URL` ile :4173 preview adresine alındı; yeniden koşuda ilgili akışlar geçti.
 - **Tarayıcı ortamı:** Chromium indirme ve paylaşımlı sistem kütüphanelerini kontrol etme/kurma adımları ile launch smoke testi otomasyona eklendi.
@@ -133,11 +136,11 @@ rendering chunks...
 computing gzip size...
 dist/index.html                          5.29 kB │ gzip:   1.50 kB
 dist/assets/index-DEKx_IgO.css          88.25 kB │ gzip:  18.48 kB
-dist/assets/PhaserPitch-BHJcGf53.js     16.49 kB │ gzip:   6.13 kB
-dist/assets/index-DTo-Fpo7.js          926.93 kB │ gzip: 289.14 kB
+dist/assets/PhaserPitch-BEXMvgLs.js     16.49 kB │ gzip:   6.13 kB
+dist/assets/index-BQ19O4_h.js          927.02 kB │ gzip: 289.17 kB
 dist/assets/phaser-0YPJO2g1.js       1,481.77 kB │ gzip: 339.84 kB
-✓ built in 10.42s
-SW precache: 211 dosya, sürüm 29bfaaf0e98fdf53
+✓ built in 11.17s
+SW precache: 211 dosya, sürüm ab4129b88b29ba73
 ```
 
 Stderr:
@@ -220,17 +223,17 @@ Exit: 0
 
 Stderr:
 ```text
-(node:41703) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+(node:89526) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
 --import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("./tools/qa-live-loader.mjs", pathToFileURL("./"));'
 (Use `node --trace-warnings ...` to show where the warning was created)
 [save] Yedek içe aktarılamadı: DOMException [QuotaExceededError]: quota
     at new DOMException (node:internal/per_context/domexception:76:18)
-    at FDBDatabase.IDBDatabase.transaction (/tmp/hm26-final-93/tools/qa-save-integrity.tsx:187:40)
-    at <anonymous> (/tmp/hm26-final-93/src/store/persist.ts:122:36)
+    at FDBDatabase.IDBDatabase.transaction (/tmp/hm26-final-95/tools/qa-save-integrity.tsx:187:40)
+    at <anonymous> (/tmp/hm26-final-95/src/store/persist.ts:122:36)
     at new Promise (<anonymous>)
-    at writeSave (/tmp/hm26-final-93/src/store/persist.ts:121:9)
-    at async Object.restoreBackup (/tmp/hm26-final-93/src/store/game.tsx:482:7)
-    at async <anonymous> (/tmp/hm26-final-93/tools/qa-save-integrity.tsx:191:43)
+    at writeSave (/tmp/hm26-final-95/src/store/persist.ts:121:9)
+    at async Object.restoreBackup (/tmp/hm26-final-95/src/store/game.tsx:482:7)
+    at async <anonymous> (/tmp/hm26-final-95/tools/qa-save-integrity.tsx:191:43)
 ```
 ## 8. Project-local security skill installation checks (not an audit)
 Exit: 0
@@ -1133,7 +1136,7 @@ TRANSFER-SCENE-UI: 49/49
 
 Stderr:
 ```text
-(node:49132) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+(node:100650) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
 --import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("./tools/qa-live-loader.mjs", pathToFileURL("./"));'
 (Use `node --trace-warnings ...` to show where the warning was created)
 ```
@@ -1182,7 +1185,7 @@ SALE-FLOW: 32/32 geçti
 
 Stderr:
 ```text
-(node:49220) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+(node:100828) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
 --import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("./tools/qa-live-loader.mjs", pathToFileURL("./"));'
 (Use `node --trace-warnings ...` to show where the warning was created)
 ```
@@ -1239,7 +1242,7 @@ MARKET-SQUAD-POLISH: 40/40 geçti
 
 Stderr:
 ```text
-(node:49335) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+(node:100975) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
 --import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("./tools/qa-live-loader.mjs", pathToFileURL("./"));'
 (Use `node --trace-warnings ...` to show where the warning was created)
 ```
@@ -1330,7 +1333,7 @@ Exit: 0
 
 Stderr:
 ```text
-(node:49478) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+(node:101196) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
 --import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("./tools/qa-live-loader.mjs", pathToFileURL("./"));'
 (Use `node --trace-warnings ...` to show where the warning was created)
 ```
@@ -1399,7 +1402,7 @@ Exit: 0
 
 Stderr:
 ```text
-(node:49594) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+(node:101431) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
 --import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("./tools/qa-live-loader.mjs", pathToFileURL("./"));'
 (Use `node --trace-warnings ...` to show where the warning was created)
 ```
@@ -1464,7 +1467,7 @@ Kariyer sahneleri: 48/48 geçti.
 
 Stderr:
 ```text
-(node:49681) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+(node:101564) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
 --import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("./tools/qa-live-loader.mjs", pathToFileURL("./"));'
 (Use `node --trace-warnings ...` to show where the warning was created)
 ```
@@ -1495,7 +1498,7 @@ DALGA7-ATMOSFER-UI: PASS
 
 Stderr:
 ```text
-(node:49796) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+(node:101750) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
 --import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("./tools/qa-live-loader.mjs", pathToFileURL("./"));'
 (Use `node --trace-warnings ...` to show where the warning was created)
 ```
@@ -1526,7 +1529,7 @@ DALGA2-TAKTIK-UI: PASS
 
 Stderr:
 ```text
-(node:49883) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+(node:101883) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
 --import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("./tools/qa-live-loader.mjs", pathToFileURL("./"));'
 (Use `node --trace-warnings ...` to show where the warning was created)
 Warning: `ReactDOMTestUtils.act` is deprecated in favor of `React.act`. Import `act` from `react` instead of `react-dom/test-utils`. See https://react.dev/warnings/react-dom-test-utils for more info.
@@ -1556,7 +1559,7 @@ DALGA3-KADRO-UI: PASS (kadro)
 
 Stderr:
 ```text
-(node:49970) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+(node:101972) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
 --import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("./tools/qa-live-loader.mjs", pathToFileURL("./"));'
 (Use `node --trace-warnings ...` to show where the warning was created)
 Warning: `ReactDOMTestUtils.act` is deprecated in favor of `React.act`. Import `act` from `react` instead of `react-dom/test-utils`. See https://react.dev/warnings/react-dom-test-utils for more info.
@@ -1585,7 +1588,7 @@ DALGA5-MACGUNU-UI: PASS
 
 Stderr:
 ```text
-(node:50043) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+(node:102047) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
 --import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("./tools/qa-live-loader.mjs", pathToFileURL("./"));'
 (Use `node --trace-warnings ...` to show where the warning was created)
 Warning: `ReactDOMTestUtils.act` is deprecated in favor of `React.act`. Import `act` from `react` instead of `react-dom/test-utils`. See https://react.dev/warnings/react-dom-test-utils for more info.
@@ -1818,7 +1821,7 @@ Maç sonrası nextFixture: gün 13 rize_yagmur vs denizli_yesilova played=false
 
 Stderr:
 ```text
-n testing, code that causes React state updates should be wrapped into act(...):
+ testing, code that causes React state updates should be wrapped into act(...):
 
 act(() => {
   /* fire events that update state */
@@ -1826,7 +1829,7 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: An update to GameProvider inside a test was not wrapped in act(...).
 
 When testing, code that causes React state updates should be wrapped into act(...):
@@ -1837,7 +1840,7 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: An update to GameProvider inside a test was not wrapped in act(...).
 
 When testing, code that causes React state updates should be wrapped into act(...):
@@ -1848,7 +1851,7 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: An update to GameProvider inside a test was not wrapped in act(...).
 
 When testing, code that causes React state updates should be wrapped into act(...):
@@ -1859,8 +1862,8 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
-(node:50702) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
+(node:102939) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
 --import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("./tools/qa-live-loader.mjs", pathToFileURL("./"));'
 (Use `node --trace-warnings ...` to show where the warning was created)
 Warning: An update to Root inside a test was not wrapped in act(...).
@@ -1883,9 +1886,9 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: `ReactDOMTestUtils.act` is deprecated in favor of `React.act`. Import `act` from `react` instead of `react-dom/test-utils`. See https://react.dev/warnings/react-dom-test-utils for more info.
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: An update to GameProvider inside a test was not wrapped in act(...).
 
 When testing, code that causes React state updates should be wrapped into act(...):
@@ -1896,7 +1899,7 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: An update to GameProvider inside a test was not wrapped in act(...).
 
 When testing, code that causes React state updates should be wrapped into act(...):
@@ -1907,7 +1910,7 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: An update to GameProvider inside a test was not wrapped in act(...).
 
 When testing, code that causes React state updates should be wrapped into act(...):
@@ -1918,7 +1921,7 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: An update to GameProvider inside a test was not wrapped in act(...).
 
 When testing, code that causes React state updates should be wrapped into act(...):
@@ -1929,9 +1932,95 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 ```
-## 58. Match finish, last-whistle reaction and manual interview (jsdom)
+## 58. Injury treatment and return do not repeat decisions (jsdom)
+Exit: 0
+
+```text
+> manager26@1.0.0 qa:match-finish
+> node --import tsx --loader ./tools/qa-live-loader.mjs tools/qa-live-finish.tsx
+
+Maç günü: day=6, fikstür gün 6 [hazirlik]
+✅ Analiz sekmesinde kümülatif xG grafiği render oldu
+✅ Tedaviyi bekleme seçimi motorca bir kez alındı ve aynı karar açılmadı
+✅ Tedavi ve sahaya dönüş akışta kalır, dönüş yeni bir sakatlık kararı açmaz
+```
+
+Stderr:
+```text
+(node:103929) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+--import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("./tools/qa-live-loader.mjs", pathToFileURL("./"));'
+(Use `node --trace-warnings ...` to show where the warning was created)
+Warning: An update to Root inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+Warning: An update to GameProvider inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
+Warning: `ReactDOMTestUtils.act` is deprecated in favor of `React.act`. Import `act` from `react` instead of `react-dom/test-utils`. See https://react.dev/warnings/react-dom-test-utils for more info.
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
+Warning: An update to GameProvider inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
+Warning: An update to GameProvider inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
+Warning: An update to GameProvider inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
+Warning: An update to GameProvider inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
+```
+## 59. Match finish, last-whistle reaction and manual interview (jsdom)
 Exit: 0
 
 ```text
@@ -2046,7 +2135,7 @@ Maç sonrası nextFixture: gün 13 rize_yagmur vs denizli_yesilova played=false
 
 Stderr:
 ```text
-(node:51283) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+(node:104103) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
 --import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("./tools/qa-live-loader.mjs", pathToFileURL("./"));'
 (Use `node --trace-warnings ...` to show where the warning was created)
 Warning: An update to Root inside a test was not wrapped in act(...).
@@ -2069,9 +2158,9 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: `ReactDOMTestUtils.act` is deprecated in favor of `React.act`. Import `act` from `react` instead of `react-dom/test-utils`. See https://react.dev/warnings/react-dom-test-utils for more info.
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: An update to GameProvider inside a test was not wrapped in act(...).
 
 When testing, code that causes React state updates should be wrapped into act(...):
@@ -2082,7 +2171,7 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: An update to GameProvider inside a test was not wrapped in act(...).
 
 When testing, code that causes React state updates should be wrapped into act(...):
@@ -2093,7 +2182,7 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: An update to GameProvider inside a test was not wrapped in act(...).
 
 When testing, code that causes React state updates should be wrapped into act(...):
@@ -2104,7 +2193,7 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: An update to GameProvider inside a test was not wrapped in act(...).
 
 When testing, code that causes React state updates should be wrapped into act(...):
@@ -2115,9 +2204,9 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 ```
-## 59. Cancelled goal live presentation, audio and match finish (jsdom)
+## 60. Cancelled goal live presentation, audio and match finish (jsdom)
 Exit: 0
 
 ```text
@@ -2232,7 +2321,7 @@ Maç sonrası nextFixture: gün 13 rize_yagmur vs denizli_yesilova played=false
 
 Stderr:
 ```text
-(node:51892) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+(node:105144) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
 --import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("./tools/qa-live-loader.mjs", pathToFileURL("./"));'
 (Use `node --trace-warnings ...` to show where the warning was created)
 Warning: An update to Root inside a test was not wrapped in act(...).
@@ -2255,9 +2344,9 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: `ReactDOMTestUtils.act` is deprecated in favor of `React.act`. Import `act` from `react` instead of `react-dom/test-utils`. See https://react.dev/warnings/react-dom-test-utils for more info.
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: An update to GameProvider inside a test was not wrapped in act(...).
 
 When testing, code that causes React state updates should be wrapped into act(...):
@@ -2268,7 +2357,7 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: An update to GameProvider inside a test was not wrapped in act(...).
 
 When testing, code that causes React state updates should be wrapped into act(...):
@@ -2279,7 +2368,7 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: An update to GameProvider inside a test was not wrapped in act(...).
 
 When testing, code that causes React state updates should be wrapped into act(...):
@@ -2290,7 +2379,7 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: An update to GameProvider inside a test was not wrapped in act(...).
 
 When testing, code that causes React state updates should be wrapped into act(...):
@@ -2301,9 +2390,9 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 ```
-## 60. Match finish recovery after simulated engine failure (jsdom)
+## 61. Match finish recovery after simulated engine failure (jsdom)
 Exit: 0
 
 ```text
@@ -2341,7 +2430,7 @@ Maç sonrası nextFixture: gün 13 rize_yagmur vs denizli_yesilova played=false
 
 Stderr:
 ```text
-(node:52473) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+(node:106134) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
 --import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("./tools/qa-live-loader.mjs", pathToFileURL("./"));'
 (Use `node --trace-warnings ...` to show where the warning was created)
 Warning: An update to Root inside a test was not wrapped in act(...).
@@ -2364,9 +2453,9 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: `ReactDOMTestUtils.act` is deprecated in favor of `React.act`. Import `act` from `react` instead of `react-dom/test-utils`. See https://react.dev/warnings/react-dom-test-utils for more info.
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: An update to GameProvider inside a test was not wrapped in act(...).
 
 When testing, code that causes React state updates should be wrapped into act(...):
@@ -2377,7 +2466,7 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: An update to GameProvider inside a test was not wrapped in act(...).
 
 When testing, code that causes React state updates should be wrapped into act(...):
@@ -2388,7 +2477,7 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: An update to GameProvider inside a test was not wrapped in act(...).
 
 When testing, code that causes React state updates should be wrapped into act(...):
@@ -2399,7 +2488,7 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: An update to GameProvider inside a test was not wrapped in act(...).
 
 When testing, code that causes React state updates should be wrapped into act(...):
@@ -2410,14 +2499,14 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 [hm26] canlı maç adımı hatası: Error: ENJEKTE_EDİLMİŞ_ADIM_HATASI
-    at MatchSession.patchedStep (/tmp/hm26-final-93/tools/qa-live-finish.tsx:71:55)
-    at Timeout._onTimeout (/tmp/hm26-final-93/src/screens/LiveMatch.tsx:230:31)
+    at MatchSession.patchedStep (/tmp/hm26-final-95/tools/qa-live-finish.tsx:90:55)
+    at Timeout._onTimeout (/tmp/hm26-final-95/src/screens/LiveMatch.tsx:230:31)
     at listOnTimeout (node:internal/timers:585:17)
     at process.processTimers (node:internal/timers:521:7)
 ```
-## 61. Matchday progression and end-day regression (jsdom)
+## 62. Matchday progression and end-day regression (jsdom)
 Exit: 0
 
 ```text
@@ -2549,7 +2638,7 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: An update to GameProvider inside a test was not wrapped in act(...).
 
 When testing, code that causes React state updates should be wrapped into act(...):
@@ -2560,7 +2649,7 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: An update to GameProvider inside a test was not wrapped in act(...).
 
 When testing, code that causes React state updates should be wrapped into act(...):
@@ -2571,7 +2660,7 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: An update to GameProvider inside a test was not wrapped in act(...).
 
 When testing, code that causes React state updates should be wrapped into act(...):
@@ -2582,7 +2671,7 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: An update to GameProvider inside a test was not wrapped in act(...).
 
 When testing, code that causes React state updates should be wrapped into act(...):
@@ -2593,7 +2682,7 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: An update to GameProvider inside a test was not wrapped in act(...).
 
 When testing, code that causes React state updates should be wrapped into act(...):
@@ -2604,7 +2693,7 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: An update to GameProvider inside a test was not wrapped in act(...).
 
 When testing, code that causes React state updates should be wrapped into act(...):
@@ -2615,7 +2704,7 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: An update to GameProvider inside a test was not wrapped in act(...).
 
 When testing, code that causes React state updates should be wrapped into act(...):
@@ -2626,7 +2715,7 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: An update to GameProvider inside a test was not wrapped in act(...).
 
 When testing, code that causes React state updates should be wrapped into act(...):
@@ -2637,7 +2726,7 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: An update to GameProvider inside a test was not wrapped in act(...).
 
 When testing, code that causes React state updates should be wrapped into act(...):
@@ -2648,7 +2737,7 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: An update to GameProvider inside a test was not wrapped in act(...).
 
 When testing, code that causes React state updates should be wrapped into act(...):
@@ -2659,9 +2748,9 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 ```
-## 62. Team insights and statistics UI (jsdom)
+## 63. Team insights and statistics UI (jsdom)
 Exit: 0
 
 ```text
@@ -2685,12 +2774,12 @@ DALGA6-TAKIM-UI: PASS
 
 Stderr:
 ```text
-(node:53659) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+(node:108584) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
 --import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("./tools/qa-live-loader.mjs", pathToFileURL("./"));'
 (Use `node --trace-warnings ...` to show where the warning was created)
 Warning: `ReactDOMTestUtils.act` is deprecated in favor of `React.act`. Import `act` from `react` instead of `react-dom/test-utils`. See https://react.dev/warnings/react-dom-test-utils for more info.
 ```
-## 63. Player analytics and match history UI (jsdom)
+## 64. Player analytics and match history UI (jsdom)
 Exit: 0
 
 ```text
@@ -2734,7 +2823,7 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: An update to GameProvider inside a test was not wrapped in act(...).
 
 When testing, code that causes React state updates should be wrapped into act(...):
@@ -2745,7 +2834,7 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: An update to GameProvider inside a test was not wrapped in act(...).
 
 When testing, code that causes React state updates should be wrapped into act(...):
@@ -2756,7 +2845,7 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: An update to GameProvider inside a test was not wrapped in act(...).
 
 When testing, code that causes React state updates should be wrapped into act(...):
@@ -2767,7 +2856,7 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: An update to GameProvider inside a test was not wrapped in act(...).
 
 When testing, code that causes React state updates should be wrapped into act(...):
@@ -2778,7 +2867,7 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: An update to GameProvider inside a test was not wrapped in act(...).
 
 When testing, code that causes React state updates should be wrapped into act(...):
@@ -2789,7 +2878,7 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: An update to GameProvider inside a test was not wrapped in act(...).
 
 When testing, code that causes React state updates should be wrapped into act(...):
@@ -2800,7 +2889,7 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: An update to GameProvider inside a test was not wrapped in act(...).
 
 When testing, code that causes React state updates should be wrapped into act(...):
@@ -2811,7 +2900,7 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: An update to GameProvider inside a test was not wrapped in act(...).
 
 When testing, code that causes React state updates should be wrapped into act(...):
@@ -2822,7 +2911,7 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: An update to GameProvider inside a test was not wrapped in act(...).
 
 When testing, code that causes React state updates should be wrapped into act(...):
@@ -2833,7 +2922,7 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: An update to GameProvider inside a test was not wrapped in act(...).
 
 When testing, code that causes React state updates should be wrapped into act(...):
@@ -2844,9 +2933,9 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 ```
-## 64. Scout, interview and press profile UI (jsdom)
+## 65. Scout, interview and press profile UI (jsdom)
 Exit: 0
 
 ```text
@@ -2893,7 +2982,7 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: An update to GameProvider inside a test was not wrapped in act(...).
 
 When testing, code that causes React state updates should be wrapped into act(...):
@@ -2904,7 +2993,7 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: An update to GameProvider inside a test was not wrapped in act(...).
 
 When testing, code that causes React state updates should be wrapped into act(...):
@@ -2915,7 +3004,7 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: An update to GameProvider inside a test was not wrapped in act(...).
 
 When testing, code that causes React state updates should be wrapped into act(...):
@@ -2926,7 +3015,7 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: An update to GameProvider inside a test was not wrapped in act(...).
 
 When testing, code that causes React state updates should be wrapped into act(...):
@@ -2937,7 +3026,7 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: An update to GameProvider inside a test was not wrapped in act(...).
 
 When testing, code that causes React state updates should be wrapped into act(...):
@@ -2948,7 +3037,7 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: An update to GameProvider inside a test was not wrapped in act(...).
 
 When testing, code that causes React state updates should be wrapped into act(...):
@@ -2959,7 +3048,7 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: An update to GameProvider inside a test was not wrapped in act(...).
 
 When testing, code that causes React state updates should be wrapped into act(...):
@@ -2970,7 +3059,7 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: An update to GameProvider inside a test was not wrapped in act(...).
 
 When testing, code that causes React state updates should be wrapped into act(...):
@@ -2981,7 +3070,7 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: An update to GameProvider inside a test was not wrapped in act(...).
 
 When testing, code that causes React state updates should be wrapped into act(...):
@@ -2992,7 +3081,7 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: An update to GameProvider inside a test was not wrapped in act(...).
 
 When testing, code that causes React state updates should be wrapped into act(...):
@@ -3003,9 +3092,9 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 ```
-## 65. News and career analytics UI (jsdom)
+## 66. News and career analytics UI (jsdom)
 Exit: 0
 
 ```text
@@ -3047,65 +3136,65 @@ Stderr:
 that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
     at div
     at div
-    at InboxScreen (/tmp/hm26-final-93/src/screens/Inbox.tsx:29:70)
-    at Grab (/tmp/hm26-final-93/tools/qa-fixwave-ui.tsx:63:59)
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at InboxScreen (/tmp/hm26-final-95/src/screens/Inbox.tsx:29:70)
+    at Grab (/tmp/hm26-final-95/tools/qa-fixwave-ui.tsx:63:59)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: Encountered two children with the same key, `academy-expired-1`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
     at div
     at div
-    at InboxScreen (/tmp/hm26-final-93/src/screens/Inbox.tsx:29:70)
-    at Grab (/tmp/hm26-final-93/tools/qa-fixwave-ui.tsx:63:59)
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at InboxScreen (/tmp/hm26-final-95/src/screens/Inbox.tsx:29:70)
+    at Grab (/tmp/hm26-final-95/tools/qa-fixwave-ui.tsx:63:59)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: Encountered two children with the same key, `academy-expired-1`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
     at div
     at div
-    at InboxScreen (/tmp/hm26-final-93/src/screens/Inbox.tsx:29:70)
-    at Grab (/tmp/hm26-final-93/tools/qa-fixwave-ui.tsx:63:59)
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at InboxScreen (/tmp/hm26-final-95/src/screens/Inbox.tsx:29:70)
+    at Grab (/tmp/hm26-final-95/tools/qa-fixwave-ui.tsx:63:59)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: Encountered two children with the same key, `academy-expired-1`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
     at div
     at div
-    at InboxScreen (/tmp/hm26-final-93/src/screens/Inbox.tsx:29:70)
-    at Grab (/tmp/hm26-final-93/tools/qa-fixwave-ui.tsx:63:59)
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at InboxScreen (/tmp/hm26-final-95/src/screens/Inbox.tsx:29:70)
+    at Grab (/tmp/hm26-final-95/tools/qa-fixwave-ui.tsx:63:59)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: Encountered two children with the same key, `academy-expired-1`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
     at div
     at div
-    at InboxScreen (/tmp/hm26-final-93/src/screens/Inbox.tsx:29:70)
-    at Grab (/tmp/hm26-final-93/tools/qa-fixwave-ui.tsx:63:59)
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at InboxScreen (/tmp/hm26-final-95/src/screens/Inbox.tsx:29:70)
+    at Grab (/tmp/hm26-final-95/tools/qa-fixwave-ui.tsx:63:59)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: Encountered two children with the same key, `academy-expired-1`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
     at div
     at div
-    at InboxScreen (/tmp/hm26-final-93/src/screens/Inbox.tsx:29:70)
-    at Grab (/tmp/hm26-final-93/tools/qa-fixwave-ui.tsx:63:59)
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at InboxScreen (/tmp/hm26-final-95/src/screens/Inbox.tsx:29:70)
+    at Grab (/tmp/hm26-final-95/tools/qa-fixwave-ui.tsx:63:59)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: Encountered two children with the same key, `academy-expired-1`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
     at div
     at div
-    at InboxScreen (/tmp/hm26-final-93/src/screens/Inbox.tsx:29:70)
-    at Grab (/tmp/hm26-final-93/tools/qa-fixwave-ui.tsx:63:59)
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at InboxScreen (/tmp/hm26-final-95/src/screens/Inbox.tsx:29:70)
+    at Grab (/tmp/hm26-final-95/tools/qa-fixwave-ui.tsx:63:59)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: Encountered two children with the same key, `academy-expired-1`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
     at div
     at div
-    at InboxScreen (/tmp/hm26-final-93/src/screens/Inbox.tsx:29:70)
-    at Grab (/tmp/hm26-final-93/tools/qa-fixwave-ui.tsx:63:59)
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at InboxScreen (/tmp/hm26-final-95/src/screens/Inbox.tsx:29:70)
+    at Grab (/tmp/hm26-final-95/tools/qa-fixwave-ui.tsx:63:59)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: Encountered two children with the same key, `academy-expired-1`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
     at div
     at div
-    at InboxScreen (/tmp/hm26-final-93/src/screens/Inbox.tsx:29:70)
-    at Grab (/tmp/hm26-final-93/tools/qa-fixwave-ui.tsx:63:59)
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at InboxScreen (/tmp/hm26-final-95/src/screens/Inbox.tsx:29:70)
+    at Grab (/tmp/hm26-final-95/tools/qa-fixwave-ui.tsx:63:59)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: Encountered two children with the same key, `academy-expired-1`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
     at div
     at div
-    at InboxScreen (/tmp/hm26-final-93/src/screens/Inbox.tsx:29:70)
-    at Grab (/tmp/hm26-final-93/tools/qa-fixwave-ui.tsx:63:59)
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at InboxScreen (/tmp/hm26-final-95/src/screens/Inbox.tsx:29:70)
+    at Grab (/tmp/hm26-final-95/tools/qa-fixwave-ui.tsx:63:59)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 ```
-## 66. Match preparation and league analytics UI (jsdom)
+## 67. Match preparation and league analytics UI (jsdom)
 Exit: 0
 
 ```text
@@ -3166,7 +3255,7 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: An update to GameProvider inside a test was not wrapped in act(...).
 
 When testing, code that causes React state updates should be wrapped into act(...):
@@ -3177,7 +3266,7 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: An update to GameProvider inside a test was not wrapped in act(...).
 
 When testing, code that causes React state updates should be wrapped into act(...):
@@ -3188,7 +3277,7 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: An update to GameProvider inside a test was not wrapped in act(...).
 
 When testing, code that causes React state updates should be wrapped into act(...):
@@ -3199,7 +3288,7 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: An update to GameProvider inside a test was not wrapped in act(...).
 
 When testing, code that causes React state updates should be wrapped into act(...):
@@ -3210,7 +3299,7 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: An update to GameProvider inside a test was not wrapped in act(...).
 
 When testing, code that causes React state updates should be wrapped into act(...):
@@ -3221,7 +3310,7 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: An update to GameProvider inside a test was not wrapped in act(...).
 
 When testing, code that causes React state updates should be wrapped into act(...):
@@ -3232,7 +3321,7 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: An update to GameProvider inside a test was not wrapped in act(...).
 
 When testing, code that causes React state updates should be wrapped into act(...):
@@ -3243,7 +3332,7 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: An update to GameProvider inside a test was not wrapped in act(...).
 
 When testing, code that causes React state updates should be wrapped into act(...):
@@ -3254,7 +3343,7 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: An update to GameProvider inside a test was not wrapped in act(...).
 
 When testing, code that causes React state updates should be wrapped into act(...):
@@ -3265,7 +3354,7 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 Warning: An update to GameProvider inside a test was not wrapped in act(...).
 
 When testing, code that causes React state updates should be wrapped into act(...):
@@ -3276,17 +3365,17 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at GameProvider (/tmp/hm26-final-93/src/store/game.tsx:219:40)
+    at GameProvider (/tmp/hm26-final-95/src/store/game.tsx:219:40)
 ```
-## 67. Playwright Chromium launch smoke test
+## 68. Playwright Chromium launch smoke test
 Exit: 0
-## 68. Delayed career save readiness E2E
+## 69. Delayed career save readiness E2E
 Exit: 0
 
 ```text
 ✅ Delayed IndexedDB save is awaited and stale career is rejected | reads=5
 ```
-## 69. New career advanced world settings and save E2E
+## 70. New career advanced world settings and save E2E
 Exit: 0
 
 ```text
@@ -3312,7 +3401,7 @@ Exit: 0
 
 CAREER-WORLD-BROWSER: 19 geçti, 0 başarısız
 ```
-## 70. Embedded asset rendering E2E
+## 71. Embedded asset rendering E2E
 Exit: 0
 
 ```text
@@ -3326,13 +3415,13 @@ Exit: 0
 
 E2E-ASSETS: 7/7 geçti
 ```
-## 71. Icon system E2E
+## 72. Icon system E2E
 Exit: 0
 
 ```text
 screenshots ✓
 ```
-## 72. Statistics and career history E2E
+## 73. Statistics and career history E2E
 Exit: 0
 
 ```text
@@ -3346,7 +3435,7 @@ Exit: 0
 
 6 test, 0 başarısız
 ```
-## 73. Save-slot delete flow E2E
+## 74. Save-slot delete flow E2E
 Exit: 0
 
 ```text
@@ -3363,7 +3452,7 @@ Exit: 0
 
 SONUÇ: YUVA SİLME TAMAM
 ```
-## 74. Backup, storage failure, legacy migration and stale-tab E2E (390px)
+## 75. Backup, storage failure, legacy migration and stale-tab E2E (390px)
 Exit: 0
 
 ```text
@@ -3397,7 +3486,7 @@ Exit: 0
 
 27/27 gerçek tarayıcı kayıt kontrolü geçti.
 ```
-## 75. Backup, storage failure, legacy migration and stale-tab E2E (320px)
+## 76. Backup, storage failure, legacy migration and stale-tab E2E (320px)
 Exit: 0
 
 ```text
@@ -3431,7 +3520,7 @@ Exit: 0
 
 27/27 gerçek tarayıcı kayıt kontrolü geçti.
 ```
-## 76. Board budget approval and reload on migrated career E2E (390px)
+## 77. Board budget approval and reload on migrated career E2E (390px)
 Exit: 0
 
 ```text
@@ -3447,7 +3536,7 @@ Exit: 0
 
 9/9 yönetim bütçesi tarayıcı kontrolü geçti (390px).
 ```
-## 77. Board budget approval and reload on migrated career E2E (320px)
+## 78. Board budget approval and reload on migrated career E2E (320px)
 Exit: 0
 
 ```text
@@ -3463,7 +3552,7 @@ Exit: 0
 
 9/9 yönetim bütçesi tarayıcı kontrolü geçti (320px).
 ```
-## 78. Service-worker two-release and offline isolation E2E
+## 79. Service-worker two-release and offline isolation E2E
 Exit: 0
 
 ```text
@@ -3481,7 +3570,7 @@ Exit: 0
 
 11/11 service-worker tarayıcı kontrolü geçti.
 ```
-## 79. Save-before-update and multi-tab game update E2E
+## 80. Save-before-update and multi-tab game update E2E
 Exit: 0
 
 ```text
@@ -3497,7 +3586,7 @@ Exit: 0
 
 9/9 aktif oyun güncelleme kontrolü geçti.
 ```
-## 80. Full profile → starting XI E2E
+## 81. Full profile → starting XI E2E
 Exit: 0
 
 ```text
@@ -3508,7 +3597,7 @@ Exit: 0
 
 4 test, 0 başarısız
 ```
-## 81. Out-of-position warning E2E
+## 82. Out-of-position warning E2E
 Exit: 0
 
 ```text
@@ -3530,7 +3619,7 @@ Exit: 0
 
 SONUÇ: TÜM GEREKSİNİMLER GEÇTİ
 ```
-## 82. Bench-first tactical flow E2E
+## 83. Bench-first tactical flow E2E
 Exit: 0
 
 ```text
@@ -3542,7 +3631,7 @@ Exit: 0
 
 5 test, 0 başarısız
 ```
-## 83. Medical/mentoring/trade E2E
+## 84. Medical/mentoring/trade E2E
 Exit: 0
 
 ```text
@@ -3553,7 +3642,7 @@ Exit: 0
 
 0 BAŞARISIZ · 0 uyarı (atlananlar ⚟)
 ```
-## 84. Transfer theatre, signing and offline media E2E
+## 85. Transfer theatre, signing and offline media E2E
 Exit: 0
 
 ```text
@@ -3575,7 +3664,7 @@ Seçilen aday: Cemal Mense Serbest · Kanat · 33 yaş Yerli oyuncu ⚑ Serbest 
 ✅ 85 GEN bedelsiz oyuncu gerçek tarayıcıda özel yıldız stadyumuna çıkar
 ✅ 320 px dar mobil ekranda yıldız sahnesi kırpılmadan çizilir | {"width":320,"scrollWidth":320,"scene":280,"left":20,"right":300}
 ✅ 320 px ekranda sunucu bildirimi kesilmeden ve doğru konuşmacıyla görünür | {"left":20,"right":300,"speaker":"announcer"}
-✅ Üretim servis çalışanı etkin | {"active":true,"caches":["hm26-v015-29bfaaf0e98fdf53"]}
+✅ Üretim servis çalışanı etkin | {"active":true,"caches":["hm26-v015-ab4129b88b29ba73"]}
 ✅ Üç sahne ve 40 ses çevrimdışı önbellekten açılıyor | 43/43
 ✅ 40 MP3 çevrimdışıyken tarayıcı tarafından çözümleniyor | 40/40
 ✅ Yıldız anonsu çevrimdışıyken altyazıyla çalışıyor
@@ -3583,7 +3672,7 @@ Seçilen aday: Cemal Mense Serbest · Kanat · 33 yaş Yerli oyuncu ⚑ Serbest 
 
 TRANSFER-SCENE-BROWSER: 22/22
 ```
-## 85. Market potential, rotation and sale negotiation E2E
+## 86. Market potential, rotation and sale negotiation E2E
 Exit: 0
 
 ```text
@@ -3637,7 +3726,7 @@ Exit: 0
 
 MARKET-SQUAD-BROWSER: 47 geçti, 0 başarısız
 ```
-## 86. Contract renewal and recorded match highlights E2E
+## 87. Contract renewal and recorded match highlights E2E
 Exit: 0
 
 ```text
@@ -3676,7 +3765,7 @@ Exit: 0
 
 RENEWAL-HIGHLIGHTS-BROWSER: 32 geçti, 0 başarısız
 ```
-## 87. Live reactions, player comparison and weekly paper E2E
+## 88. Live reactions, player comparison and weekly paper E2E
 Exit: 0
 
 ```text
@@ -3714,7 +3803,7 @@ Exit: 0
 ✅ Gerçek oyuncu değişikliği sonrası kulübe isimleri güncellenir
 ✅ Gerçek motor gol/kurtarış/kart ürettiğinde kulübe ve tribün tepki verir | save · celebrate
 ✅ Tepki yalnız gerçek olay türü ve metniyle gösterilir
-✅ Duraklatma maç saatini ve animasyon sahnesini dondurur | [{"state":"paused","time":83.31500000023873},{"state":"paused","time":83.31500000023873},{"state":"paused","time":83.31500000023873}]
+✅ Duraklatma maç saatini ve animasyon sahnesini dondurur | [{"state":"paused","time":83.30999999990053},{"state":"paused","time":83.30999999990053},{"state":"paused","time":83.30999999990053}]
 ✅ 320 px olay kartını kenar talimatı düğmesi örtmez | {"overlaps":false,"buttonInFooter":true}
 ✅ Kenar talimatı simgesi koyu zeminde okunaklı | kontrast=9.19
 ✅ Son tepkiler açılabilir ve gerçek maç olayını korur
@@ -3731,7 +3820,7 @@ Exit: 0
 
 48/48 geçti
 ```
-## 88. Match arrival, award, training and career story E2E
+## 89. Match arrival, award, training and career story E2E
 Exit: 0
 
 ```text
@@ -3743,8 +3832,8 @@ Exit: 0
 ✅ Fizik seçimi sahnenin gerçek çalışmasını değiştirir
 ✅ Zekâ seçimi sahnenin gerçek çalışmasını değiştirir
 ✅ Teknik seçimi sahnenin gerçek çalışmasını değiştirir
-✅ Seçili teknik çalışmasında oyuncu gerçekten hareket eder | matrix(1, 0, 0, 1, 0, 0) → matrix(1, 0, 0, 1, 27.8619, -10.7161)
-✅ Tesis duraklatılınca animasyon gerçekten durur | matrix(1, 0, 0, 1, 34.8303, -13.3963) → matrix(1, 0, 0, 1, 34.8303, -13.3963)
+✅ Seçili teknik çalışmasında oyuncu gerçekten hareket eder | matrix(1, 0, 0, 1, 0, 0) → matrix(1, 0, 0, 1, 25.5706, -9.83483)
+✅ Tesis duraklatılınca animasyon gerçekten durur | matrix(1, 0, 0, 1, 34.8299, -13.3961) → matrix(1, 0, 0, 1, 34.8299, -13.3961)
 ✅ Yoğunluk seçimi hız ve kayıtlı odağa yansır
 ✅ İşletim sisteminin azaltılmış hareket tercihi tesisi durdurur
 ✅ 390 px tesis panel dışına taşmaz | {"width":390,"scrollWidth":390,"left":20,"right":370,"elWidth":350,"dialogLeft":0,"dialogRight":390}
@@ -3758,7 +3847,7 @@ Exit: 0
 ✅ Kariyer hikâyesi koyu temada okunur ve taşmaz
 ✅ Geliş sahnesi izlenmeden de maç başlatma seçeneği korunur
 ✅ Deplasmanda takım otobüsü gerçek ev sahibi stadyumuna gelir
-✅ Otobüs sahnede gerçekten ilerler | -259.7 → -240.6
+✅ Otobüs sahnede gerçekten ilerler | -260 → -239.8
 ✅ Duraklatma otobüsü ve dekoru dondurur
 ✅ Sürgü otobüsü park eder, kapıyı açar ve gerçek üç oyuncuyu gösterir
 ✅ 320 px geliş sahnesi panele sığar | {"width":320,"scrollWidth":320,"left":20,"right":300,"elWidth":280,"dialogLeft":0,"dialogRight":320}
@@ -3781,7 +3870,7 @@ Exit: 0
 
 Kariyer sahneleri Chromium: 43/43 geçti.
 ```
-## 89. Market filters and live tactic flow E2E (390px)
+## 90. Market filters and live tactic flow E2E (390px)
 Exit: 0
 
 ```text
@@ -3792,14 +3881,14 @@ Exit: 0
 ✅ B5 Akış: rol/log bölgesi mevcut
 ✅ B6 Akış: ilk olay ("Maç başladı") ilk saniyede görünür — akış boş açılış yapmıyor
 ✅ B10 Otomatik 11 sonrası canlı hücum talimatı kabul edilir
-✅ B7 Akış: ilk 30 dk dolayında en az 4 olay satırı | satir=23
+✅ B7 Akış: ilk 30 dk dolayında en az 4 olay satırı | satir=23 durum=paused
 ✅ B8 Akış: liste skorbord ve sekmelere taşmıyor | akis=210–642, sekmeler=663
-✅ B9 Akış: sekmeye dönüşte canlı günlük korunuyor
+✅ B9 Akış: sekmeye dönüşte canlı günlük korunuyor | hidden=true selected=true before=23 after=23 same=true state=paused
 ✅ B11 Canlı taktik akışında yakalanmamış uygulama hatası yok
 
 E2E-V099: 11/11 geçti (390px)
 ```
-## 90. Market filters and live tactic flow E2E (320px)
+## 91. Market filters and live tactic flow E2E (320px)
 Exit: 0
 
 ```text
@@ -3810,14 +3899,33 @@ Exit: 0
 ✅ B5 Akış: rol/log bölgesi mevcut
 ✅ B6 Akış: ilk olay ("Maç başladı") ilk saniyede görünür — akış boş açılış yapmıyor
 ✅ B10 Otomatik 11 sonrası canlı hücum talimatı kabul edilir
-✅ B7 Akış: ilk 30 dk dolayında en az 4 olay satırı | satir=23
+✅ B7 Akış: ilk 30 dk dolayında en az 4 olay satırı | satir=23 durum=paused
 ✅ B8 Akış: liste skorbord ve sekmelere taşmıyor | akis=210–518, sekmeler=539
-✅ B9 Akış: sekmeye dönüşte canlı günlük korunuyor
+✅ B9 Akış: sekmeye dönüşte canlı günlük korunuyor | hidden=true selected=true before=23 after=23 same=true state=paused
 ✅ B11 Canlı taktik akışında yakalanmamış uygulama hatası yok
 
 E2E-V099: 11/11 geçti (320px)
 ```
-## 91. Live scorebug, feed, accessible Phaser pitch and action E2E (v0.9.12)
+## 92. Injury treatment and return E2E (320px home, 390px away)
+Exit: 0
+
+```text
+✅ 320px home: gerçek sakatlık kararı açılır
+✅ 320px home: karar beklerken maç saati durur
+✅ 320px home: tedavi seçimi yalnız bir kez işlenir ve aynı pencere açılmaz | {"phase":"waiting","waitCalls":1,"steps":7}
+✅ 320px home: dönüş yeni sakatlık kararı açmaz
+✅ 320px home: tedavi kararı ve dönüş gerçek akışta kalır
+✅ 320px home: yakalanmamış tarayıcı hatası yok
+✅ 390px away: gerçek sakatlık kararı açılır
+✅ 390px away: karar beklerken maç saati durur
+✅ 390px away: tedavi seçimi yalnız bir kez işlenir ve aynı pencere açılmaz | {"phase":"waiting","waitCalls":1,"steps":7}
+✅ 390px away: dönüş yeni sakatlık kararı açmaz
+✅ 390px away: tedavi kararı ve dönüş gerçek akışta kalır
+✅ 390px away: yakalanmamış tarayıcı hatası yok
+
+INJURY-DECISION-BROWSER: 12/12
+```
+## 93. Live scorebug, feed, accessible Phaser pitch and action E2E (v0.9.12)
 Exit: 0
 
 ```text
@@ -3870,19 +3978,19 @@ Exit: 0
 
 E2E-LIVE-V0913: 24/24 geçti
 ```
-## 92. Deterministic Phaser motion and pause E2E
+## 94. Deterministic Phaser motion and pause E2E
 Exit: 0
 
 ```text
 ✅ Durdurulmuş başlangıçta 22 oyuncu köşeden gelmeden doğru yerde | oyuncu=22 duraklatıldı=true
 ✅ İlk top ve gerçek sahibi başlangıçta sahada aynı bölgede
 ✅ Asenkron React açılışı duraklatılmışken iki takımı da çizer | {"red":1051,"blue":1067}
-✅ Top tek karede takılmadan birden çok karede ilerler | 74.6 → 137.5 → 238.5
+✅ Top tek karede takılmadan birden çok karede ilerler | 74.6 → 137.5 → 231.0
 ✅ Havalanan top hedefe ulaşıp tekrar yere iner | {"x":245.44000000000003,"y":90.464}
 ✅ Top sahibi ve hareket hedefi güncel motor verisinden çizilir
 ✅ Maç duraklatılınca top ve oyuncu animasyonları gerçekten donar
 ✅ Devam edilince donmuş hareket kaldığı yerden sürer
-✅ 1× ve 4× hareket uzunlukları seçilen hıza uyumlu | 1× ilerleme=0.27 4× x=74.6
+✅ 1× ve 4× hareket uzunlukları seçilen hıza uyumlu | 1× ilerleme=0.23 4× x=74.6
 ✅ Değişiklikte yeni oyuncu (0,0) yerine kendi yuvasında belirir
 ✅ Metin olayı devam eden top yolunu kesmez; replik motor verisini değiştirmez
 ✅ Olay bitince top arada güncellenen en son oyun konumuna yetişir | {"x":245.44000000000003,"y":220}
@@ -3895,7 +4003,7 @@ Exit: 0
 
 PITCH-MOTION-BROWSER: 18/18
 ```
-## 93. PWA offline shell + cached bundles E2E (v0.9.12)
+## 95. PWA offline shell + cached bundles E2E (v0.9.12)
 Exit: 0
 
 ```text
