@@ -2,7 +2,7 @@
 // Kullanım: npm run qa:all
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, writeFileSync } from 'node:fs';
-import { qaChildStatus } from './qa-child-status.mjs';
+import { qaChildStatus, qaFailureAnnotation } from './qa-child-status.mjs';
 
 const root = process.cwd();
 const reportPath = `${root}/QA-AUTOMATION-LATEST.md`;
@@ -207,5 +207,8 @@ try {
   ].filter(Boolean).join('\n');
   writeFileSync(reportPath, `${report}\n`);
   console.log(`\nQA report: ${reportPath}\n${pass}/${rows.length} stages passed; ${fail} failed.`);
+  if (fail && process.env.GITHUB_ACTIONS === 'true') {
+    for (const row of rows.filter((item) => item.code !== 0)) console.error(qaFailureAnnotation(row));
+  }
   if (fail) process.exitCode = 1;
 }
