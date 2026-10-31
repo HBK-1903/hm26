@@ -12,6 +12,7 @@ import { Crest } from '../components/assets/Crest';
 import { clubById } from '../data/clubs';
 import { fitnessBreakdown, formTrend, recentRatings, rotationAdvice, type FormTrend } from '../engine/squadInsights';
 import { playerMatchLog, summarizePlayerLog, ratingTrend } from '../engine/playerInsights';
+import { seasonRatings } from '../engine/seasonRatings';
 import { RatingSparkline } from '../components/ui/charts';
 import { COMP_LABEL } from '../data/newsroom';
 
@@ -33,6 +34,7 @@ export const SquadScreen: React.FC<{ goXI: (p: Player) => void }> = ({ goXI }) =
   const [full, setFull] = useState<Player | null>(null);
   const fullTrapRef = useFocusTrap<HTMLDivElement>(!!full);
   const { show, ToastView } = useToast();
+  const ratings = useMemo(() => seasonRatings(g.playerStats ?? {}, g.matchReports ?? [], g.seasonNo), [g.playerStats, g.matchReports, g.seasonNo]);
 
   const list = useMemo(() => {
     let arr = [...g.mySquad];
@@ -450,17 +452,22 @@ export const SquadScreen: React.FC<{ goXI: (p: Player) => void }> = ({ goXI }) =
               {(() => {
                 const st = g.playerStats?.[full.id];
                 if (!st || !st.apps) return <p className="text-muted text-[12px]">Henüz resmî maç istatistiği yok — bu bilgi sezon ilerledikçe birikir.</p>;
-                const ort = st.ratingSum / st.apps;
-                // v0.9.5: kalecide şartname düzeni (Maç/Yediği/Gol Yememe)
+                const rating = ratings[full.id];
+                const ort = rating ? `${rating.source === 'legacy' ? '≈' : ''}${rating.average.toFixed(1)}` : '—';
+                // Kaleci ayrıntıları score-only AI maçlarında üretilmez.
+                const cards = rating ? st.yellows + st.reds : '—';
                 const cells: (string | number)[][] = full.group === 'GK'
-                  ? [[st.apps, 'Maç'], [st.conceded ?? 0, 'Yediği'], [st.cleanSheets ?? 0, 'Yememe'], [ort.toFixed(1), 'Ort.'], [st.yellows + st.reds, 'Kart']]
-                  : [[st.apps, 'Maç'], [st.goals, 'Gol'], [st.assists, 'Asist'], [ort.toFixed(1), 'Ort.'], [st.yellows + st.reds, 'Kart']];
+                  ? [[st.apps, 'Maç'], [rating ? st.conceded ?? 0 : '—', 'Yediği'], [rating ? st.cleanSheets ?? 0 : '—', 'Yememe'], [ort, 'Ort.'], [cards, 'Kart']]
+                  : [[st.apps, 'Maç'], [st.goals, 'Gol'], [st.assists, 'Asist'], [ort, 'Ort.'], [cards, 'Kart']];
                 return (
-                  <div className="grid grid-cols-5 gap-1 text-center">
-                    {cells.map(([v, l]) => (
-                      <div key={l as string}><div className="num text-primary font-extrabold text-[15px]">{v}</div><div className="text-muted text-[9px] uppercase mt-0.5">{l}</div></div>
-                    ))}
-                  </div>
+                  <>
+                    <div className="grid grid-cols-5 gap-1 text-center">
+                      {cells.map(([v, l]) => (
+                        <div key={l as string}><div className="num text-primary font-extrabold text-[15px]">{v}</div><div className="text-muted text-[9px] uppercase mt-0.5">{l}</div></div>
+                      ))}
+                    </div>
+                    <p className="text-muted text-[10px] mt-2 leading-snug">Puan, kart ve kaleci ayrıntıları raporlanan maçlara aittir.{rating?.source === 'legacy' ? ' ≈ eski toplam (yaklaşık).' : ''}</p>
+                  </>
                 );
               })()}
             </Card>
@@ -490,11 +497,11 @@ export const SquadScreen: React.FC<{ goXI: (p: Player) => void }> = ({ goXI }) =
                     <Row h sezon="Sezon" kulup="Kulüp" mac="Maç" a={isGK ? 'Yediği' : 'Gol'} b={isGK ? 'Yememe' : 'Asist'} ort="Ort" />
                     {st && st.apps > 0 && (
                       <Row alt sezon={`${seasonOf(g.seasonNo)} ▶`} kulup={clubById(st.clubId)?.short ?? st.clubId} mac={st.apps}
-                        a={isGK ? st.conceded ?? 0 : st.goals} b={isGK ? st.cleanSheets ?? 0 : st.assists} ort={(st.ratingSum / st.apps).toFixed(2)} />
+                        a={isGK ? ratings[full.id] ? st.conceded ?? 0 : '—' : st.goals} b={isGK ? ratings[full.id] ? st.cleanSheets ?? 0 : '—' : st.assists} ort={ratings[full.id] ? `${ratings[full.id].source === 'legacy' ? '≈' : ''}${ratings[full.id].average.toFixed(2)}` : '—'} />
                     )}
                     {hist.map((r) => (
                       <Row key={`${r.season}-${r.clubId}`} sezon={seasonOf(r.season)} kulup={clubById(r.clubId)?.short ?? r.clubId} mac={r.apps}
-                        a={isGK ? r.conceded ?? 0 : r.goals} b={isGK ? r.cleanSheets ?? 0 : r.assists} ort={r.avgRating.toFixed(2)} />
+                        a={isGK ? r.conceded ?? 0 : r.goals} b={isGK ? r.cleanSheets ?? 0 : r.assists} ort={r.avgRating > 0 ? r.avgRating.toFixed(2) : '—'} />
                     ))}
                   </div>
                 );

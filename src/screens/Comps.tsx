@@ -1,6 +1,6 @@
 // HM26 — §5.8 Müsabakalar (Aşama 1: 3 lig puan tablosu + Miras Kupası grupları + eleme ağacı)
 import React, { useMemo, useState } from 'react';
-import { Card, Badge, Seg } from '../components/ui/kit';
+import { Card, Badge } from '../components/ui/kit';
 import { ExpandableRanking } from '../components/ui/ExpandableRanking';
 import { Crest } from '../components/assets/Crest';
 import { useGame } from '../store/game';
@@ -10,6 +10,7 @@ import { clubById, clubByIdSafe, LEAGUES } from '../data/clubs';
 import { LeagueId, TableRow } from '../types';
 import { cupGroupTable, dayToDate } from '../data/calendar';
 import { internationalGroupTable, type InternationalCupId } from '../data/international';
+import { seasonRatings } from '../engine/seasonRatings';
 
 type Tab = 'ligler' | 'fikstur' | 'kupa' | 'agac' | 'istatistik' | 'uluslararasi';
 
@@ -21,6 +22,7 @@ export const CompsScreen: React.FC = () => {
   const [internationalCupId, setInternationalCupId] = useState<InternationalCupId>('champions');
   const internationalCup = g.international?.cups.find((competition) => competition.id === internationalCupId);
   const internationalScorers = Object.values(internationalCup?.scorers ?? {}).sort((a, b) => b.goals - a.goals || a.playerId.localeCompare(b.playerId));
+  const ratings = useMemo(() => seasonRatings(g.playerStats ?? {}, g.matchReports ?? [], g.seasonNo), [g.playerStats, g.matchReports, g.seasonNo]);
 
   const myRank = g.table[g.myLeague].findIndex((r) => r.clubId === g.myClub.id) + 1;
 
@@ -55,11 +57,14 @@ export const CompsScreen: React.FC = () => {
         <div className="text-muted text-[11px] mt-0.5">S{g.seasonNo} · {LEAGUES[g.myLeague].name}'nde {myRank > 0 ? `${myRank}.` : '—'} sıradasın</div>
       </div>
       <div className="px-4 pb-2">
-        <Seg
-          value={tab}
-          onChange={(v) => setTab(v as Tab)}
-          options={[{ v: 'ligler', label: 'Ligler' }, { v: 'fikstur', label: 'Fikstür' }, { v: 'kupa', label: 'Miras' }, { v: 'agac', label: 'Eleme' }, { v: 'istatistik', label: 'Krallıklar' }, { v: 'uluslararasi', label: 'Kıtalar' }]}
-        />
+        <div className="grid grid-cols-3 bg-base rounded-xl p-1 gap-1" role="group" aria-label="Müsabaka bölümleri">
+          {([['ligler', 'Ligler'], ['fikstur', 'Fikstür'], ['kupa', 'Miras'], ['agac', 'Eleme'], ['istatistik', 'Krallıklar'], ['uluslararasi', 'Kıtalar']] as [Tab, string][]).map(([value, label]) => (
+            <button key={value} type="button" onClick={() => setTab(value)} aria-pressed={tab === value}
+              className={`min-h-touch rounded-lg text-[12px] font-bold transition-colors ${tab === value ? 'bg-elevated text-amber shadow-inner' : 'text-secondary'}`}>
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
       <div className="flex-1 overflow-y-auto no-scrollbar px-4 pb-6">
 
@@ -73,37 +78,41 @@ export const CompsScreen: React.FC = () => {
               ))}
             </div>
             <Card className="!p-0 overflow-hidden">
-              <div className="grid grid-cols-[26px_1fr_repeat(6,26px)_56px] gap-0 px-2.5 py-2 text-[10px] text-muted font-bold uppercase border-b border-line/60">
-                <span>#</span><span>Kulüp</span>
-                <span className="text-center">O</span><span className="text-center">G</span><span className="text-center">B</span><span className="text-center">M</span><span className="text-center">AV</span><span className="text-center">P</span>
-                <span className="text-center">Form</span>
+              <div className="flex items-center justify-between px-3 py-2 text-[10px] text-muted font-bold uppercase border-b border-line/60">
+                <span>Sıra · Kulüp</span><span>Puan</span>
               </div>
-              {g.table[league].map((r: TableRow, i: number) => {
-                const c = clubById(r.clubId);
-                const mine = r.clubId === g.career.clubId;
-                return (
-                  <div key={r.clubId}
-                    className={`grid grid-cols-[26px_1fr_repeat(6,26px)_56px] gap-0 px-2.5 py-2 items-center border-b border-line/30 last:border-0 text-[12px] ${mine ? 'bg-amber/5' : ''}`}>
-                    <span className={`num font-bold ${i < 2 ? 'text-ok' : i >= g.table[league].length - 2 ? 'text-danger' : 'text-secondary'}`}>{i + 1}</span>
-                    <span className="flex items-center gap-1.5 min-w-0">
-                      <Crest club={c} size={20} />
-                      <span className={`truncate ${mine ? 'text-amber font-bold' : 'text-primary'}`}>{c.short}</span>
-                    </span>
-                    <span className="text-center num text-secondary">{r.p}</span>
-                    <span className="text-center num text-secondary">{r.w}</span>
-                    <span className="text-center num text-secondary">{r.d}</span>
-                    <span className="text-center num text-secondary">{r.l}</span>
-                    <span className="text-center num text-secondary">{r.gf - r.ga > 0 ? `+${r.gf - r.ga}` : r.gf - r.ga}</span>
-                    <span className={`text-center num font-bold ${mine ? 'text-amber' : 'text-primary'}`}>{r.pts}</span>
-                    <span className="flex items-center justify-center gap-[2px]" title="Son 5 maç (soldan yeniye)">
-                      {(formByClub[r.clubId] ?? []).slice().reverse().map((f, fi) => (
-                        <span key={fi} className="inline-block rounded-[3px]" style={{ width: 7, height: 14, background: f === 'G' ? 'var(--c-ok)' : f === 'B' ? 'var(--c-warn)' : 'var(--c-danger)', opacity: 0.35 + fi * 0.16 }} />
-                      ))}
-                      {(formByClub[r.clubId] ?? []).length === 0 && <span className="text-[10px] text-muted">—</span>}
-                    </span>
-                  </div>
-                );
-              })}
+              <ol aria-label={`${LEAGUES[league].name} puan tablosu`}>
+                {g.table[league].map((r: TableRow, i: number) => {
+                  const c = clubById(r.clubId);
+                  const mine = r.clubId === g.career.clubId;
+                  const form = (formByClub[r.clubId] ?? []).slice().reverse();
+                  const diff = r.gf - r.ga;
+                  return (
+                    <li key={r.clubId} data-league-club={r.clubId} className={`px-3 py-2 border-b border-line/30 last:border-0 ${mine ? 'bg-amber/5' : ''}`}>
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className={`num w-5 shrink-0 text-[12px] font-bold ${i < 2 ? 'text-ok' : i >= g.table[league].length - 2 ? 'text-danger' : 'text-secondary'}`}>{i + 1}</span>
+                        <Crest club={c} size={20} />
+                        <span data-club-name className={`min-w-0 flex-1 text-[12px] leading-snug break-words ${mine ? 'text-amber font-bold' : 'text-primary font-semibold'}`}>
+                          {c.name} <span className="text-muted text-[10px] font-semibold">({c.short})</span>
+                        </span>
+                        <span className={`num shrink-0 text-[13px] font-extrabold ${mine ? 'text-amber' : 'text-primary'}`} aria-label={`${r.pts} puan`}>{r.pts}</span>
+                      </div>
+                      <div className="grid grid-cols-[repeat(5,minmax(0,1fr))_64px] items-center gap-1 mt-1.5 text-[10px] text-secondary" aria-label="Maç istatistikleri">
+                        {([['O', 'Oynanan', r.p], ['G', 'Galibiyet', r.w], ['B', 'Beraberlik', r.d], ['M', 'Mağlubiyet', r.l], ['AV', 'Averaj', diff > 0 ? `+${diff}` : diff]] as const).map(([short, label, value]) => (
+                          <span key={short} className="whitespace-nowrap" aria-label={`${label}: ${value}`}><span className="text-muted">{short}</span> <b className="num text-primary">{value}</b></span>
+                        ))}
+                        <span className="flex items-center justify-end gap-[2px]" aria-label={form.length ? `Son 5 maç, eskiden yeniye: ${form.join(' ')}` : 'Henüz form verisi yok'} title="Son 5 maç (soldan yeniye)">
+                          <span className="text-muted mr-1">Form</span>
+                          {form.map((result, fi) => (
+                            <span key={fi} aria-hidden="true" className="inline-block rounded-[3px]" style={{ width: 7, height: 14, background: result === 'G' ? 'var(--c-ok)' : result === 'B' ? 'var(--c-warn)' : 'var(--c-danger)', opacity: 0.35 + fi * 0.16 }} />
+                          ))}
+                          {form.length === 0 && <span className="text-muted">—</span>}
+                        </span>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ol>
             </Card>
             <p className="text-[11px] text-muted mt-2 leading-snug">
               {league === 'zirve' ? 'İlk 2 → şampiyonluk havuzu; son 2 → Geçit Ulusal\'a düşer.' : league === 'gecit' ? 'İlk 2 → Miras Zirve\'ye yükselir; son 2 → Kök Bölge\'ye düşer.' : 'İlk 2 → Geçit Ulusal\'a yükselir.'} Renkli satır: senin kulübün.
@@ -187,7 +196,7 @@ export const CompsScreen: React.FC = () => {
               const byLeague = stats.filter((s) => g.leagueOf[s.clubId] === league);
               const topGoals = [...byLeague].sort((a, b) => b.goals - a.goals);
               const topAssists = [...byLeague].sort((a, b) => b.assists - a.assists);
-              const topRating = [...byLeague].filter((s) => s.apps >= 3).sort((a, b) => (b.ratingSum / b.apps) - (a.ratingSum / a.apps));
+              const topRating = [...byLeague].filter((s) => (ratings[s.playerId]?.games ?? 0) >= 3).sort((a, b) => ratings[b.playerId].average - ratings[a.playerId].average);
               const leagueShot = (list: typeof stats, metric: (s: (typeof stats)[0]) => string, label: string) => (
                 <ExpandableRanking
                   title={label} rows={list} previewLimit={8} unit="oyuncu" rowKey={(row) => row.playerId}
@@ -217,7 +226,8 @@ export const CompsScreen: React.FC = () => {
                   </div>
                   {leagueShot(topGoals, (s) => `${s.goals} gol`, 'Gol Krallığı (sezon)')}
                   {leagueShot(topAssists, (s) => `${s.assists} asist`, 'Asist Krallığı (sezon)')}
-                  {leagueShot(topRating, (s) => `${(s.ratingSum / s.apps).toFixed(1)}`, 'Ortalama Reyting (min 3 maç)')}
+                  {leagueShot(topRating, (s) => `${ratings[s.playerId].source === 'legacy' ? '≈' : ''}${ratings[s.playerId].average.toFixed(1)}`, 'Ortalama Reyting (min 3 maç)')}
+                  <p className="text-muted text-[11px] leading-snug">Reyting sadece puanı olan maçlardan hesaplanır; ≈ işaretli eski toplamlar rapor eksikse yaklaşık olabilir.</p>
                 </>
               );
             })()}

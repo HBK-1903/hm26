@@ -10,6 +10,7 @@ import { clubById, clubByIdSafe } from '../data/clubs';
 import type { MatchArchiveEntry } from '../types';
 import { MatchHighlights } from '../components/match/MatchHighlights';
 import { archivedHighlightEvents } from '../engine/highlights';
+import { seasonRatings } from '../engine/seasonRatings';
 import { COMP_LABEL } from '../data/newsroom';
 import { buildXptsTable, buildLeagueXptsTable, buildFairPlayTable, goalkeeperSaveRate, buildRefereeProfile } from '../engine/analytics';
 import { normalizeMyMatches, teamSplit, formStrip, goalBuckets, perMatch, xgTrend, xgVerdict, seasonMatchStats, cardDisciplineByPosition, type TeamSplitRow } from '../engine/teamInsights';
@@ -61,8 +62,8 @@ export const StatsHub: React.FC = () => {
   const seasonLabel = `${2025 + g.seasonNo}–${String(26 + g.seasonNo).padStart(2, '0')}`;
 
   const rows = useMemo(() => Object.values(stats).filter((r) => r.apps > 0), [stats]);
+  const ratings = useMemo(() => seasonRatings(stats, g.matchReports ?? [], g.seasonNo), [stats, g.matchReports, g.seasonNo]);
   const nameOf = (pid: string) => g.playerOf(pid)?.name ?? `Oyuncu #${pid.slice(0, 4)}`;
-  const avg = (r: { ratingSum: number; apps: number }) => r.ratingSum / r.apps;
 
   const topScorers = useMemo<RankRow[]>(() =>
     rows.filter((r) => r.goals > 0)
@@ -75,14 +76,14 @@ export const StatsHub: React.FC = () => {
       .map((r) => ({ playerId: r.playerId, clubId: r.clubId, label: nameOf(r.playerId), value: r.assists, sub: `${r.apps} maç` })), [rows]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const topRating = useMemo<RankRow[]>(() =>
-    rows.filter((r) => r.apps >= 3)
-      .sort((a, b) => avg(b) - avg(a) || b.apps - a.apps || a.playerId.localeCompare(b.playerId))
-      .map((r) => ({ playerId: r.playerId, clubId: r.clubId, label: nameOf(r.playerId), value: +avg(r).toFixed(2), sub: `${r.apps} maç` })), [rows]); // eslint-disable-line react-hooks/exhaustive-deps
+    rows.filter((r) => (ratings[r.playerId]?.games ?? 0) >= 3)
+      .sort((a, b) => ratings[b.playerId].average - ratings[a.playerId].average || ratings[b.playerId].games - ratings[a.playerId].games || a.playerId.localeCompare(b.playerId))
+      .map((r) => ({ playerId: r.playerId, clubId: r.clubId, label: nameOf(r.playerId), value: +ratings[r.playerId].average.toFixed(2), sub: `${ratings[r.playerId].games} puanlı maç${ratings[r.playerId].source === 'legacy' ? ' · eski toplam' : ''}` })), [rows, ratings]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const gkSheets = useMemo<RankRow[]>(() =>
     rows.filter((r) => (r.cleanSheets ?? 0) > 0 && g.playerOf(r.playerId)?.group === 'GK')
       .sort((a, b) => (b.cleanSheets ?? 0) - (a.cleanSheets ?? 0) || (a.conceded ?? 0) - (b.conceded ?? 0) || a.playerId.localeCompare(b.playerId))
-      .map((r) => ({ playerId: r.playerId, clubId: r.clubId, label: nameOf(r.playerId), value: r.cleanSheets ?? 0, sub: `${r.conceded ?? 0} yediği · ${r.apps} maç` })), [rows]); // eslint-disable-line react-hooks/exhaustive-deps
+      .map((r) => ({ playerId: r.playerId, clubId: r.clubId, label: nameOf(r.playerId), value: r.cleanSheets ?? 0, sub: `${r.conceded ?? 0} yediği · raporlanan maçlar` })), [rows]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const hotheads = useMemo<RankRow[]>(() =>
     rows.filter((r) => (r.yellows + r.reds) > 0)
@@ -90,9 +91,9 @@ export const StatsHub: React.FC = () => {
       .map((r) => ({ playerId: r.playerId, clubId: r.clubId, label: nameOf(r.playerId), value: r.yellows + r.reds * 3, sub: `${r.yellows} sarı · ${r.reds} kırmızı` })), [rows]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const gentlemen = useMemo<RankRow[]>(() =>
-    rows.filter((r) => r.apps >= 5 && (r.yellows + r.reds) === 0)
-      .sort((a, b) => avg(b) - avg(a) || b.apps - a.apps || a.playerId.localeCompare(b.playerId))
-      .map((r) => ({ playerId: r.playerId, clubId: r.clubId, label: nameOf(r.playerId), value: +avg(r).toFixed(2), sub: `${r.apps} maç · 0 kart` })), [rows]); // eslint-disable-line react-hooks/exhaustive-deps
+    rows.filter((r) => (ratings[r.playerId]?.games ?? 0) >= 5 && (r.yellows + r.reds) === 0)
+      .sort((a, b) => ratings[b.playerId].average - ratings[a.playerId].average || ratings[b.playerId].games - ratings[a.playerId].games || a.playerId.localeCompare(b.playerId))
+      .map((r) => ({ playerId: r.playerId, clubId: r.clubId, label: nameOf(r.playerId), value: +ratings[r.playerId].average.toFixed(2), sub: `${ratings[r.playerId].games} ${ratings[r.playerId].source === 'legacy' ? 'maç (eski toplam)' : 'raporlu maç'} · 0 kart` })), [rows, ratings]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Dalga 1: kaleci kurtarış yüzdesi krallığı (kurtarış / (kurtarış + yenilen gol))
   const gkSaves = useMemo<RankRow[]>(() =>
@@ -100,7 +101,7 @@ export const StatsHub: React.FC = () => {
       .map((r) => ({ r, rate: goalkeeperSaveRate(r.saves, r.conceded) }))
       .filter((x): x is { r: typeof x.r; rate: number } => x.rate !== null)
       .sort((a, b) => b.rate - a.rate || (b.r.saves ?? 0) - (a.r.saves ?? 0))
-      .map(({ r, rate }) => ({ playerId: r.playerId, clubId: r.clubId, label: nameOf(r.playerId), value: rate, sub: `%${rate} · ${r.saves} kurtarış · ${r.apps} maç` })), [rows]); // eslint-disable-line react-hooks/exhaustive-deps
+      .map(({ r, rate }) => ({ playerId: r.playerId, clubId: r.clubId, label: nameOf(r.playerId), value: rate, sub: `%${rate} · ${r.saves} kurtarış · raporlanan maçlar` })), [rows]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Dalga 1: kullanıcının ligine ait arşiv raporlarından xPTS ve Fair Play agregatı
   const myLeague = g.leagueOf[g.career.clubId] ?? g.myClub.league;
@@ -168,6 +169,7 @@ export const StatsHub: React.FC = () => {
                 {topRating.length ? <RankTable title="⭐ Maç Puanı (min. 3 maç)" rows={topRating} /> : null}
                 {gkSheets.length ? <RankTable title="🧤 Gol Yememe (Kaleciler)" rows={gkSheets} /> : null}
                 {gkSaves.length ? <RankTable title="🧤 Kurtarış Yüzdesi (Kaleciler)" rows={gkSaves} /> : null}
+                <p className="text-muted text-[11px] leading-snug">Sonuç odaklı yapay zekâ maçlarında seçilen ilk 11 sayılır; oyuncu değişikliği ve maç puanı üretilmez. Puan ve kaleci ayrıntıları raporlanan maçlardan gelir. Eksik geçmiş nedeniyle eski yapay zekâ maç sayıları geriye dönük düzeltilemez; eski puan toplamları yaklaşık olabilir.</p>
                 {!topScorers.length && !topAssists.length && !topRating.length && <EmptyBox icon="chart" title="Sezon yeni başladı" note="İlk maçlar oynanınca krallık tabloları burada belirecek." />}
               </>}
           </>

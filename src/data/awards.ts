@@ -1,6 +1,7 @@
 // HM26 — Dalga 4: Sezon Ödülleri (saf hesap — qa-extended AW1)
 // Veri: sezon boyu biriken playerStats (gol/asist/kart puan toplamı/maç)
 import { mulberry32 } from './gen';
+import type { SeasonRating } from '../engine/seasonRatings';
 
 export interface StatLine { playerId: string; clubId: string; goals: number; assists: number; yellows: number; reds: number; ratingSum: number; apps: number }
 export interface AwardRow { playerId: string; clubId: string; value: number; display: string }
@@ -19,20 +20,23 @@ export function computeSeasonAwards(
   stats: Record<string, StatLine>,
   ageOf: (playerId: string) => number | null,
   minApps = 8,
+  ratings?: Readonly<Record<string, SeasonRating>>,
 ): SeasonAwards | null {
   const rows = Object.values(stats).filter((r) => r.apps > 0);
   if (rows.length < 20) return null; // çok erken sezon — tören anlamsız
   const appsOf = (id: string) => stats[id]?.apps ?? 0;
   const scorer = rank(rows.filter((r) => r.goals > 0).map((r) => ({ playerId: r.playerId, clubId: r.clubId, value: r.goals, display: `${r.goals} gol` })), appsOf);
   const assist = rank(rows.filter((r) => r.assists > 0).map((r) => ({ playerId: r.playerId, clubId: r.clubId, value: r.assists, display: `${r.assists} asist` })), appsOf);
-  const mvp = rank(
-    rows.filter((r) => r.apps >= minApps).map((r) => ({ playerId: r.playerId, clubId: r.clubId, value: r.ratingSum / r.apps, display: `${(r.ratingSum / r.apps).toFixed(2)} ort` })),
-    appsOf,
-  );
-  const young = rank(
-    rows.filter((r) => r.apps >= minApps && (ageOf(r.playerId) ?? 99) <= 21).map((r) => ({ playerId: r.playerId, clubId: r.clubId, value: r.ratingSum / r.apps, display: `${(r.ratingSum / r.apps).toFixed(2)} ort` })),
-    appsOf,
-  );
+  const ratingOf = (r: StatLine): SeasonRating | undefined => ratings
+    ? ratings[r.playerId]
+    : r.ratingSum > 0 ? { games: r.apps, average: r.ratingSum / r.apps, source: 'legacy' } : undefined;
+  const rated = rows.flatMap((r) => {
+    const rating = ratingOf(r);
+    return rating && rating.games >= minApps ? [{ r, rating }] : [];
+  });
+  const awardRow = ({ r, rating }: (typeof rated)[number]): AwardRow => ({ playerId: r.playerId, clubId: r.clubId, value: rating.average, display: `${rating.source === 'legacy' ? '≈' : ''}${rating.average.toFixed(2)} ort` });
+  const mvp = rank(rated.map(awardRow), appsOf);
+  const young = rank(rated.filter(({ r }) => (ageOf(r.playerId) ?? 99) <= 21).map(awardRow), appsOf);
   return { scorer, assist, mvp, young };
 }
 

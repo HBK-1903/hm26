@@ -13,6 +13,8 @@ import { buildEngineInput } from '../engine/adapter';
 import { aiDefaultTactic } from '../engine/tactics';
 import { buildQuickMatchResult } from '../engine/quickMatchResult';
 import { fixtureXgPair, xgConfig, hash32 } from '../engine/leagueXg';
+import { aiGoalScorers, aiStartingPlayers, recordAiMatch } from '../engine/aiMatchStats';
+import { seasonRatings } from '../engine/seasonRatings';
 import { compactMatchEvents } from '../engine/matchEvents';
 import { seasonSummary } from '../engine/teamInsights';
 import { CLINIC_COST_M, clinicRemainingDays, needleOutcome } from '../engine/medical';
@@ -29,7 +31,7 @@ import { addSeasonCultureHonors, assessFfp, clubSeasonTransferTotals, normalizeC
 import { assessBoardBudget, boardBudgetMessageId, type BoardBudgetAssessment } from '../data/boardBudget';
 import { applyInterviewEffect, INTERVIEW_INBOX_TITLE, type InterviewOption } from '../data/interview';
 import { bumpFamiliarity } from '../engine/tacticsStudio';
-import { advanceInternationalSeason, archiveInternationalSeason, buildInternationalSeason, internationalFixtures, normalizeInternationalSeason, recordInternationalAiScorers, recordInternationalResult, recordInternationalScorers, type InternationalArchiveEntry, type InternationalCup, type InternationalSeason } from '../data/international';
+import { advanceInternationalSeason, archiveInternationalSeason, buildInternationalSeason, internationalFixtures, normalizeInternationalSeason, recordInternationalResult, recordInternationalScorers, type InternationalArchiveEntry, type InternationalCup, type InternationalSeason } from '../data/international';
 
 export const SEED_BASE = 20260803;
 export { dayToDate };
@@ -511,36 +513,6 @@ export function GameProvider({ career: initialCareer, snapshot, initialUpdatedAt
 
   // ── Örnek gol dağılımı + dünya/zorluk ayarları (§8.4, §10.9) ──
 
-  // FAZ 4: simGoals üzerinden golleri kadro oyuncularına dağıt (deterministik, rng seed'li)
-  const attributeGoals = useCallback((stats: NonNullable<PersistedState['playerStats']>, clubId: string, goals: number, rng: () => number): NonNullable<PersistedState['playerStats']> => {
-    if (goals <= 0) return stats;
-    const sq = squads[clubId] ?? [];
-    if (!sq.length) return stats;
-    // Hücum önceliği: ST/WG/AM daha şanslı
-    const weighted = [...sq].sort((a, b) => {
-      const wa = a.group === 'ST' ? 4 : a.group === 'WG' ? 3 : a.group === 'AM' ? 2.5 : a.group === 'CM' ? 1.5 : 0.8;
-      const wb = b.group === 'ST' ? 4 : b.group === 'WG' ? 3 : b.group === 'AM' ? 2.5 : b.group === 'CM' ? 1.5 : 0.8;
-      return wb * (b.ratings.gen / 70) - wa * (a.ratings.gen / 70);
-    });
-    const out = { ...stats };
-    for (let i = 0; i < goals; i++) {
-      const idx = Math.floor((rng() ** 2) * Math.min(8, weighted.length));
-      const scorer = weighted[idx];
-      const prev = out[scorer.id] ?? { playerId: scorer.id, clubId, goals: 0, assists: 0, yellows: 0, reds: 0, ratingSum: 0, apps: 0 };
-      out[scorer.id] = { ...prev, goals: prev.goals + 1, apps: prev.apps + 1 };
-      // %65 ihtimalle asist de dağıt (farklı oyuncu)
-      if (rng() < 0.65) {
-        const aIdx = Math.floor((rng() ** 1.5) * Math.min(10, weighted.length));
-        const assister = weighted[aIdx];
-        if (assister.id !== scorer.id) {
-          const pa = out[assister.id] ?? { playerId: assister.id, clubId, goals: 0, assists: 0, yellows: 0, reds: 0, ratingSum: 0, apps: 0 };
-          out[assister.id] = { ...pa, assists: pa.assists + 1, apps: pa.apps + 1 };
-        }
-      }
-    }
-    return out;
-  }, [squads]);
-
   // Motor maçı için: res.engine.playerRows üzerinden tam doğru birikim (gol+asist+kartlar)
   const digestEngineRows = useCallback((stats: NonNullable<PersistedState['playerStats']>, rows: Record<string, { min: number; g: number; a: number; yellow: number; red: number; rating: number; conceded?: number; saves?: number; posGroup?: string }>, clubIdHome: string, squadHome: Player[], squadAway: Player[]): NonNullable<PersistedState['playerStats']> => {
     const out = { ...stats };
@@ -602,8 +574,20 @@ export function GameProvider({ career: initialCareer, snapshot, initialUpdatedAt
     // Dalga 1 (v0.5): işsiz kullanıcıda eski kulübün maçları da AI'ya devredilir
     const isMine = (f: DemoFixture) => !includeMine && (f.homeId === s.career.clubId || f.awayId === s.career.clubId);
 
-    // Lig fikstürleri (kullanıcının maçı hariç)
+    // The simplified background match chooses an available XI, with no simulated
+    // substitutions or invented ratings. Only newly played fixtures are counted.
     let pStats = s.playerStats ?? {};
+    const aiXI = (clubId: string, opponentId: string) => {
+      const club = clubByIdSafe(clubId), opponent = clubByIdSafe(opponentId);
+      return aiStartingPlayers(squads[clubId] ?? [], club && opponent ? aiDefaultTactic(club, opponent).formation : '4-3-3');
+    };
+    const recordSide = (clubId: string, opponentId: string, goals: number, statRng: () => number) => {
+      const squad = squads[clubId] ?? [];
+      pStats = recordAiMatch(pStats, clubId, aiXI(clubId, opponentId), goals, statRng, squad.length > 0);
+    };
+    // New cup/friendly attribution must not consume the shared score RNG.
+    const independentStatsRng = (comp: string, homeId: string, awayId: string) =>
+      mulberry32((worldSeed + day * 9973 + seedShift * 173 + hash32(`ai-stats|${comp}|${homeId}|${awayId}`)) >>> 0);
     // C3: xG ana rng akışından BAĞIMSIZ tohumla üretilir; mevcut skor determinizmi değişmez
     const cfg = xgConfig(stateRef.current.career.settings);
     const aiXg = (f: DemoFixture): [number, number] => {
@@ -615,8 +599,8 @@ export function GameProvider({ career: initialCareer, snapshot, initialUpdatedAt
       const [hg, ag] = simGoals(effectiveStrength(f.homeId), effectiveStrength(f.awayId), rng);
       table = applyResultToTable(table, f, hg, ag);
       if (f.comp === 'lig') {
-        pStats = attributeGoals(pStats, f.homeId, hg, rng);
-        pStats = attributeGoals(pStats, f.awayId, ag, rng);
+        recordSide(f.homeId, f.awayId, hg, rng);
+        recordSide(f.awayId, f.homeId, ag, rng);
       }
       const [xgHome, xgAway] = aiXg(f);
       return { ...f, played: true, hg, ag, xgHome, xgAway };
@@ -627,6 +611,9 @@ export function GameProvider({ career: initialCareer, snapshot, initialUpdatedAt
     const newCupFixtures = cup.fixtures.map((f) => {
       if (f.played || f.day !== day || isMine(f)) return f;
       const [hg, ag] = simGoals(effectiveStrength(f.homeId), effectiveStrength(f.awayId), rng);
+      const statRng = independentStatsRng(f.comp, f.homeId, f.awayId);
+      recordSide(f.homeId, f.awayId, hg, statRng);
+      recordSide(f.awayId, f.homeId, ag, statRng);
       const [xgHome, xgAway] = aiXg(f);
       cupFixtureChanged = true;
       return { ...f, played: true, hg, ag, xgHome, xgAway };
@@ -637,6 +624,9 @@ export function GameProvider({ career: initialCareer, snapshot, initialUpdatedAt
     friendlies = friendlies.map((f) => {
       if (f.played || f.day !== day || isMine(f)) return f;
       const [hg, ag] = simGoals(effectiveStrength(f.homeId), effectiveStrength(f.awayId), rng);
+      const statRng = independentStatsRng(f.comp, f.homeId, f.awayId);
+      recordSide(f.homeId, f.awayId, hg, statRng);
+      recordSide(f.awayId, f.homeId, ag, statRng);
       const [xgHome, xgAway] = aiXg(f);
       return { ...f, played: true, hg, ag, xgHome, xgAway };
     });
@@ -646,11 +636,14 @@ export function GameProvider({ career: initialCareer, snapshot, initialUpdatedAt
     const newRounds = cup.rounds.map((r) => {
       if (r.day !== day || r.ties.every((t) => t.winner)) return r;
       const ties = r.ties.map((t) => {
-        if (t.winner || t.homeId === mineId || t.awayId === mineId) return t;
+        if (t.winner || (!includeMine && (t.homeId === mineId || t.awayId === mineId))) return t;
         const [hg, ag] = simGoals(effectiveStrength(t.homeId), effectiveStrength(t.awayId), rng);
         let winner = hg > ag ? t.homeId : ag > hg ? t.awayId : null;
         let pens = false;
         if (!winner) { pens = true; winner = rng() < 0.5 ? t.homeId : t.awayId; }
+        const statRng = independentStatsRng('kupa-ko', t.homeId, t.awayId);
+        recordSide(t.homeId, t.awayId, hg, statRng);
+        recordSide(t.awayId, t.homeId, ag, statRng);
         return { ...t, hg, ag, pens, winner };
       });
       const played = ties.every((t) => t.winner);
@@ -662,16 +655,22 @@ export function GameProvider({ career: initialCareer, snapshot, initialUpdatedAt
     for (const fixture of internationalFixtures(international.cups)) {
       if (fixture.played || fixture.day !== day || isMine(fixture)) continue;
       const [hg, ag] = simGoals(effectiveStrength(fixture.homeId), effectiveStrength(fixture.awayId), rng);
+      const homeSquad = squads[fixture.homeId] ?? [], awaySquad = squads[fixture.awayId] ?? [];
+      const homeXI = aiXI(fixture.homeId, fixture.awayId), awayXI = aiXI(fixture.awayId, fixture.homeId);
+      const homeScorers = aiGoalScorers(homeXI, hg, rng, homeSquad.length > 0);
+      const awayScorers = aiGoalScorers(awayXI, ag, rng, awaySquad.length > 0);
       let internationalCups = recordInternationalResult(international.cups, fixture, hg, ag, worldSeed + day * 313);
-      internationalCups = recordInternationalAiScorers(internationalCups, fixture.internationalCupId, fixture.homeId, hg, squads[fixture.homeId] ?? [], rng);
-      internationalCups = recordInternationalAiScorers(internationalCups, fixture.internationalCupId, fixture.awayId, ag, squads[fixture.awayId] ?? [], rng);
+      internationalCups = recordInternationalScorers(internationalCups, fixture.internationalCupId, [
+        ...homeScorers.map((player) => ({ playerId: player.id, clubId: fixture.homeId, goals: 1 })),
+        ...awayScorers.map((player) => ({ playerId: player.id, clubId: fixture.awayId, goals: 1 })),
+      ]);
       international = { ...international, cups: internationalCups };
-      pStats = attributeGoals(pStats, fixture.homeId, hg, rng);
-      pStats = attributeGoals(pStats, fixture.awayId, ag, rng);
+      pStats = recordAiMatch(pStats, fixture.homeId, homeXI, hg, rng, homeSquad.length > 0, homeScorers);
+      pStats = recordAiMatch(pStats, fixture.awayId, awayXI, ag, rng, awaySquad.length > 0, awayScorers);
     }
 
     return { s: { ...s, fixtures, table, cup, international, friendlies, playerStats: pStats }, notes };
-  }, [worldSeed, effectiveStrength, simGoals, applyResultToTable, attributeGoals]);
+  }, [worldSeed, effectiveStrength, simGoals, applyResultToTable, squads]);
 
 
   // ── Aşama 2: dinamik durum evrimi (§8.3) ──
@@ -903,6 +902,7 @@ export function GameProvider({ career: initialCareer, snapshot, initialUpdatedAt
     const myNewLeague = leagueOf[s.career.clubId];
     if (myNewLeague !== lid) notes.push(myNewLeague === 'zirve' ? `🎉 KULÜBÜN MİRAS ZİRVE LİGİ'NE YÜKSELDİ!` : myNewLeague > lid ? `Kulübün düştü: ${LEAGUES[myNewLeague].name}.` : `Kulübün yükseldi: ${LEAGUES[myNewLeague].name}.`);
 
+    const ratedSeason = seasonRatings(s.playerStats ?? {}, s.matchReports ?? [], s.seasonNo);
     const seasonFinale: SeasonFinaleState = {
       season, clubId: s.career.clubId, leagueId: lid, rank: myRank, pts: myPts, cup: cupReach,
       championId: champ, cupWinnerId: s.cup.champion ?? null,
@@ -911,7 +911,7 @@ export function GameProvider({ career: initialCareer, snapshot, initialUpdatedAt
       champion: champ === s.career.clubId,
       cupWon: s.cup.champion === s.career.clubId,
       // Dalga 4: ödüller — playerStats aşağıda sıfırlanmadan ÖNCE hesaplanır
-      awards: computeSeasonAwards(s.playerStats ?? {}, (pid) => playerOf(pid)?.age ?? null),
+      awards: computeSeasonAwards(s.playerStats ?? {}, (pid) => playerOf(pid)?.age ?? null, 8, ratedSeason),
     };
 
     const newSeasonNo = s.seasonNo + 1;
@@ -1023,7 +1023,8 @@ export function GameProvider({ career: initialCareer, snapshot, initialUpdatedAt
         conceded: (row.conceded ?? 0) || undefined,
         cleanSheets: (row.cleanSheets ?? 0) || undefined,
         saves: (row.saves ?? 0) || undefined,
-        avgRating: +(row.ratingSum / row.apps).toFixed(2),
+        // Zero is the existing numeric sentinel when no match rating exists.
+        avgRating: ratedSeason[row.playerId] ? +ratedSeason[row.playerId].average.toFixed(2) : 0,
       });
       playerPatch[row.playerId] = { ...prev, careerHistory: hist };
     });
