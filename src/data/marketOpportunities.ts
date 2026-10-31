@@ -18,6 +18,22 @@ export function resolveMarketShortlist(playerIds: string[], snapshots: Player[],
   });
 }
 
+/** Every current world player plus this cycle's free agents, without duplicates or our own squad. */
+export function marketSearchPlayers(squads: Record<string, Player[]>, ownClubId: string, freeAgents: readonly Player[]): Player[] {
+  const seen = new Set((squads[ownClubId] ?? []).map((player) => player.id));
+  const players: Player[] = [];
+  const add = (player: Player) => {
+    if (!player.id || seen.has(player.id)) return;
+    seen.add(player.id);
+    players.push(player);
+  };
+  Object.entries(squads).forEach(([clubId, squad]) => {
+    if (clubId !== ownClubId) squad.forEach(add);
+  });
+  freeAgents.forEach(add);
+  return players.sort((a, b) => b.ratings.gen - a.ratings.gen || a.name.localeCompare(b.name, 'tr') || a.id.localeCompare(b.id));
+}
+
 export function selectClubOpportunities(input: {
   seed: number;
   cycleNo: number;

@@ -4,6 +4,9 @@ import type { MatchInput, SubManager } from './engine';
 import type { MatchResult, MatchStateEvent } from './core/contracts';
 import { SimulationCore, type TeamTalkChoice, type TouchlineCommand } from './core/simulation';
 import { toSimulationInput } from './adapters/simulationInput';
+import { replaySimulationToStep } from './core/replayCore';
+import type { SimulationInput } from './core/simulationInput';
+import type { MatchCommand } from './core/input';
 import type { MatchSide } from './core/types';
 import type { TacticPlan } from '../types';
 
@@ -13,9 +16,15 @@ export class MatchSession {
   private readonly core: SimulationCore;
   private readonly subManager?: SubManager;
 
-  constructor(input: MatchInput) {
-    this.core = new SimulationCore(toSimulationInput(input));
-    this.subManager = input.subMgr;
+  constructor(input: MatchInput | SimulationInput, restoredCore?: SimulationCore) {
+    const normalized = 'schema' in input ? input : toSimulationInput(input);
+    this.core = restoredCore ?? new SimulationCore(normalized);
+    this.subManager = 'schema' in input ? undefined : input.subMgr;
+  }
+
+  /** Restore only after replaying every command at its original boundary. */
+  static restore(input: SimulationInput, commands: readonly MatchCommand[], step: number): MatchSession {
+    return new MatchSession(input, replaySimulationToStep(input, commands, step));
   }
 
   get done(): boolean { return this.core.done; }

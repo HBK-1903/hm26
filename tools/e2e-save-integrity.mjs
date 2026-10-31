@@ -49,7 +49,7 @@ try {
   await page.getByRole('button', { name: /Kariyeri Başlat/ }).click();
   await notice(page);
   const original = await waitForSave(page, (record) => !!record?.blob?.career);
-  check('Yeni kariyer gerçek IndexedDB yuvasına kaydedildi', original.blob.career.manager.name === 'Aktif Menajer' && original.blob.version === 4);
+  check('Yeni kariyer gerçek IndexedDB yuvasına kaydedildi', original.blob.career.manager.name === 'Aktif Menajer' && original.blob.version === 5);
 
   await page.locator('nav[aria-label="Ana gezinme"]').getByRole('button', { name: 'Kadro', exact: true }).click();
   const playerCard = page.locator('button').filter({ hasText: /yaş/ }).first();
@@ -180,7 +180,7 @@ try {
   await slots.getByRole('button', { name: 'Buraya dosya içe aktar' }).last().click();
   await (await chooseLegacy).setFiles(file(envelope(legacy, 'manager26-save', 1), 'eski.json'));
   const legacyRecord = await waitForSave(slots, (record) => record?.blob?.career?.manager?.name === 'Eski Yedek', 3);
-  check('Eski manager26-save v1 boş yuvaya v4 göçüyle yüklenir', legacyRecord.blob.version === 4 && legacyRecord.blob.career.boardConfidence === 70 && !!legacyRecord.blob.career.clubFacilities);
+  check('Eski manager26-save v1 boş yuvaya v5 göçüyle yüklenir', legacyRecord.blob.version === 5 && legacyRecord.blob.career.boardConfidence === 70 && !!legacyRecord.blob.career.clubFacilities);
   const legacyCard = slots.locator('.bg-surface').filter({ hasText: 'Eski Yedek' }).first();
   await legacyCard.getByRole('button', { name: 'Devam Et' }).click();
   await notice(slots);
@@ -196,13 +196,13 @@ try {
   await historicalPage.getByRole('button', { name: 'Buraya dosya içe aktar' }).first().click();
   await (await historicalChoice).setFiles({ name: 'gercek-eski-v2.json', mimeType: 'application/json', buffer: readFileSync('tools/fixtures/save-v2-original.json') });
   const old = await waitForSave(historicalPage, (record) => record?.blob?.career?.manager?.name === 'Eski Sürüm Testi');
-  check('Önceki yayımlanmış uygulamadan gerçek v2 yedeği içe aktarılır', old.blob.version === 4 && old.blob.fixtures.length === 396);
+  check('Önceki yayımlanmış uygulamadan gerçek v2 yedeği içe aktarılır', old.blob.version === 5 && old.blob.fixtures.length === 396);
   const historicalCard = historicalPage.locator('.bg-surface').filter({ hasText: 'Eski Sürüm Testi' }).first();
   await historicalCard.getByRole('button', { name: 'Devam Et' }).click();
   await notice(historicalPage);
   await historicalPage.getByRole('button', { name: /Sonraki Gün/ }).first().click();
   const advanced = await waitForSave(historicalPage, (record) => record?.blob?.career?.day === old.blob.career.day + 1);
-  check('Gerçek v2 kariyeri açılır, gün ilerler ve tekrar kaydedilir', advanced.blob.career.manager.name === 'Eski Sürüm Testi' && advanced.blob.version === 4);
+  check('Gerçek v2 kariyeri açılır, gün ilerler ve tekrar kaydedilir', advanced.blob.career.manager.name === 'Eski Sürüm Testi' && advanced.blob.version === 5);
   check('Tarayıcıda yakalanmamış uygulama hatası yok', pageErrors.length === 0, pageErrors.join(' | '));
 } catch (error) { failed++; console.error(error?.stack || error); }
 finally { if (historicalContext) await historicalContext.close(); if (historicalBrowser) await historicalBrowser.close(); await context.close(); await browser.close(); }

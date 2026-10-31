@@ -2,12 +2,14 @@
 import { Career } from '../types';
 import { clubByIdSafe } from '../data/clubs';
 import { careerSeasonLabel } from '../data/careerTimeline';
+import { restoreLiveCheckpoint, validLiveCheckpoint, type LiveMatchCheckpoint } from '../engine/liveCheckpoint';
 
 const DB_NAME = 'manager26';
 const DB_VERSION = 1;
 // v3: C1 maç istatistik bloğu + C2 sıkıştırılmış olaylar + C3 fikstür xG çiftleri
-// v4: olay türleri genişletildi (kurtarış/VAR/sakatlık) + sezon geçmişi özet alanları (hepsi opsiyonel)
-export const SAVE_VERSION = 4;
+// v4: olay türleri ve sezon geçmişi. v5: isteğe bağlı, doğrulanabilir canlı maç devam kaydı.
+// The version bump prevents older builds from silently overwriting an active match.
+export const SAVE_VERSION = 5;
 
 // FIX P1: singleton — upgrade hâlâ çalışırken resolve yok; bütün çağrılar hazır bağla da çalışır
 let dbPromise: Promise<IDBDatabase> | null = null;
@@ -78,6 +80,7 @@ export interface SaveBlob {
   inboxState: unknown;
   tacticState: unknown;
   extraSquads: unknown;
+  liveMatchCheckpoint?: LiveMatchCheckpoint;
 }
 
 /** Kayıt verisindeki mevcut sezondan yuva etiketini üretir; eski kayıt verisini değiştirmez. */
@@ -274,6 +277,12 @@ function validImportedBlob(value: unknown): value is SaveBlob {
       !isFiniteNumber(manager.challengePoints)) return false;
   if (value.version !== undefined && (!isPositiveInteger(value.version) || value.version > SAVE_VERSION)) return false;
   if (value.seasonNo !== undefined && !isPositiveInteger(value.seasonNo)) return false;
+  if (value.liveMatchCheckpoint !== undefined) {
+    if (!validLiveCheckpoint(value.liveMatchCheckpoint)) return false;
+    const cp = value.liveMatchCheckpoint;
+    if (cp.fixture.day !== career.day || (cp.fixture.homeId !== career.clubId && cp.fixture.awayId !== career.clubId) ||
+        (value.seasonNo !== undefined && cp.seasonNo !== value.seasonNo)) return false;
+  }
   if (!isObjectArray(value.fixtures) || !isObjectArray(value.friendlies) ||
       !isObjectArray(value.inbox) || !isObjectArray(value.tactics) || !value.tactics.length ||
       (value.seasonHistory != null && !isObjectArray(value.seasonHistory)) ||
@@ -308,6 +317,14 @@ function validImportedBlob(value: unknown): value is SaveBlob {
         !Object.values(groups).every((group) => Array.isArray(group) && group.every((id) => typeof id === 'string' && !!clubByIdSafe(id))) ||
         !isObjectArray(cup.fixtures) || !cup.fixtures.every(validFixture) || !isObjectArray(cup.rounds) ||
         !cup.rounds.every((round) => typeof round.name === 'string' && isFiniteNumber(round.day) && isObjectArray(round.ties))) return false;
+  }
+  if (value.liveMatchCheckpoint !== undefined) {
+    // A matching checksum only detects accidental edits. Verify the real replay
+    // before allowing an imported backup to replace an existing career slot.
+    try {
+      const cp = value.liveMatchCheckpoint as LiveMatchCheckpoint;
+      restoreLiveCheckpoint(cp, typeof value.seasonNo === 'number' ? value.seasonNo : 1, career.clubId, career.day as number);
+    } catch { return false; }
   }
   return true;
 }

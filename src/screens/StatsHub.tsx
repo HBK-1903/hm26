@@ -5,10 +5,13 @@ import { GameIcon } from '../components/icons';
 import React, { useMemo, useState } from 'react';
 import { useGame } from '../store/game';
 import { Card, Badge, Sheet } from '../components/ui/kit';
+import { ExpandableRanking } from '../components/ui/ExpandableRanking';
+import { ExpandableRecords } from '../components/ui/ExpandableRecords';
 import { clubById, clubByIdSafe } from '../data/clubs';
 import type { MatchArchiveEntry } from '../types';
 import { MatchHighlights } from '../components/match/MatchHighlights';
 import { archivedHighlightEvents } from '../engine/highlights';
+import { seasonRatings } from '../engine/seasonRatings';
 import { COMP_LABEL } from '../data/newsroom';
 import { buildXptsTable, buildLeagueXptsTable, buildFairPlayTable, goalkeeperSaveRate, buildRefereeProfile } from '../engine/analytics';
 import { normalizeMyMatches, teamSplit, formStrip, goalBuckets, perMatch, xgTrend, xgVerdict, seasonMatchStats, cardDisciplineByPosition, type TeamSplitRow } from '../engine/teamInsights';
@@ -31,24 +34,24 @@ const EmptyBox: React.FC<{ icon: string; title: string; note: string }> = ({ ico
 
 interface RankRow { playerId: string; clubId: string; label: string; value: number; sub?: string }
 
-const RankTable: React.FC<{ title: string; rows: RankRow[]; mine?: string | null; max?: number }> = ({ title, rows, mine, max = 10 }) => {
-  const list = rows.slice(0, max);
-  return (
-    <Card className="!p-0 overflow-hidden">
-      <div className="px-4 py-2.5 border-b border-line font-display font-bold text-[13px]">{title}</div>
-      {list.map((r, i) => (
-        <div key={`${r.playerId}-${i}`} className={`flex items-center gap-2.5 px-4 py-2 border-b border-line/40 last:border-0 ${r.playerId === mine ? 'bg-amber/5' : ''}`}>
-          <span className={`num w-6 text-center text-[12px] font-extrabold ${i === 0 ? 'text-amber' : i < 3 ? 'text-primary' : 'text-muted'}`}>{i + 1}</span>
-          <div className="flex-1 min-w-0">
-            <div className="text-[13px] font-semibold truncate">{r.label}</div>
-            <div className="text-[10.5px] text-muted">{clubById(r.clubId)?.short ?? r.clubId}{r.sub ? ` · ${r.sub}` : ''}</div>
-          </div>
-          <span className="num text-[15px] font-extrabold text-ink">{r.value}</span>
+const RankTable: React.FC<{ title: string; rows: RankRow[]; mine?: string | null; max?: number }> = ({ title, rows, mine, max = 10 }) => (
+  <ExpandableRanking
+    title={title} rows={rows} previewLimit={max} unit="oyuncu"
+    rowKey={(row) => row.playerId}
+    detailNote="Lig, kupa ve diğer maçlardaki birikmiş kayıtlar birlikte gösterilir."
+    empty={<div className="px-4 py-3 text-muted text-[12px]">Henüz sıralama verisi yok.</div>}
+    renderRow={(r, i, detail) => (
+      <div className={`flex items-center gap-2.5 ${detail ? 'px-1' : 'px-4'} py-2 ${r.playerId === mine ? 'bg-amber/5' : ''}`}>
+        <span className={`num w-6 shrink-0 text-center text-[12px] font-extrabold ${i === 0 ? 'text-amber' : i < 3 ? 'text-primary' : 'text-muted'}`}>{i + 1}</span>
+        <div className="flex-1 min-w-0">
+          <div className={`text-[13px] font-semibold ${detail ? 'break-words' : 'truncate'}`}>{r.label}</div>
+          <div className={`text-[10.5px] text-muted ${detail ? 'break-words' : ''}`}>{clubByIdSafe(r.clubId)?.short ?? r.clubId}{r.sub ? ` · ${r.sub}` : ''}</div>
         </div>
-      ))}
-    </Card>
-  );
-};
+        <span className="num text-[15px] font-extrabold text-ink shrink-0">{r.value}</span>
+      </div>
+    )}
+  />
+);
 
 const medal = (i: number) => (i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '');
 
@@ -60,8 +63,8 @@ export const StatsHub: React.FC = () => {
   const seasonLabel = `${2025 + g.seasonNo}–${String(26 + g.seasonNo).padStart(2, '0')}`;
 
   const rows = useMemo(() => Object.values(stats).filter((r) => r.apps > 0), [stats]);
+  const ratings = useMemo(() => seasonRatings(stats, g.matchReports ?? [], g.seasonNo), [stats, g.matchReports, g.seasonNo]);
   const nameOf = (pid: string) => g.playerOf(pid)?.name ?? `Oyuncu #${pid.slice(0, 4)}`;
-  const avg = (r: { ratingSum: number; apps: number }) => r.ratingSum / r.apps;
 
   const topScorers = useMemo<RankRow[]>(() =>
     rows.filter((r) => r.goals > 0)
@@ -74,14 +77,14 @@ export const StatsHub: React.FC = () => {
       .map((r) => ({ playerId: r.playerId, clubId: r.clubId, label: nameOf(r.playerId), value: r.assists, sub: `${r.apps} maç` })), [rows]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const topRating = useMemo<RankRow[]>(() =>
-    rows.filter((r) => r.apps >= 3)
-      .sort((a, b) => avg(b) - avg(a) || b.apps - a.apps || a.playerId.localeCompare(b.playerId))
-      .map((r) => ({ playerId: r.playerId, clubId: r.clubId, label: nameOf(r.playerId), value: +avg(r).toFixed(2), sub: `${r.apps} maç` })), [rows]); // eslint-disable-line react-hooks/exhaustive-deps
+    rows.filter((r) => (ratings[r.playerId]?.games ?? 0) >= 3)
+      .sort((a, b) => ratings[b.playerId].average - ratings[a.playerId].average || ratings[b.playerId].games - ratings[a.playerId].games || a.playerId.localeCompare(b.playerId))
+      .map((r) => ({ playerId: r.playerId, clubId: r.clubId, label: nameOf(r.playerId), value: +ratings[r.playerId].average.toFixed(2), sub: `${ratings[r.playerId].games} puanlı maç${ratings[r.playerId].source === 'legacy' ? ' · eski toplam' : ''}` })), [rows, ratings]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const gkSheets = useMemo<RankRow[]>(() =>
     rows.filter((r) => (r.cleanSheets ?? 0) > 0 && g.playerOf(r.playerId)?.group === 'GK')
       .sort((a, b) => (b.cleanSheets ?? 0) - (a.cleanSheets ?? 0) || (a.conceded ?? 0) - (b.conceded ?? 0) || a.playerId.localeCompare(b.playerId))
-      .map((r) => ({ playerId: r.playerId, clubId: r.clubId, label: nameOf(r.playerId), value: r.cleanSheets ?? 0, sub: `${r.conceded ?? 0} yediği · ${r.apps} maç` })), [rows]); // eslint-disable-line react-hooks/exhaustive-deps
+      .map((r) => ({ playerId: r.playerId, clubId: r.clubId, label: nameOf(r.playerId), value: r.cleanSheets ?? 0, sub: `${r.conceded ?? 0} yediği · raporlanan maçlar` })), [rows]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const hotheads = useMemo<RankRow[]>(() =>
     rows.filter((r) => (r.yellows + r.reds) > 0)
@@ -89,9 +92,9 @@ export const StatsHub: React.FC = () => {
       .map((r) => ({ playerId: r.playerId, clubId: r.clubId, label: nameOf(r.playerId), value: r.yellows + r.reds * 3, sub: `${r.yellows} sarı · ${r.reds} kırmızı` })), [rows]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const gentlemen = useMemo<RankRow[]>(() =>
-    rows.filter((r) => r.apps >= 5 && (r.yellows + r.reds) === 0)
-      .sort((a, b) => avg(b) - avg(a) || b.apps - a.apps || a.playerId.localeCompare(b.playerId))
-      .map((r) => ({ playerId: r.playerId, clubId: r.clubId, label: nameOf(r.playerId), value: +avg(r).toFixed(2), sub: `${r.apps} maç · 0 kart` })), [rows]); // eslint-disable-line react-hooks/exhaustive-deps
+    rows.filter((r) => (ratings[r.playerId]?.games ?? 0) >= 5 && (r.yellows + r.reds) === 0)
+      .sort((a, b) => ratings[b.playerId].average - ratings[a.playerId].average || ratings[b.playerId].games - ratings[a.playerId].games || a.playerId.localeCompare(b.playerId))
+      .map((r) => ({ playerId: r.playerId, clubId: r.clubId, label: nameOf(r.playerId), value: +ratings[r.playerId].average.toFixed(2), sub: `${ratings[r.playerId].games} ${ratings[r.playerId].source === 'legacy' ? 'maç (eski toplam)' : 'raporlu maç'} · 0 kart` })), [rows, ratings]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Dalga 1: kaleci kurtarış yüzdesi krallığı (kurtarış / (kurtarış + yenilen gol))
   const gkSaves = useMemo<RankRow[]>(() =>
@@ -99,7 +102,7 @@ export const StatsHub: React.FC = () => {
       .map((r) => ({ r, rate: goalkeeperSaveRate(r.saves, r.conceded) }))
       .filter((x): x is { r: typeof x.r; rate: number } => x.rate !== null)
       .sort((a, b) => b.rate - a.rate || (b.r.saves ?? 0) - (a.r.saves ?? 0))
-      .map(({ r, rate }) => ({ playerId: r.playerId, clubId: r.clubId, label: nameOf(r.playerId), value: rate, sub: `%${rate} · ${r.saves} kurtarış · ${r.apps} maç` })), [rows]); // eslint-disable-line react-hooks/exhaustive-deps
+      .map(({ r, rate }) => ({ playerId: r.playerId, clubId: r.clubId, label: nameOf(r.playerId), value: rate, sub: `%${rate} · ${r.saves} kurtarış · raporlanan maçlar` })), [rows]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Dalga 1: kullanıcının ligine ait arşiv raporlarından xPTS ve Fair Play agregatı
   const myLeague = g.leagueOf[g.career.clubId] ?? g.myClub.league;
@@ -135,8 +138,8 @@ export const StatsHub: React.FC = () => {
   const myBuckets = useMemo(() => goalBuckets(myMatches), [myMatches]);
   const myXgTrend = useMemo(() => xgTrend(myMatches), [myMatches]);
   const myXgVerdict = useMemo(() => xgVerdict(myMatches), [myMatches]);
-  const recentReports = useMemo(() => reports.filter((r) => r.homeId === g.career.clubId || r.awayId === g.career.clubId)
-    .slice().sort((a, b) => b.seasonNo - a.seasonNo || b.day - a.day).slice(0, 10), [reports, g.career.clubId]);
+  // The archive may also contain matches from a previous managed club.
+  const recentReports = useMemo(() => reports.slice().sort((a, b) => (b.seasonNo ?? 0) - (a.seasonNo ?? 0) || b.day - a.day), [reports]);
   const archiveEvents = useMemo(() => archivedHighlightEvents(archiveMatch?.events, (id) => g.playerOf(id)?.name), [archiveMatch, g.playerOf]);
   const archiveHome = archiveMatch ? clubByIdSafe(archiveMatch.homeId) : undefined;
   const archiveAway = archiveMatch ? clubByIdSafe(archiveMatch.awayId) : undefined;
@@ -156,7 +159,7 @@ export const StatsHub: React.FC = () => {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 pb-4 grid gap-3 content-start">
+      <div className="flex-1 overflow-y-auto px-4 pb-4 grid auto-rows-max gap-3 content-start">
         {tab === 'krallik' && (
           <>
             {noDataYet
@@ -167,6 +170,7 @@ export const StatsHub: React.FC = () => {
                 {topRating.length ? <RankTable title="⭐ Maç Puanı (min. 3 maç)" rows={topRating} /> : null}
                 {gkSheets.length ? <RankTable title="🧤 Gol Yememe (Kaleciler)" rows={gkSheets} /> : null}
                 {gkSaves.length ? <RankTable title="🧤 Kurtarış Yüzdesi (Kaleciler)" rows={gkSaves} /> : null}
+                <p className="text-muted text-[11px] leading-snug">Sonuç odaklı yapay zekâ maçlarında seçilen ilk 11 sayılır; oyuncu değişikliği ve maç puanı üretilmez. Puan ve kaleci ayrıntıları raporlanan maçlardan gelir. Eksik geçmiş nedeniyle eski yapay zekâ maç sayıları geriye dönük düzeltilemez; eski puan toplamları yaklaşık olabilir.</p>
                 {!topScorers.length && !topAssists.length && !topRating.length && <EmptyBox icon="chart" title="Sezon yeni başladı" note="İlk maçlar oynanınca krallık tabloları burada belirecek." />}
               </>}
           </>
@@ -175,19 +179,19 @@ export const StatsHub: React.FC = () => {
         {tab === 'analiz' && (
           <>
             <Card className="!p-0 overflow-hidden" >
-              <div className="px-4 py-2.5 border-b border-line font-display font-bold text-[13px]">🎬 Son Maçların Özetleri</div>
+              <div className="px-4 py-2.5 border-b border-line font-display font-bold text-[13px]">🎬 Kayıtlı Maç Özetleri</div>
               {recentReports.length === 0 ? <div className="px-4 py-3 text-muted text-[12px]">Arşivde henüz maçın yok. Oynanan maçlar burada görünür.</div>
-                : <div data-testid="archive-highlights-list">{recentReports.map((report) => {
+                : <ExpandableRecords items={recentReports} preview={10} label="Maç özetleri" testId="archive-highlights-list" rowKey={(report) => report.id} render={(report) => {
                   const home = clubByIdSafe(report.homeId);
                   const away = clubByIdSafe(report.awayId);
-                  return <button type="button" key={report.id} data-testid="archive-highlight-open" onClick={() => setArchiveMatch(report)}
-                    aria-label={`${home?.short ?? report.homeId} ${report.hg}–${report.ag} ${away?.short ?? report.awayId} özetini aç`}
+                  return <button type="button" data-testid="archive-highlight-open" onClick={() => setArchiveMatch(report)}
+                    aria-label={`${home?.name ?? report.homeId} ${report.hg}–${report.ag} ${away?.name ?? report.awayId} özetini aç`}
                     className="w-full min-h-touch flex items-center gap-2 text-left px-4 py-2.5 border-b border-line/40 last:border-0 hover:bg-base/60">
-                    <span className="flex-1 min-w-0"><span className="block text-primary text-[12px] font-bold truncate">{home?.short ?? report.homeId} <span className="text-amber num">{report.hg}–{report.ag}</span> {away?.short ?? report.awayId}</span><span className="text-muted text-[10px]">{COMP_LABEL[report.comp]} · {report.day}. gün</span></span>
+                    <span className="flex-1 min-w-0"><span className="block text-primary text-[12px] font-bold break-words">{home?.name ?? report.homeId} <span className="text-amber num">{report.hg}–{report.ag}</span> {away?.name ?? report.awayId}</span><span className="text-muted text-[10px]">S{report.seasonNo} · {COMP_LABEL[report.comp]} · {report.day}. gün</span></span>
                     <span className="text-amber text-[11px] font-bold shrink-0">Özeti Aç ›</span>
                   </button>;
-                })}</div>}
-              <p className="px-4 py-2 text-muted text-[10.5px]">Arşivde yalnızca kaydedilmiş olaylar gösterilir.</p>
+                }} />}
+              <p className="px-4 py-2 text-muted text-[10.5px]">Yalnızca kaydedilmiş maçlar ve olaylar gösterilir; arşiv en fazla 256 maç tutar.</p>
             </Card>
             {/* Dalga 6: Takımım — ev/deplasman performansı (yalnız gerçek arşiv) */}
             <Card className="!p-0 overflow-hidden">
@@ -426,104 +430,94 @@ export const StatsHub: React.FC = () => {
                       </div>
                     </div>
                   )}
-                  <div>
-                    <div className="text-[10px] text-muted uppercase mb-1.5">Sakatlık geçmişi (maçtan çıkışlar)</div>
-                    {injuries.length === 0 ? (
-                      <p className="text-muted text-[11.5px]">Bu sezon maç içinde sakatlanarak oyundan çıkan oyuncu yok — kayıtlar maçlarda birikir.</p>
-                    ) : (
-                      <div className="space-y-1" data-testid="injury-list">
-                        {injuries.slice(0, 5).map((t) => (
-                          <div key={t.playerId} className="flex items-center justify-between text-[11.5px] bg-base rounded-lg px-2.5 py-1.5">
-                            <span className="font-semibold text-primary truncate">{g.playerOf(t.playerId)?.name ?? 'Oyuncu'}</span>
-                            <span className="num text-danger font-bold shrink-0 ml-2">{t.count} sakatlık</span>
-                          </div>
-                        ))}
+                  <ExpandableRanking
+                    embedded title="Sakatlık geçmişi (maçtan çıkışlar)" rows={injuries} previewLimit={5} unit="oyuncu"
+                    rowKey={(row) => row.playerId} listTestId="injury-list" listClassName="space-y-1" rowClassName=""
+                    detailNote="Yalnızca maç arşivine kaydedilen sakatlıklar yer alır."
+                    empty={<p className="text-muted text-[11.5px]">Bu sezon maç içinde sakatlanarak oyundan çıkan oyuncu yok — kayıtlar maçlarda birikir.</p>}
+                    renderRow={(t, _i, detail) => (
+                      <div className="flex items-center justify-between text-[11.5px] bg-base rounded-lg px-2.5 py-1.5">
+                        <span className={`font-semibold text-primary min-w-0 ${detail ? 'break-words' : 'truncate'}`}>{g.playerOf(t.playerId)?.name ?? 'Oyuncu'}</span>
+                        <span className="num text-danger font-bold shrink-0 ml-2">{t.count} sakatlık</span>
                       </div>
                     )}
-                  </div>
+                  />
                 </div>
               </div>
             </Card>
 
             {/* v4: hakem profilleri */}
-            <Card className="!p-0 overflow-hidden">
-              <div data-testid="referee-profile-card">
-                <div className="px-4 py-2.5 border-b border-line font-display font-bold text-[13px]">📋 Hakem Profilleri</div>
-                {refereeProfiles.length === 0 ? (
-                  <div className="px-4 py-3 text-muted text-[12px]">Hakem etiketi taşıyan maç raporu birikince profiller burada belirir.</div>
-                ) : (
-                  <div className="divide-y divide-line/40">
-                    {refereeProfiles.slice(0, 6).map((rf) => (
-                      <div key={rf.label} className="px-4 py-2.5 flex items-center gap-2" data-referee={rf.label}>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-[12px] font-bold text-primary truncate">{rf.label}</div>
-                          <div className="text-[10px] text-muted num">{rf.matches} maçın · maç başı {rf.foulsPerMatch} faul · {rf.yellows} sarı {rf.reds} kırmızı</div>
-                        </div>
-                        <Badge kind={rf.strictness === 'strict' ? 'danger' : rf.strictness === 'lenient' ? 'ok' : 'muted'}>
-                          {rf.strictness === 'strict' ? 'Sıkı' : rf.strictness === 'lenient' ? 'Yumuşak' : 'Dengeli'}
-                        </Badge>
-                        <span className="num text-[11px] font-extrabold text-secondary w-16 text-right shrink-0">{rf.myWins}G {rf.myDraws}B {rf.myLosses}M</span>
-                      </div>
-                    ))}
+            <ExpandableRanking
+              title="📋 Hakem Profilleri" rows={refereeProfiles} previewLimit={6} unit="hakem"
+              testId="referee-profile-card" rowKey={(rf) => rf.label}
+              detailNote="Yalnızca hakem bilgisi içeren kayıtlı maçlar kullanılır."
+              empty={<div className="px-4 py-3 text-muted text-[12px]">Hakem etiketi taşıyan maç raporu birikince profiller burada belirir.</div>}
+              renderRow={(rf, _i, detail) => (
+                <div className={`${detail ? 'px-1' : 'px-4'} py-2.5 flex items-center gap-2`} data-referee={rf.label}>
+                  <div className="flex-1 min-w-0">
+                    <div className={`text-[12px] font-bold text-primary ${detail ? 'break-words' : 'truncate'}`}>{rf.label}</div>
+                    <div className="text-[10px] text-muted num">{rf.matches} maçın · maç başı {rf.foulsPerMatch} faul · {rf.yellows} sarı {rf.reds} kırmızı</div>
                   </div>
-                )}
-              </div>
-            </Card>
+                  <Badge kind={rf.strictness === 'strict' ? 'danger' : rf.strictness === 'lenient' ? 'ok' : 'muted'}>
+                    {rf.strictness === 'strict' ? 'Sıkı' : rf.strictness === 'lenient' ? 'Yumuşak' : 'Dengeli'}
+                  </Badge>
+                  <span className="num text-[11px] font-extrabold text-secondary w-16 text-right shrink-0">{rf.myWins}G {rf.myDraws}B {rf.myLosses}M</span>
+                </div>
+              )}
+            />
 
-            <Card className="!p-0 overflow-hidden">
-              <div className="px-4 py-2.5 border-b border-line font-display font-bold text-[13px]">⚖️ xPTS Adalet Tablosu</div>
-              <div className="px-4 py-2 text-[10.5px] text-muted leading-snug border-b border-line/40">
-                Maçların xG’lerinden Poisson modeliyle hesaplanan <b>beklenen puan</b> ile gerçek puan farkı.
+            <ExpandableRanking
+              title="⚖️ xPTS Adalet Tablosu" rows={xptsRows.length ? leagueClubs : []} previewLimit={leagueClubs.length} unit="takım"
+              rowKey={(club) => club.id}
+              description={<>Maçların xG’lerinden Poisson modeliyle hesaplanan <b>beklenen puan</b> ile gerçek puan farkı.
                 {xptsSource === 'league'
                   ? ' Tüm lig maçlarının xG’si fikstürlerden okunur; böylece bütün kulüpler aynı haftada tabloya girer.'
-                  : ' Eski kayıtlarda lig geneli xG bulunmadığından veri yalnız senin oynadığın lig maçlarından birikir.'}
-              </div>
-              {xptsRows.length === 0
-                ? <div className="px-4 py-3 text-muted text-[12px]">Henüz arşivde lig maçı yok — ilk maçların ardından tablo burada belirir.</div>
-                : leagueClubs.map((club) => {
-                  const row = xptsRows.find((x) => x.clubId === club.id);
-                  const real = actualPts.get(club.id) ?? 0;
-                  const isMine = club.id === g.career.clubId;
-                  const diff = row ? real - row.xpts : 0;
-                  const luck = !row ? null : row.matches < 5 ? null : diff >= 4 ? '🍀 Şanslı' : diff <= -4 ? '😰 Hakkı yeniyor' : '➖ Dengeli';
-                  return (
-                    <div key={club.id} className={`flex items-center gap-2 px-4 py-2 border-b border-line/40 last:border-0 ${isMine ? 'bg-amber/5' : ''}`}>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-[12.5px] font-semibold truncate">{club.name}{isMine && <span className="text-amber text-[10px] font-bold ml-1">SEN</span>}</div>
-                        <div className="text-[10px] text-muted num">{row ? `${row.matches} maç · xG ${row.xgf} – ${row.xga}` : 'veri birikiyor…'}</div>
-                      </div>
-                      {row && luck && <span className="text-[9.5px] font-bold text-secondary shrink-0">{luck}</span>}
-                      <div className="text-right shrink-0 w-[74px]">
-                        <div className="num text-[13px] font-extrabold text-ink">{row ? row.xpts.toFixed(1) : '—'} <span className="text-[9px] text-muted font-normal">xPTS</span></div>
-                        <div className="num text-[10px] text-muted">{real} gerçek</div>
-                      </div>
+                  : ' Eski kayıtlarda lig geneli xG bulunmadığından veri yalnız senin oynadığın lig maçlarından birikir.'}</>}
+              detailNote={xptsSource === 'league' ? 'Fikstürdeki xG verileri kullanılır.' : 'Eski kayıtlarda yalnızca arşivlenen maçlar kullanılır.'}
+              empty={<div className="px-4 py-3 text-muted text-[12px]">Henüz arşivde lig maçı yok — ilk maçların ardından tablo burada belirir.</div>}
+              renderRow={(club, _i, detail) => {
+                const row = xptsRows.find((x) => x.clubId === club.id);
+                const real = actualPts.get(club.id) ?? 0;
+                const isMine = club.id === g.career.clubId;
+                const diff = row ? real - row.xpts : 0;
+                const luck = !row ? null : row.matches < 5 ? null : diff >= 4 ? '🍀 Şanslı' : diff <= -4 ? '😰 Hakkı yeniyor' : '➖ Dengeli';
+                return (
+                  <div className={`flex items-center gap-2 ${detail ? 'px-1' : 'px-4'} py-2 ${isMine ? 'bg-amber/5' : ''}`}>
+                    <div className="flex-1 min-w-0">
+                      <div className={`text-[12.5px] font-semibold ${detail ? 'break-words' : 'truncate'}`}>{club.name}{isMine && <span className="text-amber text-[10px] font-bold ml-1">SEN</span>}</div>
+                      <div className="text-[10px] text-muted num">{row ? `${row.matches} maç · xG ${row.xgf} – ${row.xga}` : 'veri birikiyor…'}</div>
                     </div>
-                  );
-                })}
-            </Card>
+                    {row && luck && <span className="text-[9.5px] font-bold text-secondary shrink-0">{luck}</span>}
+                    <div className="text-right shrink-0 w-[74px]">
+                      <div className="num text-[13px] font-extrabold text-ink">{row ? row.xpts.toFixed(1) : '—'} <span className="text-[9px] text-muted font-normal">xPTS</span></div>
+                      <div className="num text-[10px] text-muted">{real} gerçek</div>
+                    </div>
+                  </div>
+                );
+              }}
+            />
 
-            <Card className="!p-0 overflow-hidden">
-              <div className="px-4 py-2.5 border-b border-line font-display font-bold text-[13px]">🕊️ Fair Play Ligi</div>
-              <div className="px-4 py-2 text-[10.5px] text-muted leading-snug border-b border-line/40">
-                Düşük puan centilmenlik demek: sarı kart 1, kırmızı kart 3, faul 0.25 puan. Sıralama maç başına puanla yapılır.
-              </div>
-              {fairPlayRows.length === 0
-                ? <div className="px-4 py-3 text-muted text-[12px]">Kart ve faul verisi ilk lig maçlarından sonra birikir.</div>
-                : fairPlayRows.map((r, i) => {
-                  const club = clubById(r.clubId);
-                  const isMine = r.clubId === g.career.clubId;
-                  return (
-                    <div key={r.clubId} className={`flex items-center gap-2.5 px-4 py-2 border-b border-line/40 last:border-0 ${isMine ? 'bg-amber/5' : ''}`}>
-                      <span className={`num w-5 text-center text-[12px] font-extrabold ${i === 0 ? 'text-amber' : 'text-muted'}`}>{i + 1}</span>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-[12.5px] font-semibold truncate">{club?.name ?? r.clubId}{isMine && <span className="text-amber text-[10px] font-bold ml-1">SEN</span>}</div>
-                        <div className="text-[10px] text-muted num">{r.yellows} sarı · {r.reds} kırmızı · {r.fouls} faul · {r.matches} maç</div>
-                      </div>
-                      <span className="num text-[13px] font-extrabold text-ink">{r.perMatch.toFixed(2)}</span>
+            <ExpandableRanking
+              title="🕊️ Fair Play Ligi" rows={fairPlayRows} previewLimit={fairPlayRows.length} unit="takım"
+              rowKey={(row) => row.clubId}
+              description="Düşük puan centilmenlik demek: sarı kart 1, kırmızı kart 3, faul 0.25 puan. Sıralama maç başına puanla yapılır."
+              detailNote="Yalnızca arşive kaydedilmiş lig maçlarının verileri yer alır."
+              empty={<div className="px-4 py-3 text-muted text-[12px]">Kart ve faul verisi ilk lig maçlarından sonra birikir.</div>}
+              renderRow={(r, i, detail) => {
+                const club = clubByIdSafe(r.clubId);
+                const isMine = r.clubId === g.career.clubId;
+                return (
+                  <div className={`flex items-center gap-2.5 ${detail ? 'px-1' : 'px-4'} py-2 ${isMine ? 'bg-amber/5' : ''}`}>
+                    <span className={`num w-5 shrink-0 text-center text-[12px] font-extrabold ${i === 0 ? 'text-amber' : 'text-muted'}`}>{i + 1}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className={`text-[12.5px] font-semibold ${detail ? 'break-words' : 'truncate'}`}>{club?.name ?? r.clubId}{isMine && <span className="text-amber text-[10px] font-bold ml-1">SEN</span>}</div>
+                      <div className="text-[10px] text-muted num">{r.yellows} sarı · {r.reds} kırmızı · {r.fouls} faul · {r.matches} maç</div>
                     </div>
-                  );
-                })}
-            </Card>
+                    <span className="num text-[13px] font-extrabold text-ink shrink-0">{r.perMatch.toFixed(2)}</span>
+                  </div>
+                );
+              }}
+            />
           </>
         )}
 

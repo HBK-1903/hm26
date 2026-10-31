@@ -94,7 +94,14 @@ export function autoLineup(squad: Player[], formation: Formation, customIds?: (s
     used.add(pick.id);
     slots.push({ player: pick, slotGroup, liveFitness: pick.fitness, yellows: 0, offs: { g: 0, a: 0, shots: 0, saves: 0, yellow: 0, red: 0 } });
   }
-  const benchPool = avail.filter((p) => !used.has(p.id));
+  // Legacy extra squads can contain a second copy of the same player ID. A
+  // footballer may occupy only one place, including on the matchday bench.
+  const benchSeen = new Set(used);
+  const benchPool = avail.filter((p) => {
+    if (benchSeen.has(p.id)) return false;
+    benchSeen.add(p.id);
+    return true;
+  });
   const benchById = new Map(benchPool.map((p) => [p.id, p]));
   const preferred = [...new Set(customBenchIds ?? [])].flatMap((id) => {
     const player = benchById.get(id);

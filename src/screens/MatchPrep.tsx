@@ -1,11 +1,13 @@
 // HM26 — UI/UX §5.12 Maç Hazırlığı kontrol listesi
 import React, { useEffect, useState } from 'react';
-import { Screen } from '../types';
+import { type DemoFixture, Screen } from '../types';
+import { MatchSession } from '../engine/session';
+import { restoreLiveCheckpoint, validLiveCheckpoint, type LiveMatchCheckpoint } from '../engine/liveCheckpoint';
 import { useGame } from '../store/game';
 import { Card, Btn, Badge, Sheet } from '../components/ui/kit';
 import { Crest } from '../components/assets/Crest';
 import { GameIcon } from '../components/icons';
-import { clubById } from '../data/clubs';
+import { clubById, clubByIdSafe } from '../data/clubs';
 import { GAME_PLANS } from '../data/meta';
 import { DemoMatchResult } from '../store/game';
 import { LiveMatch } from './LiveMatch';
@@ -30,6 +32,11 @@ export const MatchPrep: React.FC<{ go: (s: Screen) => void; onEndDay?: () => voi
   const next = g.nextFixture;
   const [prepared, setPrepared] = useState<Set<string>>(new Set(['tactic', 'xi']));
   const [started, setStarted] = useState(false);
+  const [activeFixture, setActiveFixture] = useState<DemoFixture | null>(null);
+  const [restoredSession, setRestoredSession] = useState<MatchSession | undefined>();
+  const [resumeCheckpoint, setResumeCheckpoint] = useState<LiveMatchCheckpoint | undefined>();
+  const [resumeError, setResumeError] = useState('');
+  const [resumeBusy, setResumeBusy] = useState(false);
   const [activeTacticIdx, setActiveTacticIdx] = useState(0);   // P2 (SPEC Böl.I/7): 5 plan slotu seçilebilir
   const [quick, setQuick] = useState<DemoMatchResult | null>(null);
   const [quickHighlights, setQuickHighlights] = useState(false);
@@ -67,6 +74,49 @@ export const MatchPrep: React.FC<{ go: (s: Screen) => void; onEndDay?: () => voi
       </Sheet>
     </div>;
   }
+  if (started && activeFixture) return <LiveMatch
+    fixture={activeFixture}
+    tacticIdx={activeTacticIdx}
+    checkpoint={resumeCheckpoint}
+    restoredSession={restoredSession}
+    onExit={() => { onMatchSessionChange?.(false); setStarted(false); }}
+    onSaved={() => { onMatchSessionChange?.(false); setStarted(false); go('hub'); }}
+    onEndDay={() => { onMatchSessionChange?.(false); setStarted(false); setEndDayPending(true); }}
+  />;
+
+  const savedMatch = g.liveMatchCheckpoint;
+  if (savedMatch) {
+    const valid = validLiveCheckpoint(savedMatch);
+    const sameFixture = valid && !!next && next.day === savedMatch.fixture.day && next.homeId === savedMatch.fixture.homeId && next.awayId === savedMatch.fixture.awayId && next.comp === savedMatch.fixture.comp && !next.played;
+    const resume = () => {
+      try {
+        if (!sameFixture) throw new Error('Maç artık güncel fikstürle eşleşmiyor.');
+        const session = restoreLiveCheckpoint(savedMatch, g.seasonNo, g.career.clubId, g.career.day);
+        setRestoredSession(session); setResumeCheckpoint(savedMatch); setActiveFixture(savedMatch.fixture);
+        setActiveTacticIdx(savedMatch.tacticIdx); setResumeError(''); onMatchSessionChange?.(true); setStarted(true);
+      } catch (error) {
+        console.error('[hm26] kayıtlı maç doğrulanamadı:', error);
+        setResumeError('Kayıtlı maç doğrulanamadı; kariyer değiştirilmedi. Yedeğini indirebilir veya istersen maç kaydını silip hazırlığa dönebilirsin.');
+      }
+    };
+    const discard = async () => {
+      if (resumeBusy || !window.confirm('Kayıtlı canlı maçın tüm ilerlemesi ve maç içi kararların silinecek. Maç baştan oynanacak. Devam edilsin mi?')) return;
+      setResumeBusy(true);
+      const ok = await g.discardLiveCheckpoint();
+      setResumeBusy(false);
+      if (!ok) setResumeError('Maç kaydı silinemedi; mevcut kayıt korundu. Depolamayı kontrol edip tekrar dene.');
+      else setResumeError('');
+    };
+    return <div className="h-full overflow-y-auto p-4">
+      <Card accent="var(--c-accent)">
+        <h2 className="text-primary font-bold text-[16px]">Devam eden maçın var</h2>
+        <p className="text-secondary text-[12.5px] leading-relaxed mt-2">{valid ? `${clubByIdSafe(savedMatch.fixture.homeId)?.name ?? savedMatch.fixture.homeId} – ${clubByIdSafe(savedMatch.fixture.awayId)?.name ?? savedMatch.fixture.awayId}. Kayıtlı maç, kararlarınla birlikte doğrulanarak açılır.` : 'Maç kaydı okunamadı; kariyerin değiştirilmedi.'}</p>
+        {(!sameFixture || resumeError) && <p role="alert" className="text-danger text-[12px] mt-3">{resumeError || 'Kayıtlı maç bu fikstürle eşleşmiyor. Önce yedeğini alabilir, ardından kaydı silmeyi seçebilirsin.'}</p>}
+        <Btn variant="amber" className="w-full mt-4" disabled={!sameFixture || resumeBusy} onClick={resume}>Maça Devam Et</Btn>
+        <Btn variant="secondary" className="w-full mt-2" disabled={resumeBusy} onClick={() => { void discard(); }}>{resumeBusy ? 'Kaydediliyor…' : 'Maç kaydını sil ve hazırlığa dön'}</Btn>
+      </Card>
+    </div>;
+  }
   if (!next) {
     return (
       <div className="h-full flex flex-col items-center justify-center px-8 text-center">
@@ -80,14 +130,11 @@ export const MatchPrep: React.FC<{ go: (s: Screen) => void; onEndDay?: () => voi
   // BUG B FIX: Oyuncu ancak maç günü sahaya çıkar (kgun === fixture.day); erken günlerde hazırlık listesi görünür ama Maça Başla engellenir
   const isMatchday = next.day === g.career.day;
   const daysLeft = next.day - g.career.day;
-  if (started && !isMatchday) setStarted(false); // güvenlik: eski state
-  if (started) return <LiveMatch
-    fixture={next}
-    tacticIdx={activeTacticIdx}
-    onExit={() => { onMatchSessionChange?.(false); setStarted(false); }}
-    onSaved={() => { onMatchSessionChange?.(false); setStarted(false); go('hub'); }}
-    onEndDay={() => { onMatchSessionChange?.(false); setStarted(false); setEndDayPending(true); }}
-  />;
+  const startFresh = () => {
+    if (!isMatchday) return;
+    setActiveFixture({ ...next }); setRestoredSession(undefined); setResumeCheckpoint(undefined);
+    onMatchSessionChange?.(true); setStarted(true);
+  };
 
   // Dalga 1 (v0.5): işsiz menajer maç merkezine giremez
   if (g.career.jobSearch) {
@@ -428,7 +475,7 @@ export const MatchPrep: React.FC<{ go: (s: Screen) => void; onEndDay?: () => voi
           })()}
         </Card>
         <div className="sticky bottom-2 pt-2 pb-1 space-y-2">
-          <Btn variant="amber" className="w-full !min-h-[52px] text-[15px]" disabled={!isMatchday} onClick={() => { if (isMatchday) { onMatchSessionChange?.(true); setStarted(true); } }}>
+          <Btn variant="amber" className="w-full !min-h-[52px] text-[15px]" disabled={!isMatchday} onClick={startFresh}>
             {isMatchday ? 'Maça Başla' : `Maç için ${daysLeft} gün kaldı`}
           </Btn>
           <Btn variant="secondary" className="w-full !min-h-touch" disabled={!isMatchday} onClick={() => {
@@ -445,7 +492,7 @@ export const MatchPrep: React.FC<{ go: (s: Screen) => void; onEndDay?: () => voi
       </div>
       <Sheet open={arrivalOpen} onClose={() => setArrivalOpen(false)} title="Stadyuma Geliş" tall>
         <ArrivalScene home={home} away={away} team={mine} day={next.day} players={xiList} reducedMotion={g.career.settings.reduceMotion} />
-        <Btn variant="amber" className="w-full mt-3" disabled={!isMatchday} onClick={() => { if (isMatchday) { setArrivalOpen(false); onMatchSessionChange?.(true); setStarted(true); } }}>Maça Başla</Btn>
+        <Btn variant="amber" className="w-full mt-3" disabled={!isMatchday} onClick={() => { if (isMatchday) { setArrivalOpen(false); startFresh(); } }}>Maça Başla</Btn>
         <Btn variant="secondary" className="w-full mt-2" onClick={() => setArrivalOpen(false)}>Hazırlığa Dön</Btn>
       </Sheet>
     </div>

@@ -99,7 +99,7 @@ try {
   await page.getByRole('button', { name: 'Devam', exact: true }).click();
   await page.getByRole('button', { name: /Zorlu Kariyer/ }).click();
   const saved = await finishCareer(page, 'Dünya Ayar Testi');
-  check('Seçilen dönem, bağımsız zorluk ve dört ayar kariyere kaydedilir', saved?.version === 4 && saved.manager.era === 'acik' && saved.manager.difficulty === 'zorlu' && saved.manager.challengePoints === 70 && saved.settings.goalPace === 'yuksek' && saved.settings.randomness === 'low' && saved.settings.injuryRate === 'yuksek' && saved.settings.marketRefresh === 'yogun', JSON.stringify(saved));
+  check('Seçilen dönem, bağımsız zorluk ve dört ayar kariyere kaydedilir', saved?.version === 5 && saved.manager.era === 'acik' && saved.manager.difficulty === 'zorlu' && saved.manager.challengePoints === 70 && saved.settings.goalPace === 'yuksek' && saved.settings.randomness === 'low' && saved.settings.injuryRate === 'yuksek' && saved.settings.marketRefresh === 'yogun', JSON.stringify(saved));
   await page.locator('nav[aria-label="Ana gezinme"] button', { hasText: 'Piyasa' }).click();
   check('Yoğun piyasa seçimi oyunda 7 günlük döngüyü uygular', /yenilenme:\s*6g/i.test(await page.locator('body').innerText()));
   await page.reload({ waitUntil: 'networkidle' });

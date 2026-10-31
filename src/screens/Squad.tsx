@@ -7,11 +7,12 @@ import { GameIcon, ICONS } from '../components/icons';
 import { PlayerPortrait } from '../components/assets/Portrait';
 import { ComparisonDesk } from '../components/players/ComparisonDesk';
 import { autoLineup, FORMATION_SLOTS } from '../engine/profiles';
-import { engineToBoard } from '../engine/lineupOrder';
+import { boardToEngine, engineToBoard } from '../engine/lineupOrder';
 import { Crest } from '../components/assets/Crest';
 import { clubById } from '../data/clubs';
 import { fitnessBreakdown, formTrend, recentRatings, rotationAdvice, type FormTrend } from '../engine/squadInsights';
 import { playerMatchLog, summarizePlayerLog, ratingTrend } from '../engine/playerInsights';
+import { seasonRatings } from '../engine/seasonRatings';
 import { RatingSparkline } from '../components/ui/charts';
 import { COMP_LABEL } from '../data/newsroom';
 
@@ -33,47 +34,68 @@ export const SquadScreen: React.FC<{ goXI: (p: Player) => void }> = ({ goXI }) =
   const [full, setFull] = useState<Player | null>(null);
   const fullTrapRef = useFocusTrap<HTMLDivElement>(!!full);
   const { show, ToastView } = useToast();
+  const ratings = useMemo(() => seasonRatings(g.playerStats ?? {}, g.matchReports ?? [], g.seasonNo), [g.playerStats, g.matchReports, g.seasonNo]);
+  // Old saves can contain the same player ID in both the base and extra squad.
+  // Show and summarize each player once; the match engine still receives the original squad.
+  const squad = useMemo(() => {
+    const seen = new Set<string>();
+    return g.mySquad.filter((player) => {
+      if (seen.has(player.id)) return false;
+      seen.add(player.id);
+      return true;
+    });
+  }, [g.mySquad]);
 
   const list = useMemo(() => {
-    let arr = [...g.mySquad];
+    let arr = [...squad];
     if (filter !== 'all') arr = arr.filter((p) => G_GROUP[p.group] === filter);
     const q = search.trim().toLocaleLowerCase('tr');
     if (q) arr = arr.filter((p) => p.name.toLocaleLowerCase('tr').includes(q));
     arr.sort((a, b) => (sort === 'gen' ? b.ratings.gen - a.ratings.gen : sort === 'age' ? a.age - b.age : sort === 'form' ? b.form - a.form : b.ratings.gen - a.ratings.gen));
     return arr;
-  }, [g.mySquad, filter, sort, search]);
+  }, [squad, filter, sort, search]);
 
-  const avgGen = Math.round(g.mySquad.reduce((x, p) => x + p.ratings.gen, 0) / Math.max(1, g.mySquad.length));
-  const riskCount = g.mySquad.filter((p) => p.fitness < 60 || p.injuredDays > 0 || p.suspendedMatches > 0).length;
-  // Jr-09/QA: Ana Plan'ın aktif ilk 11 + yedek kimlikleri (kadro kartında XI / YDK rozeti)
+  const avgGen = Math.round(squad.reduce((x, p) => x + p.ratings.gen, 0) / Math.max(1, squad.length));
+  const riskCount = squad.filter((p) => p.fitness < 60 || p.injuredDays > 0 || p.suspendedMatches > 0).length;
+  // XI / YDK badges describe the first plan's actual match selection, not just
+  // saved preferences. The engine fills up to nine available, unique substitutes.
   const plan0 = g.tactics[0];
   const xiAuto = useMemo(() => autoLineup(g.mySquad, plan0.formation, undefined, new Set(g.riskPlayIds ?? [])), [g.mySquad, plan0.formation, g.riskPlayIds]);
-  const xiAutoIds = useMemo(() => xiAuto.slots.map((slot) => slot.player.id), [xiAuto]);
-  const xiIds = useMemo(() => new Set(((plan0.customLineup && plan0.customLineup.length === 11 ? plan0.customLineup : xiAutoIds).filter(Boolean) as string[])), [plan0.customLineup, xiAutoIds]);
-  const benchIds = useMemo(() => new Set(plan0.customBench?.length ? plan0.customBench : g.mySquad.filter((p) => !xiIds.has(p.id)).sort((a, b) => b.ratings.gen - a.ratings.gen).slice(0, 6).map((p) => p.id)), [plan0.customBench, g.mySquad, xiIds]);
+  const matchLineup = useMemo(() => autoLineup(
+    g.mySquad, plan0.formation,
+    plan0.customLineup ? boardToEngine(plan0.formation, plan0.customLineup) : undefined,
+    new Set(g.riskPlayIds ?? []), plan0.customBench,
+  ), [g.mySquad, plan0.formation, plan0.customLineup, plan0.customBench, g.riskPlayIds]);
+  const xiIds = useMemo(() => new Set(matchLineup.slots.map((slot) => slot.player.id)), [matchLineup]);
+  const benchIds = useMemo(() => new Set(matchLineup.bench.map((p) => p.id)), [matchLineup]);
   // Dalga 3: kadro içgörüleri — tamamen mevcut veri/maç arşivinden türetilir (yeni şema yok)
-  const breakdown = useMemo(() => fitnessBreakdown(g.mySquad), [g.mySquad]);
+  const breakdown = useMemo(() => fitnessBreakdown(squad), [squad]);
   const xiSlots = useMemo(() => {
     if (!plan0.customLineup || plan0.customLineup.length !== 11) {
       return xiAuto.slots.map((slot) => ({ playerId: slot.player.id, slotGroup: slot.slotGroup }));
     }
     const boardGroups = engineToBoard(plan0.formation, FORMATION_SLOTS[plan0.formation]);
-    // Preserve original board indices even when a manual lineup contains empty slots.
-    return plan0.customLineup.flatMap((id, i) => id ? [{ playerId: id, slotGroup: boardGroups[i] ?? 'CM' }] : []);
+    // Preserve original board indices, but don't repeat advice for duplicate legacy IDs.
+    const seen = new Set<string>();
+    return plan0.customLineup.flatMap((id, i) => {
+      if (!id || seen.has(id)) return [];
+      seen.add(id);
+      return [{ playerId: id, slotGroup: boardGroups[i] ?? 'CM' }];
+    });
   }, [plan0.customLineup, plan0.formation, xiAuto]);
-  const advice = useMemo(() => rotationAdvice({ squad: g.mySquad, xi: xiSlots, reports: g.matchReports ?? [] }), [g.mySquad, xiSlots, g.matchReports]);
+  const advice = useMemo(() => rotationAdvice({ squad, xi: xiSlots, reports: g.matchReports ?? [] }), [squad, xiSlots, g.matchReports]);
   const trendById = useMemo(() => {
     const m = new Map<string, FormTrend>();
-    for (const p of g.mySquad) m.set(p.id, formTrend(recentRatings(p.id, g.matchReports ?? [])));
+    for (const p of squad) m.set(p.id, formTrend(recentRatings(p.id, g.matchReports ?? [])));
     return m;
-  }, [g.mySquad, g.matchReports]);
-  const squadById = useMemo(() => new Map(g.mySquad.map((p) => [p.id, p])), [g.mySquad]);
+  }, [squad, g.matchReports]);
+  const squadById = useMemo(() => new Map(squad.map((p) => [p.id, p])), [squad]);
   // Dalga 6: rol sıralaması (genel güç azalan) — dakika memnuniyeti için
   const rankById = useMemo(() => {
     const m = new Map<string, number>();
-    [...g.mySquad].sort((a, b) => b.ratings.gen - a.ratings.gen).forEach((p, i) => m.set(p.id, i));
+    [...squad].sort((a, b) => b.ratings.gen - a.ratings.gen).forEach((p, i) => m.set(p.id, i));
     return m;
-  }, [g.mySquad]);
+  }, [squad]);
 
   return (
     <div className="h-full flex flex-col">
@@ -84,7 +106,7 @@ export const SquadScreen: React.FC<{ goXI: (p: Player) => void }> = ({ goXI }) =
           <button type="button" onClick={() => setCompare('empty')} className="shrink-0 min-h-[44px] flex items-center gap-1.5 rounded-xl border border-amber/35 bg-amber/5 px-3 text-amber text-[11px] font-bold"><GameIcon id="market" className="w-4 h-4" />Karşılaştır</button>
         </div>
         <div className="grid grid-cols-3 bg-surface border border-line rounded-xl py-2.5 mb-2">
-          <div className="text-center border-r border-line/60"><div className="num text-primary font-extrabold text-[18px]">{g.mySquad.length}</div><div className="text-muted text-[9px] mt-0.5">OYUNCU</div></div>
+          <div className="text-center border-r border-line/60"><div data-testid="squad-count" className="num text-primary font-extrabold text-[18px]">{squad.length}</div><div className="text-muted text-[9px] mt-0.5">OYUNCU</div></div>
           <div className="text-center border-r border-line/60"><div className="num text-amber font-extrabold text-[18px]">{avgGen}</div><div className="text-muted text-[9px] mt-0.5">ORT. GENEL</div></div>
           <div className="text-center"><div className={`num font-extrabold text-[18px] ${riskCount ? 'text-warn' : 'text-ok'}`}>{riskCount}</div><div className="text-muted text-[9px] mt-0.5">RİSK</div></div>
         </div>
@@ -139,8 +161,8 @@ export const SquadScreen: React.FC<{ goXI: (p: Player) => void }> = ({ goXI }) =
             className="flex-1 bg-transparent min-h-[42px] text-primary text-[12.5px] focus:outline-none placeholder:text-muted" />
         </div>
         <div className="flex items-center justify-between px-0.5">
-          <span className="text-muted text-[9px] tracking-[0.08em] font-extrabold">{list.length} OYUNCU</span>
-          <button onClick={() => setSort(sort === 'gen' ? 'form' : sort === 'form' ? 'age' : 'gen')} className="text-amber text-[10.5px] font-bold min-h-[44px]">
+          <span className="text-muted text-[9px] tracking-[0.08em] font-extrabold min-w-0 truncate" title={`XI / YDK: ${plan0.name} maç kadrosu`}>{list.length} OYUNCU <span className="normal-case tracking-normal">· XI / YDK: {plan0.name}</span></span>
+          <button onClick={() => setSort(sort === 'gen' ? 'form' : sort === 'form' ? 'age' : 'gen')} className="text-amber text-[10.5px] font-bold min-h-[44px] shrink-0 ml-2">
             {sort === 'gen' ? 'Genel ↓' : sort === 'form' ? 'Form ↓' : 'Yaş ↑'}
           </button>
         </div>
@@ -157,7 +179,7 @@ export const SquadScreen: React.FC<{ goXI: (p: Player) => void }> = ({ goXI }) =
           const formCls = { ok: 'text-ok', info: 'text-info', warn: 'text-warn', danger: 'text-danger' }[formKind];
           const trend = trendById.get(p.id); // Dalga 3: yalnız ≥4 gerçek maç varsa ok çıkar
           return (
-            <button key={p.id} onClick={() => setQuick(p)} className="w-full text-left flex items-center gap-2.5 bg-surface border border-line rounded-xl p-2.5 min-h-[68px]">
+            <button key={p.id} data-squad-player-id={p.id} onClick={() => setQuick(p)} className="w-full text-left flex items-center gap-2.5 bg-surface border border-line rounded-xl p-2.5 min-h-[68px]">
               <span className="w-[36px] h-[39px] rounded-lg overflow-hidden border border-line/60 bg-elevated shrink-0"><PlayerPortrait player={p} size={36} /></span>
               <span className="flex-1 min-w-0">
                 <span className="text-primary text-[12.5px] font-bold leading-tight truncate block">{p.name}{p.important && <span className="text-amber text-[10px]" title="Önemli oyuncu"> ★</span>}</span>
@@ -352,7 +374,7 @@ export const SquadScreen: React.FC<{ goXI: (p: Player) => void }> = ({ goXI }) =
               {/* Ağabeylik (mentoring): ≤21 gençlere 29+ ağabey atanır */}
               {(() => {
                 const mentor = full.mentorId ? g.playerOf(full.mentorId) : null;
-                const seniors = g.mySquad.filter((x) => x.age >= 29 && x.id !== full.id);
+                const seniors = squad.filter((x) => x.age >= 29 && x.id !== full.id);
                 return (
                   <div>
                     <div className="flex items-center justify-between text-[12.5px] mb-1.5">
@@ -450,17 +472,22 @@ export const SquadScreen: React.FC<{ goXI: (p: Player) => void }> = ({ goXI }) =
               {(() => {
                 const st = g.playerStats?.[full.id];
                 if (!st || !st.apps) return <p className="text-muted text-[12px]">Henüz resmî maç istatistiği yok — bu bilgi sezon ilerledikçe birikir.</p>;
-                const ort = st.ratingSum / st.apps;
-                // v0.9.5: kalecide şartname düzeni (Maç/Yediği/Gol Yememe)
+                const rating = ratings[full.id];
+                const ort = rating ? `${rating.source === 'legacy' ? '≈' : ''}${rating.average.toFixed(1)}` : '—';
+                // Kaleci ayrıntıları score-only AI maçlarında üretilmez.
+                const cards = rating ? st.yellows + st.reds : '—';
                 const cells: (string | number)[][] = full.group === 'GK'
-                  ? [[st.apps, 'Maç'], [st.conceded ?? 0, 'Yediği'], [st.cleanSheets ?? 0, 'Yememe'], [ort.toFixed(1), 'Ort.'], [st.yellows + st.reds, 'Kart']]
-                  : [[st.apps, 'Maç'], [st.goals, 'Gol'], [st.assists, 'Asist'], [ort.toFixed(1), 'Ort.'], [st.yellows + st.reds, 'Kart']];
+                  ? [[st.apps, 'Maç'], [rating ? st.conceded ?? 0 : '—', 'Yediği'], [rating ? st.cleanSheets ?? 0 : '—', 'Yememe'], [ort, 'Ort.'], [cards, 'Kart']]
+                  : [[st.apps, 'Maç'], [st.goals, 'Gol'], [st.assists, 'Asist'], [ort, 'Ort.'], [cards, 'Kart']];
                 return (
-                  <div className="grid grid-cols-5 gap-1 text-center">
-                    {cells.map(([v, l]) => (
-                      <div key={l as string}><div className="num text-primary font-extrabold text-[15px]">{v}</div><div className="text-muted text-[9px] uppercase mt-0.5">{l}</div></div>
-                    ))}
-                  </div>
+                  <>
+                    <div className="grid grid-cols-5 gap-1 text-center">
+                      {cells.map(([v, l]) => (
+                        <div key={l as string}><div className="num text-primary font-extrabold text-[15px]">{v}</div><div className="text-muted text-[9px] uppercase mt-0.5">{l}</div></div>
+                      ))}
+                    </div>
+                    <p className="text-muted text-[10px] mt-2 leading-snug">Puan, kart ve kaleci ayrıntıları raporlanan maçlara aittir.{rating?.source === 'legacy' ? ' ≈ eski toplam (yaklaşık).' : ''}</p>
+                  </>
                 );
               })()}
             </Card>
@@ -490,11 +517,11 @@ export const SquadScreen: React.FC<{ goXI: (p: Player) => void }> = ({ goXI }) =
                     <Row h sezon="Sezon" kulup="Kulüp" mac="Maç" a={isGK ? 'Yediği' : 'Gol'} b={isGK ? 'Yememe' : 'Asist'} ort="Ort" />
                     {st && st.apps > 0 && (
                       <Row alt sezon={`${seasonOf(g.seasonNo)} ▶`} kulup={clubById(st.clubId)?.short ?? st.clubId} mac={st.apps}
-                        a={isGK ? st.conceded ?? 0 : st.goals} b={isGK ? st.cleanSheets ?? 0 : st.assists} ort={(st.ratingSum / st.apps).toFixed(2)} />
+                        a={isGK ? ratings[full.id] ? st.conceded ?? 0 : '—' : st.goals} b={isGK ? ratings[full.id] ? st.cleanSheets ?? 0 : '—' : st.assists} ort={ratings[full.id] ? `${ratings[full.id].source === 'legacy' ? '≈' : ''}${ratings[full.id].average.toFixed(2)}` : '—'} />
                     )}
                     {hist.map((r) => (
                       <Row key={`${r.season}-${r.clubId}`} sezon={seasonOf(r.season)} kulup={clubById(r.clubId)?.short ?? r.clubId} mac={r.apps}
-                        a={isGK ? r.conceded ?? 0 : r.goals} b={isGK ? r.cleanSheets ?? 0 : r.assists} ort={r.avgRating.toFixed(2)} />
+                        a={isGK ? r.conceded ?? 0 : r.goals} b={isGK ? r.cleanSheets ?? 0 : r.assists} ort={r.avgRating > 0 ? r.avgRating.toFixed(2) : '—'} />
                     ))}
                   </div>
                 );

@@ -86,7 +86,7 @@ try {
   const input = buildEngineInput({ homeClub: CLUBS[0], awayClub: CLUBS[1], homeSquad: [], awaySquad: [], homeTactic: {} as TacticPlan, seed: career.seed, settings: career.settings });
   const xg = xgConfig(career.settings);
   check('Gol ve rastgelelik ayarları gerçek maç ve diğer maç simülasyonlarına aktarılır', input.goalPace === 'yuksek' && input.randomness === 'low' && xg.pace === 1.18 && xg.jitter === 0.45);
-  check('Yeni kariyer ayar alanı veya kayıt şeması eklenmez', SAVE_VERSION === 4 && Object.keys(career.settings).sort().join(',') === ['boardPressure', 'goalPace', 'highContrast', 'injuryRate', 'marketRefresh', 'matchSpeed', 'randomness', 'reduceMotion', 'suggestions', 'textSize'].sort().join(','));
+  check('Yeni kariyer ayarları korunur; canlı maç kayıt sürümü 5', SAVE_VERSION === 5 && Object.keys(career.settings).sort().join(',') === ['boardPressure', 'goalPace', 'highContrast', 'injuryRate', 'marketRefresh', 'matchSpeed', 'randomness', 'reduceMotion', 'suggestions', 'textSize'].sort().join(','));
 } catch (error) {
   failed++;
   console.error('❌ Yeni kariyer UI testi:', error);

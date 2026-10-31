@@ -34,6 +34,40 @@ function replayCommand(core: SimulationCore, command: MatchCommand, legacy: bool
   }
 }
 
+/** Reconstruct an in-progress match at a completed step boundary, including
+ * manager commands issued at that very boundary (not only earlier commands). */
+export function replaySimulationToStep(input: SimulationInput, commands: readonly MatchCommand[], targetStep: number): SimulationCore {
+  if (!Number.isSafeInteger(targetStep) || targetStep < 0 || targetStep > 500) throw new Error('Invalid live replay step.');
+  const core = new SimulationCore(input);
+  let cursor = 0;
+  const isLegacy = (command: MatchCommand) => command.payload.source === 'legacy-boundary';
+  const apply = (command: MatchCommand, legacy: boolean) => {
+    if (!replayCommand(core, command, legacy)) throw new Error(`Replay command ${command.id} was rejected at step ${core.getStepCount()}.`);
+    cursor++;
+  };
+  for (;;) {
+    const step = core.getStepCount();
+    while (cursor < commands.length && commands[cursor].issuedAtStep === step && !isLegacy(commands[cursor])) apply(commands[cursor], false);
+    if (step === targetStep) break;
+    if (cursor < commands.length && ((commands[cursor].issuedAtStep ?? -1) < step || (commands[cursor].issuedAtStep === step && isLegacy(commands[cursor])))) {
+      throw new Error(`Replay command ${commands[cursor].id} is out of order or has no replay step.`);
+    }
+    if (core.done) throw new Error('Replay ended before the saved step.');
+    const started = core.beginStep();
+    if (!started.ready) continue;
+    while (cursor < commands.length && commands[cursor].issuedAtStep === core.getStepCount() && isLegacy(commands[cursor]) && commands[cursor].type === 'TACTIC_CHANGE') apply(commands[cursor], true);
+    core.applyTacticsBoundary();
+    for (const side of ['home', 'away'] as const) {
+      while (cursor < commands.length && commands[cursor].issuedAtStep === core.getStepCount() && isLegacy(commands[cursor]) && commands[cursor].type === 'SUB_REQUEST' && commands[cursor].side === side) apply(commands[cursor], true);
+      core.applySubstitutionBoundary(side);
+    }
+    core.completeStep();
+  }
+  if (cursor !== commands.length) throw new Error(`Replay did not apply command ${commands[cursor].id}.`);
+  if (deterministicReplayHash(core.getCommandLog()) !== deterministicReplayHash(commands)) throw new Error('Replay command log diverged from the supplied log.');
+  return core;
+}
+
 /** Replay both normal manager commands and old SubManager commands at their exact boundaries. */
 export function replaySimulation(input: SimulationInput, commands: readonly MatchCommand[]): ReplayVerification {
   const core = new SimulationCore(input);

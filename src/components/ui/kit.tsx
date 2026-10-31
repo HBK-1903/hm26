@@ -10,7 +10,10 @@ export function useFocusTrap<T extends HTMLElement>(active: boolean): React.RefO
     if (!root) return;
     const qs = 'button:not([disabled]),a[href],input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
     const items = () => Array.from(root.querySelectorAll<HTMLElement>(qs)).filter((n) => n.offsetParent !== null || n === document.activeElement);
-    const t = window.setTimeout(() => { (items()[0] ?? root).focus(); }, 70);
+    // Do not steal focus if the user has already reached a control in the sheet.
+    const t = window.setTimeout(() => {
+      if (!root.contains(document.activeElement)) (items()[0] ?? root).focus();
+    }, 70);
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Tab') return;
       const list = items();

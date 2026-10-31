@@ -53,7 +53,7 @@ try {
   let saved = false;
   await act(async () => { saved = await game.saveNow(); });
   let original = await readSave(1);
-  check('Gerçek GameProvider durumu sürüm 4 ile yazılır', saved && original?.blob.version === SAVE_VERSION && SAVE_VERSION === 4);
+  check('Gerçek GameProvider durumu sürüm 5 ile yazılır', saved && original?.blob.version === SAVE_VERSION && SAVE_VERSION === 5);
   if (!original) throw new Error('Başlangıç kaydı yok');
   await act(async () => {
     game.setCareer((c) => ({ ...c, settings: { ...c.settings, reduceMotion: true } }));
@@ -82,17 +82,20 @@ try {
   // Stop the fresh-career startup timer before the isolated transaction tests.
   await act(async () => root.render(<></>));
   const roundTrip = parseImportFile(envelope(baseline));
-  check('Tam yedek başarıyla doğrulanır', roundTrip.blob.career.manager.name === career.manager.name && roundTrip.blob.version === 4);
+  check('Tam yedek başarıyla doğrulanır', roundTrip.blob.career.manager.name === career.manager.name && roundTrip.blob.version === SAVE_VERSION);
 
   const legacy = clone(baseline);
   legacy.version = 1;
   delete legacy.career.clubFacilities; delete legacy.career.boardConfidence; delete legacy.career.trophyCabinet;
   delete legacy.seasonNo; delete legacy.seasonHistory; delete legacy.matchReports; delete legacy.international;
   const migrated = parseImportFile(envelope(legacy, 'manager26-save', 1)).blob as SaveBlob & Record<string, any>;
-  check('Eski ad, eski sürüm ve opsiyonel alan eksikleri migrasyonla kabul edilir', migrated.version === 4 && migrated.career.boardConfidence === 70 && !!migrated.career.clubFacilities);
+  check('Eski ad, eski sürüm ve opsiyonel alan eksikleri migrasyonla kabul edilir', migrated.version === SAVE_VERSION && migrated.career.boardConfidence === 70 && !!migrated.career.clubFacilities);
+  const v4 = clone(baseline); v4.version = 4;
+  const migratedV4 = parseImportFile(envelope(v4, 'hm26-save', 4)).blob as SaveBlob & Record<string, any>;
+  check('Önceki v4 kariyeri ve maç arşivi v5’e kayıpsız taşınır', migratedV4.version === SAVE_VERSION && JSON.stringify(migratedV4.fixtures) === JSON.stringify(v4.fixtures) && JSON.stringify(migratedV4.matchReports) === JSON.stringify(v4.matchReports) && !migratedV4.liveMatchCheckpoint);
   // Synthetic career created by the actual initial public release (commit 3fb2aa7314), not a real user's data.
   const historical = parseImportFile(readFileSync('tools/fixtures/save-v2-original.json', 'utf8')).blob as SaveBlob & Record<string, any>;
-  check('Gerçek eski uygulamanın ürettiği v2 yedek korunarak açılır', historical.version === 4 && historical.career.manager.name === 'Eski Sürüm Testi' && historical.fixtures.length === 396);
+  check('Gerçek eski uygulamanın ürettiği v2 yedek korunarak açılır', historical.version === SAVE_VERSION && historical.career.manager.name === 'Eski Sürüm Testi' && historical.fixtures.length === 396);
   const reports = clone(baseline);
   reports.matchReports = Array.from({ length: 256 }, (_, i) => ({ id: String(i), day: i + 1 }));
   check('256 maçlık mevcut arşiv import sırasında kesilmez veya çoğaltılmaz', (parseImportFile(envelope(reports)).blob as any).matchReports.length === 256);
@@ -122,7 +125,7 @@ try {
     ['dünya kadrosu bozuk', (b) => { b.extraSquads = { x: null }; }],
     ['arşiv satırı bozuk', (b) => { b.matchReports = [null]; }],
     ['oyuncu listesi bozuk', (b) => { b.removedPlayers = [null]; }],
-    ['iç sürüm gelecekten', (b) => { b.version = 5; }],
+    ['iç sürüm gelecekten', (b) => { b.version = SAVE_VERSION + 1; }],
   ];
   let rejected = 0;
   for (const [name, mutate] of corruptions) {
@@ -132,11 +135,11 @@ try {
   }
   check('Eksik/bozuk çekirdek ve yanlış türler yazılmadan reddedilir', rejected === corruptions.length, `${rejected}/${corruptions.length}`);
   let invalidVersions = 0;
-  for (const version of [0, -1, 1.5, 5, '4', null]) {
+  for (const version of [0, -1, 1.5, SAVE_VERSION + 1, '4', null]) {
     try { parseImportFile(envelope(baseline, 'hm26-save', version as number)); } catch { invalidVersions++; }
   }
   check('Geçersiz veya gelecek yedek sürümleri reddedilir', invalidVersions === 6);
-  check('Doğrulama kaynak kariyer nesnesini değiştirmez', baseline.career.manager.name === career.manager.name && baseline.version === 4);
+  check('Doğrulama kaynak kariyer nesnesini değiştirmez', baseline.career.manager.name === career.manager.name && baseline.version === SAVE_VERSION);
 
   const now = Date.now;
   Date.now = () => 42;

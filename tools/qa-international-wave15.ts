@@ -104,7 +104,7 @@ const season = buildInternationalSeason({ seasonNo: 3, seed: 150001, tables, dom
     && store.includes('recordInternationalScorers(next.international.cups')
     && store.includes('archiveInternationalSeason(previousInternational)')
     && store.includes('internationalDone = next.international.cups.every')
-    && ui.includes("v: 'uluslararasi', label: 'Kıtalar'") && ui.includes('internationalGroupTable(internationalCup, group)')
+    && ui.includes("['uluslararasi', 'Kıtalar']") && ui.includes('internationalGroupTable(internationalCup, group)')
     && ui.includes('Uluslararası gol krallığı') && ui.includes('Geçmiş sezonlar')
     && newsroom.includes('internationalFixtures(g.international?.cups ?? [])');
   check('Store handles migration, calendar blocking, AI/user results, seasonal archive and competition/news UI', wired,

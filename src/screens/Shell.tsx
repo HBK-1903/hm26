@@ -41,7 +41,7 @@ const MORE_IDS: string[] = MORE_MENU.map((m) => m.id);
 
 // v0.8.3 RISK-01: tarayıcı geri/ileri için yalnızca kalıcı ekranlar geçmişe yazılır (liveMatch/matchReport geçici)
 const NAV_SCREENS = new Set<Screen>(['hub', 'squad', 'tactics', 'market', 'club', 'comps', 'stats', 'inbox', 'careerProfile', 'settings', 'backup', 'matchPrep', 'newsroom']);
-const UNSAVED_MATCH_WARNING = 'Maç sonucu henüz kaydedilmedi. Bu ekrandan ayrılırsan maç baştan oynanır. Ayrılmak istiyor musun?';
+const UNSAVED_MATCH_WARNING = 'Maçın son kaydedilen noktasına daha sonra dönebilirsin. Kayıt sürüyorsa veya hatalıysa son değişiklikler kaybolabilir. Bu ekrandan ayrılmak istiyor musun?';
 
 // PWA kısayolları (#squad, #market …) ve yenileme sonrası derin link: bilinmeyen hash güvenle Merkez'e düşer
 function screenFromHash(): Screen {
@@ -60,7 +60,10 @@ export const AppShell: React.FC<{ pendingScreen: Screen | null; setPendingScreen
   const [blockedReason, setBlockedReason] = useState<string | null>(null);
   const [lastSummary, setLastSummary] = useState<string[] | null>(null);
   const [newsInitialTab, setNewsInitialTab] = useState<'headlines' | 'weekly'>('headlines');
-  // A live match and its report are transient until the manager saves the result.
+  const [matchNavigationNotice, setMatchNavigationNotice] = useState('');
+  const hasPendingMatch = useRef(!!g.liveMatchCheckpoint);
+  hasPendingMatch.current = !!g.liveMatchCheckpoint;
+  // A live match and its report are not committed until the manager saves the result.
   const matchInProgress = useRef(false);
   const setMatchInProgress = useCallback((active: boolean) => { matchInProgress.current = active; }, []);
 
@@ -99,6 +102,11 @@ export const AppShell: React.FC<{ pendingScreen: Screen | null; setPendingScreen
       const fromHash = location.hash.replace(/^#/, '') as Screen;
       const target: Screen = NAV_SCREENS.has(fromState as Screen) ? (fromState as Screen)
         : NAV_SCREENS.has(fromHash) ? fromHash : 'hub';
+      if (hasPendingMatch.current && target !== 'matchPrep' && target !== 'backup') {
+        setMatchNavigationNotice('Önce devam eden maçını tamamla veya maç kaydını sil. Yedekleme bölümüne yine ulaşabilirsin.');
+        try { history.pushState({ hm26s: 'matchPrep' }, '', '#matchPrep'); } catch { /* file:// fallback */ }
+        return;
+      }
       if (matchInProgress.current && target !== 'matchPrep') {
         if (!window.confirm(UNSAVED_MATCH_WARNING)) {
           // popstate has already changed the URL; restore the live-match route.
@@ -115,13 +123,19 @@ export const AppShell: React.FC<{ pendingScreen: Screen | null; setPendingScreen
     return () => window.removeEventListener('popstate', onPop);
   }, [setPendingScreen]);
 
-  const current: Screen = pendingScreen ?? screen;
+  const requestedScreen: Screen = pendingScreen ?? screen;
+  const current: Screen = hasPendingMatch.current && requestedScreen !== 'backup' ? 'matchPrep' : requestedScreen;
   const go = (s: Screen, newsTab: 'headlines' | 'weekly' = 'headlines') => {
+    if (hasPendingMatch.current && s !== 'matchPrep' && s !== 'backup') {
+      setMatchNavigationNotice('Önce devam eden maçını tamamla veya maç kaydını sil. Yedekleme bölümüne yine ulaşabilirsin.');
+      return;
+    }
     if (matchInProgress.current && s !== 'matchPrep') {
       if (!window.confirm(UNSAVED_MATCH_WARNING)) return;
       matchInProgress.current = false;
     }
     setPendingScreen(null);
+    setMatchNavigationNotice('');
     if (s === 'newsroom') setNewsInitialTab(newsTab);
     setScreen(s);
     setMoreOpen(false);
@@ -186,6 +200,8 @@ export const AppShell: React.FC<{ pendingScreen: Screen | null; setPendingScreen
           </button>
         </div>
       </header>
+      {matchNavigationNotice && <div role="status" className="shrink-0 flex items-center gap-2 border-b border-line bg-surface px-3 py-2 text-[11px] text-secondary"><span className="flex-1">{matchNavigationNotice}</span><button type="button" className="min-h-touch underline" onClick={() => setMatchNavigationNotice('')}>Kapat</button></div>}
+      {hasPendingMatch.current && current === 'backup' && <button type="button" onClick={() => go('matchPrep')} className="shrink-0 min-h-touch bg-amber/10 text-amber text-[12px] font-bold">← Kayıtlı maça dön</button>}
       {g.saveError && (
         <div role="alert" className="shrink-0 flex items-center gap-2 border-b border-danger/40 bg-danger/10 px-3 py-2 text-[12px] font-semibold text-danger">
           <span className="flex-1">{g.saveError} Güncel durumu Yedekleme bölümünden dosyaya indirebilirsin.</span>

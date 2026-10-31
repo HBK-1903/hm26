@@ -1,5 +1,5 @@
 // HM26 v0.9.11 — TV yayın skorbug, Phaser saha motoru, canlı telemetri ve kenar yönetimi.
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { DemoFixture, TacticPlan, TableRow } from '../types';
 import type { EngineShot, MatchStats } from '../engine/engine';
 import type { HeatPoint, PitchEvent, PitchRuntime, TeamDots } from '../components/assets/PhaserPitch';
@@ -7,6 +7,8 @@ import { pitchTeamColors } from '../components/assets/pitchPresentation';
 import { toStadiumPoint } from '../engine/pitch-ai';
 import { useGame, DemoMatchResult, DemoMatchEvent } from '../store/game';
 import { MatchSession, TeamTalkChoice } from '../engine/session';
+import { makeLiveCheckpoint, type LiveMatchCheckpoint } from '../engine/liveCheckpoint';
+import { registerManagerYellow } from '../engine/discipline';
 import { buildEngineInput, matchEventsToDemo } from '../engine/adapter';
 import { aiDefaultTactic } from '../engine/tactics';
 import { PresentationSpeed, presentationDelayMs, projectLiveMatch } from '../engine/adapters/liveProjection';
@@ -44,43 +46,50 @@ const ZONES: Record<string, { x: number; y: number }> = {
   'L-A': { x: 22, y: 18 }, 'C-A': { x: 50, y: 15 }, 'R-A': { x: 78, y: 18 },
 };
 
-export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onExit: () => void; onSaved?: () => void; onEndDay?: () => void }> = ({ fixture, tacticIdx = 0, onExit, onSaved, onEndDay }) => {
+export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; checkpoint?: LiveMatchCheckpoint; restoredSession?: MatchSession; onExit: () => void; onSaved?: () => void; onEndDay?: () => void }> = ({ fixture, tacticIdx = 0, checkpoint, restoredSession, onExit, onSaved, onEndDay }) => {
   const g = useGame();
+  const savedView = checkpoint?.view;
   // Aşama 3 MOTOR §6.2: Maç artık önceden simüle edilmiyor — MatchSession gerçek zamanlı ilerliyor
-  const sessionRef = useRef<MatchSession | null>(null);
-  const [eventsShown, setEventsShown] = useState<DemoMatchEvent[]>([]);
+  const sessionRef = useRef<MatchSession | null>(restoredSession ?? null);
+  const [eventsShown, setEventsShown] = useState<DemoMatchEvent[]>(() => savedView?.events ?? []);
   const [finResult, setFinResult] = useState<DemoMatchResult | null>(null);
   const [tick, setTick] = useState(0);
-  const [speed, setSpeed] = useState<PresentationSpeed>('x2');
-  const [paused, setPaused] = useState(false);
-  const [activeTab, setActiveTab] = useState<ConsoleTab>('pitch');
-  const [pitchView, setPitchView] = useState<'pitch' | 'atmosphere'>('pitch');
+  const [speed, setSpeed] = useState<PresentationSpeed>(savedView?.speed ?? 'x2');
+  const [paused, setPaused] = useState(savedView?.paused ?? false);
+  const [activeTab, setActiveTab] = useState<ConsoleTab>(savedView?.activeTab ?? 'pitch');
+  const [pitchView, setPitchView] = useState<'pitch' | 'atmosphere'>(savedView?.pitchView ?? 'pitch');
   const [reaction, setReaction] = useState<{ cue: LiveReaction; sequence: number } | null>(null);
   const reactionSeen = useRef(0);
   const reactionSequence = useRef(0);
-  const [heatEnabled, setHeatEnabled] = useState(false);
-  const [heatTeam, setHeatTeam] = useState<'all' | 'home' | 'away'>('all');
-  const [heatSamples, setHeatSamples] = useState<HeatPoint[]>([]);
-  const [showTouchline, setShowTouchline] = useState(false);
-  const [showTeamTalk, setShowTeamTalk] = useState(false);
+  const [heatEnabled, setHeatEnabled] = useState(savedView?.heatEnabled ?? false);
+  const [heatTeam, setHeatTeam] = useState<'all' | 'home' | 'away'>(savedView?.heatTeam ?? 'all');
+  const [heatSamples, setHeatSamples] = useState<HeatPoint[]>(() => savedView?.heatSamples ?? []);
+  const [showTouchline, setShowTouchline] = useState(savedView?.showTouchline ?? false);
+  const [showTeamTalk, setShowTeamTalk] = useState(savedView?.showTeamTalk ?? false);
   const [hapticsEnabled, setHapticsEnabled] = useState(() => { try { return localStorage.getItem('m26_match_haptics') !== 'off'; } catch { return true; } });
-  const [crowdShoutUsed, setCrowdShoutUsed] = useState(false);
-  const [decision, setDecision] = useState<DemoMatchEvent | null>(null);
-  const [showSubPicker, setShowSubPicker] = useState(false);
-  const [showTacticPicker, setShowTacticPicker] = useState(false);
+  const [crowdShoutUsed, setCrowdShoutUsed] = useState(savedView?.crowdShoutUsed ?? false);
+  const [decision, setDecision] = useState<DemoMatchEvent | null>(savedView?.decision ?? null);
+  const [showSubPicker, setShowSubPicker] = useState(savedView?.showSubPicker ?? false);
+  const [showTacticPicker, setShowTacticPicker] = useState(savedView?.showTacticPicker ?? false);
   // Akış: canlı maç → kullanıcı isteğiyle röportaj → maç sonu analizi.
-  const [phase, setPhase] = useState<'live' | 'interview' | 'report'>('live');
-  const interviewChoiceRef = useRef<InterviewOption | null>(null);
+  const [phase, setPhase] = useState<'live' | 'interview' | 'report'>(savedView?.phase ?? 'live');
+  const interviewChoiceRef = useRef<InterviewOption | null>(savedView?.interviewChoice ?? null);
   const feedRef = useRef<HTMLDivElement>(null);
-  const managerSuspendedRef = useRef<boolean | null>(null);
+  const managerSuspendedRef = useRef<boolean | null>(savedView?.managerSuspendedAtStart ?? null);
+  const [managerCards, setManagerCards] = useState(savedView?.managerCards ?? 0);
+  const [checkpointReady, setCheckpointReady] = useState(false);
+  const [checkpointError, setCheckpointError] = useState(false);
+  const [checkpointRetry, setCheckpointRetry] = useState(0);
+  const [commitBusy, setCommitBusy] = useState(false);
+  const commitBusyRef = useRef(false);
   const resultCommitted = useRef(false);
   // Maç döngüsü beklenmedik bir hatayla donarsa kullanıcıyı ekranda kilitlememek için kurtarma durumu
   const [loopError, setLoopError] = useState<unknown>(null);
-  const lastDecisionShown = useRef('');
+  const lastDecisionShown = useRef(savedView?.lastDecisionShown ?? '');
   const lastAudioEvent = useRef<DemoMatchEvent | null>(null);
-  const teamTalkPromptShown = useRef(false);
+  const teamTalkPromptShown = useRef(savedView?.teamTalkPromptShown ?? false);
   // Dalga 5: antrenör notu kontrol noktaları (45/75/90) her maçta bir kez düşer
-  const coachFiredRef = useRef<Set<number>>(new Set());
+  const coachFiredRef = useRef<Set<number>>(new Set(savedView?.coachFired ?? []));
   const [systemReducedMotion, setSystemReducedMotion] = useState(() => typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
   useEffect(() => {
     if (typeof window === 'undefined' || !window.matchMedia) return;
@@ -117,6 +126,34 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onE
     }));
   }
   const session = sessionRef.current;
+
+  // Persist each rendered boundary (including pending decisions and commands)
+  // before allowing the next simulation step. A failed or conflicting write
+  // freezes play instead of pretending that the latest point is safe.
+  useLayoutEffect(() => {
+    let active = true;
+    setCheckpointReady(false);
+    try {
+      const next = makeLiveCheckpoint(session, fixture, g.seasonNo, tacticIdx, {
+        events: eventsShown, speed, paused, activeTab, pitchView, heatEnabled, heatTeam, heatSamples,
+        showTouchline, showTeamTalk, teamTalkPromptShown: teamTalkPromptShown.current, crowdShoutUsed,
+        decision, lastDecisionShown: lastDecisionShown.current, showSubPicker, showTacticPicker,
+        coachFired: [...coachFiredRef.current], phase, interviewChoice: interviewChoiceRef.current,
+        managerSuspendedAtStart, managerCards,
+      });
+      void g.saveLiveCheckpoint(next).then((saved) => {
+        if (!active) return;
+        setCheckpointError(!saved);
+        setCheckpointReady(saved);
+      }).catch(() => { if (active) { setCheckpointError(true); setCheckpointReady(false); } });
+    } catch (error) {
+      console.error('[hm26] canlı maç kaydı oluşturulamadı:', error);
+      setCheckpointError(true);
+    }
+    return () => { active = false; };
+    // g's action is stable; depending on the provider object would save forever.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session, fixture, tacticIdx, tick, eventsShown, speed, paused, activeTab, pitchView, heatEnabled, heatTeam, heatSamples, showTouchline, showTeamTalk, crowdShoutUsed, decision, showSubPicker, showTacticPicker, phase, managerCards, checkpointRetry]);
 
   const projection = projectLiveMatch(session);
   const done = projection.status === 'complete';
@@ -199,8 +236,8 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onE
   React.useEffect(() => {
     audio.unlock();
     const isDerby = (clubById(fixture.homeId).derby === fixture.awayId || clubById(fixture.awayId).derby === fixture.homeId);
-    audio.startCrowd(isDerby);
-    audio.play('whistle-start');
+    if (!session.done) audio.startCrowd(isDerby);
+    if (!checkpoint) audio.play('whistle-start');
     return () => { audio.stopCrowd(); };
   }, []);
 
@@ -224,7 +261,7 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onE
   const finalizeFromSession = () => setFinResult(buildFinResult(session.toResult()));
 
   useEffect(() => {
-    if (paused || done) return;
+    if (paused || done || !checkpointReady || checkpointError) return;
     const t = setTimeout(() => {
       try {
         const fresh = session.step();
@@ -246,7 +283,7 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onE
     }, presentationDelayMs(speed));
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tick, paused, done, speed]);
+  }, [tick, paused, done, speed, checkpointReady, checkpointError]);
 
   // Kurtarma: motoru kalan dakikaları simüle ederek güvenle bitir ve rapora geç
   const recoverMatch = () => {
@@ -328,36 +365,35 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onE
     }
   }, [eventsShown, currentEvent, paused, done, decision, mySide]);
 
-  // Not: düdükten sonra otomatik geçiş YOK. Maç bittiğinde canlı ekran (sekmeler, istatistik,
-  // analiz, tablo ve spiker akışı) incelemeye açık kalır; kullanıcı footer'daki butonla röportaja geçer.
+  const checkpointNotice = <div data-testid="live-checkpoint-status" role={checkpointError ? 'alert' : 'status'} className={`shrink-0 px-3 py-1 text-[10px] ${checkpointError ? 'bg-danger/15 text-danger' : 'bg-base text-muted'}`}>
+    {checkpointError ? <>Maçın son durumu kaydedilemedi; akış durduruldu. Yenilersen son güvenli noktaya dönersin. <button type="button" className="min-h-[32px] underline font-bold" onClick={() => setCheckpointRetry((n) => n + 1)}>Tekrar dene</button></> : checkpointReady ? 'Maç ilerlemesi kaydedildi.' : 'Maç ilerlemesi kaydediliyor…'}
+  </div>;
+
+  // Not: düdükten sonra otomatik geçiş YOK. Kullanıcı ekranı incelemeye devam eder.
   if (phase === 'interview' && finResult) {
-    return <PostMatchInterview result={finResult} fixture={fixture} onChoose={(opt) => { interviewChoiceRef.current = opt; setPhase('report'); }} />;
+    return <div className="h-full min-h-0 flex flex-col">{checkpointNotice}<div className="flex-1 min-h-0"><PostMatchInterview result={finResult} fixture={fixture} onChoose={(opt) => { interviewChoiceRef.current = opt; setPhase('report'); }} /></div></div>;
   }
   if (phase === 'report' && finResult) {
-    return <MatchReport
+    const finish = async (endDay: boolean) => {
+      if (commitBusyRef.current || (!resultCommitted.current && (!checkpointReady || checkpointError))) return;
+      commitBusyRef.current = true; setCommitBusy(true);
+      try {
+        if (!resultCommitted.current) {
+          // Result, discipline, injury risk and checkpoint removal are one career snapshot.
+          g.playLeagueMatch(fixture, finResult, tacticIdx, interviewChoiceRef.current ?? undefined, { managerCards, managerSuspendedAtStart });
+          resultCommitted.current = true;
+        }
+        const saved = await g.saveNow();
+        if (saved) { if (endDay && onEndDay) onEndDay(); else (onSaved ?? onExit)(); }
+      } finally { commitBusyRef.current = false; setCommitBusy(false); }
+    };
+    return <div className="h-full min-h-0 flex flex-col">{checkpointNotice}{commitBusy && <div role="status" className="px-3 text-[11px] text-amber">Sonuç kaydediliyor…</div>}<div className="flex-1 min-h-0"><MatchReport
       result={finResult}
       fixture={fixture}
-      onDone={() => { commitResult(); (onSaved ?? onExit)(); }}
-      onEndDay={onEndDay ? () => {
-        // Çift dokunuş koruması: commitResult da aynı kilide sahiptir.
-        if (resultCommitted.current) return;
-        commitResult();
-        // Gün ilerletme üst katmanda (MatchPrep), maç state'i işlendikten sonra çalışır;
-        // aynı event içinde advanceDay çağrısı bayat fikstür listesiyle engel dönerdi.
-        onEndDay();
-      } : undefined}
-    />;
-  }
-  function commitResult() {
-    if (resultCommitted.current) return;
-    resultCommitted.current = true;
-    // P0: canlı izlenen skor table'a ACTİVE olarak bırakılır (re-simülasyon yok)
-    g.playLeagueMatch(fixture, finResult ?? undefined, tacticIdx, interviewChoiceRef.current ?? undefined);
-    g.consumeManagerSuspension(managerSuspendedAtStart);
-    // v0.9.9: iğneyle oynatma kumarı maç sonunda çözülür (%25 nüks — oynayan onaylılar)
-    // Canlı sonuçta dakikalar doğrudan playerRows içinde; engine.playerRows yoktur.
-    const playedIds = Object.entries(finResult?.playerRows ?? {}).filter(([, row]) => row.min > 0).map(([id]) => id);
-    g.applyRiskOutcome(playedIds);
+      saveDisabled={commitBusy || (!resultCommitted.current && (!checkpointReady || checkpointError))}
+      onDone={() => { void finish(false); }}
+      onEndDay={onEndDay ? () => { void finish(true); } : undefined}
+    /></div></div>;
   }
 
   const home = clubById(fixture.homeId);
@@ -433,9 +469,14 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onE
     setEventsShown((ev) => [...ev, { minute: session.getMinute(), side: mySide, kind: 'info', text: command === 'pump' ? 'Kenardan: Yüklenin! Pres ve tempo 15 dakika yükseldi; kondisyon kaybı arttı.' : 'Kenardan: Tempoyu düşürün. Güvenli pas ve kontrollü oyun devrede.' }]);
     setTick((v) => v + 1);
   };
+  let projectedDiscipline = { managerYellowCards: g.career.managerYellowCards ?? 0, managerSuspendedMatches: g.career.managerSuspendedMatches ?? 0 };
+  for (let i = 0; i < managerCards; i++) projectedDiscipline = registerManagerYellow(projectedDiscipline.managerYellowCards, projectedDiscipline.managerSuspendedMatches);
   const triggerProtest = () => {
     const r = session.protest(mySide); if (!r.ok) return;
-    const discipline = r.carded ? g.recordManagerYellow() : null;
+    // Keep cards inside the checkpoint until the result is atomically committed;
+    // replaying a protest must not apply the career penalty a second time.
+    const discipline = r.carded ? registerManagerYellow(projectedDiscipline.managerYellowCards, projectedDiscipline.managerSuspendedMatches) : null;
+    if (r.carded) setManagerCards((count) => count + 1);
     const text = r.carded ? discipline?.banned ? 'Menajer ikinci sarısını gördü; sonraki maçta teknik alanda bulunamayacak.' : 'Hakem itiraz nedeniyle menajere sarı kart gösterdi.' : 'İtirazın ardından takımın hırsı ve mücadele gücü yükseldi.';
     setEventsShown((ev) => [...ev, { minute: r.minute, side: mySide, kind: r.carded ? 'card' : 'info', text }]);
     setTick((v) => v + 1);
@@ -474,7 +515,7 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onE
         {([['protect', 'Skoru koru'], ['balanced', 'Dengeli'], ['attack', 'Hücum'], ['allin', 'Tam hücum']] as const).map(([key, label]) => <button key={key} onClick={() => quickMentality(key)} disabled={done || managerSuspendedAtStart} className="min-h-[44px] rounded-lg border border-line bg-surface text-primary text-[10px] font-bold disabled:opacity-45">{label}</button>)}
       </div>
       <button type="button" role="switch" aria-checked={hapticsEnabled} aria-label="Maç haptikleri" onClick={() => setHapticsEnabled((enabled) => { const next = !enabled; try { localStorage.setItem('m26_match_haptics', next ? 'on' : 'off'); } catch { /* storage optional */ } return next; })} className="min-h-[44px] rounded-xl border border-line bg-surface px-3 text-left text-[10px] text-primary">📳 Haptikler {hapticsEnabled ? 'Açık' : 'Kapalı'}{reducedMotion ? ' · Azaltılmış hareket ayarı titreşimi engelliyor' : ''}</button>
-      {(g.career.managerYellowCards ?? 0) > 0 && <div className="text-[10px] text-[#f4d079] px-1">Menajer kartı: 🟨 {g.career.managerYellowCards}/2 — ikinci sarı sonraki maç tribünü demek.</div>}
+      {projectedDiscipline.managerYellowCards > 0 && <div className="text-[10px] text-[#f4d079] px-1">Menajer kartı: 🟨 {projectedDiscipline.managerYellowCards}/2 — ikinci sarı sonraki maç tribünü demek.</div>}
       {managerSuspendedAtStart && <div className="text-[10px] text-[#f4d079] px-1">Menajer tribünde: kenar komutları devre dışı.</div>}
     </div>
   );
@@ -517,6 +558,7 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onE
 
   return (
     <div className="h-full min-h-0 flex flex-col safe-t safe-b bg-base">
+      {checkpointNotice}
       {/* Persistent broadcast scorebug */}
       <header className="px-2.5 pt-2 pb-2 border-b border-line/60 bg-[#111b16] shrink-0 sticky top-0 z-20" aria-label="Sabit maç skorbordu">
         <div className="flex items-center justify-between gap-1">
@@ -704,7 +746,14 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onE
         </div>
       </Sheet>
       <Sheet open={showSubPicker} onClose={() => { setShowSubPicker(false); setPaused(false); }} title="Oyuncu Değişikliği">
-        <SubPickerFlow slots={session.getSlots(mySide)} bench={session.getBench(mySide)} subsLeft={session.subsLeft(mySide)} windowsLeft={session.windowsLeft(mySide)} playerRows={liveStats.playerRows} onConfirm={(outId, inId) => { const ok = session.queueSub(mySide, outId, inId); setShowSubPicker(false); setPaused(false); if (!ok) setDecision({ minute: tick, text: 'Değişiklik uygun değil (hak bitti veya maç sonu)', kind: 'info' }); else setTick((v) => v + 1); }} onCancel={() => { setShowSubPicker(false); setPaused(false); }} />
+        <SubPickerFlow slots={session.getSlots(mySide)} bench={session.getBench(mySide)} subsLeft={session.subsLeft(mySide)} windowsLeft={session.windowsLeft(mySide)} playerRows={liveStats.playerRows} onConfirm={(outId, inId) => {
+          const ok = session.queueSub(mySide, outId, inId);
+          setShowSubPicker(false);
+          if (!ok) {
+            const notice: DemoMatchEvent = { minute: session.getMinute(), text: 'Değişiklik uygun değil (hak bitti veya maç sonu)', kind: 'info' };
+            setEventsShown((events) => [...events, notice]); setDecision(notice); setPaused(true);
+          } else { setPaused(false); setTick((v) => v + 1); }
+        }} onCancel={() => { setShowSubPicker(false); setPaused(false); }} />
       </Sheet>
       <Sheet open={!!decision} onClose={() => { if (decision?.kind === 'injury') waitForInjuryReturn(); else { setDecision(null); setPaused(false); } }} title={decision?.kind === 'injury' ? 'Sakatlık Kararı' : decision?.kind === 'var' ? 'VAR İncelemesi' : 'Karar Anı'}>
         {decision && <div className={reducedMotion ? '' : 'm26-in'}>
