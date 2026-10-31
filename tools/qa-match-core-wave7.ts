@@ -43,77 +43,103 @@ const check = (name: string, pass: boolean, detail: string) => checks.push({ nam
 }
 
 {
-  const homeStarter = autoLineup(baseInput.homeSquad, baseInput.homeTactic.formation).slots.find((slot) => slot.slotGroup === 'ST')!;
-  const awayStarter = autoLineup(baseInput.awaySquad, baseInput.awayTactic!.formation).slots.find((slot) => slot.slotGroup === 'ST')!;
-  const homeSetPieces = { captain: null, penalty: homeStarter.player.id, cornerL: homeStarter.player.id, cornerR: homeStarter.player.id, fkShort: homeStarter.player.id, fkLong: homeStarter.player.id };
-  const awaySetPieces = { captain: null, penalty: awayStarter.player.id, cornerL: awayStarter.player.id, cornerR: awayStarter.player.id, fkShort: awayStarter.player.id, fkLong: awayStarter.player.id };
-  const configuredInput: MatchInput = {
+  const configuredFixture = (name: string, input: MatchInput) => {
+    const homeStarter = autoLineup(input.homeSquad, input.homeTactic.formation).slots.find((slot) => slot.slotGroup === 'ST')!;
+    const awayStarter = autoLineup(input.awaySquad, input.awayTactic!.formation).slots.find((slot) => slot.slotGroup === 'ST')!;
+    const homeSetPieces = { captain: null, penalty: homeStarter.player.id, cornerL: homeStarter.player.id, cornerR: homeStarter.player.id, fkShort: homeStarter.player.id, fkLong: homeStarter.player.id };
+    const awaySetPieces = { captain: null, penalty: awayStarter.player.id, cornerL: awayStarter.player.id, cornerR: awayStarter.player.id, fkShort: awayStarter.player.id, fkLong: awayStarter.player.id };
+    const configuredInput: MatchInput = {
+      ...input,
+      homeTactic: { ...input.homeTactic, plan: 'yuksekPres', press: 'high', tempo: 'high', passRisk: 'direct', width: 68, fbAdvanced: true, setPieces: homeSetPieces },
+      awayTactic: { ...input.awayTactic!, plan: 'yuksekPres', press: 'high', tempo: 'high', passRisk: 'direct', width: 68, fbAdvanced: true, setPieces: awaySetPieces },
+    };
+    return { name, input: configuredInput, homeSetPieces, awaySetPieces };
+  };
+  const balancedAway = CLUBS[1];
+  const balancedInput: MatchInput = {
     ...baseInput,
-    homeTactic: { ...baseInput.homeTactic, plan: 'yuksekPres', press: 'high', tempo: 'high', passRisk: 'direct', width: 68, fbAdvanced: true, setPieces: homeSetPieces },
-    awayTactic: { ...baseInput.awayTactic!, plan: 'yuksekPres', press: 'high', tempo: 'high', passRisk: 'direct', width: 68, fbAdvanced: true, setPieces: awaySetPieces },
-  }; 
+    awayClub: balancedAway,
+    awaySquad: genSquad(balancedAway, 83002),
+    homeTactic: aiDefaultTactic(home, balancedAway, balancedAway.strength),
+    awayTactic: aiDefaultTactic(balancedAway, home, home.strength),
+  };
+  // Preserve the original mismatch stress case and add a balanced opponent:
+  // one deterministic squad pairing can have too few attacking-third fouls to
+  // produce a penalty, even while the production penalty chain works correctly.
+  const fixtures = [configuredFixture('mismatch', baseInput), configuredFixture('balanced', balancedInput)];
   const seenRestarts = new Set<string>();
   const seenShotTypes = new Set<string>();
   const seenCards = new Set<string>();
   let sawFoul = false, allChainsValid = true, allTakersEligible = true, allStatsReconciled = true, matches = 0;
-  const rosterIds = new Set([...baseInput.homeSquad, ...baseInput.awaySquad].map((player) => player.id));
+  const coverage: string[] = [];
+  const allEventsSeen = () => sawFoul && seenRestarts.has('corner') && seenRestarts.has('free_kick') && seenRestarts.has('penalty') && seenShotTypes.has('free_kick') && seenShotTypes.has('corner') && seenCards.has('YELLOW_CARD');
 
-  for (let seed = 83010; seed < 83610 && !(seenRestarts.has('corner') && seenRestarts.has('free_kick') && seenRestarts.has('penalty') && seenShotTypes.has('free_kick') && seenShotTypes.has('corner') && seenCards.has('YELLOW_CARD')); seed++) {
-    const session = new MatchSession({ ...configuredInput, seed });
-    const result = session.finishNow();
-    const events = session.getCoreEvents();
-    const summary = reduceMatchEvents(events, true);
-    const refereeAssignments = events.filter((event) => event.type === 'REFEREE_ASSIGNED');
-    if (refereeAssignments.length !== 1 || refereeAssignments[0]?.type !== 'REFEREE_ASSIGNED' || refereeAssignments[0].refereeId !== session.getReferee().id) allChainsValid = false;
-    matches++;
-    for (const event of events) {
-      if (event.type === 'FOUL_CALLED') {
-        sawFoul = true;
-        const restartIndex = events.findIndex((candidate) => candidate.type === 'RESTART_AWARDED' && candidate.sourceFoulEventId === event.id);
-        const restart = restartIndex >= 0 ? events[restartIndex] : undefined;
-        if (!restart || restart.type !== 'RESTART_AWARDED' || restart.second !== event.second || restart.restartType !== event.restartType || restart.side !== event.side || restart.refereeId !== session.getReferee().id) allChainsValid = false;
-      }
-      if (event.type === 'RESTART_AWARDED') {
-        seenRestarts.add(event.restartType);
-        const roleConfig = event.side === 'home' ? homeSetPieces : awaySetPieces;
-        if (!rosterIds.has(event.takerId) || (event.takerSelection === 'assigned' && !Object.values(roleConfig).includes(event.takerId))) allTakersEligible = false;
-        if (event.restartType === 'penalty') {
-          const attempt = events.find((candidate) => candidate.type === 'SHOT' && candidate.shotType === 'penalty' && candidate.second === event.second && candidate.side === event.side && candidate.shooterId === event.takerId);
-          if (!attempt) allChainsValid = false;
+  for (const fixture of fixtures) {
+    const { input: configuredInput, homeSetPieces, awaySetPieces } = fixture;
+    const rosterIds = new Set([...configuredInput.homeSquad, ...configuredInput.awaySquad].map((player) => player.id));
+    let fixtureMatches = 0, fixturePenalties = 0;
+    // Exercise both matchups at least 32 times; keep searching until the full
+    // foul → penalty → shot chain and other event categories have been seen.
+    for (let seed = 83010; seed < 83610 && (fixtureMatches < 32 || !allEventsSeen()); seed++) {
+      const session = new MatchSession({ ...configuredInput, seed });
+      const result = session.finishNow();
+      const events = session.getCoreEvents();
+      const summary = reduceMatchEvents(events, true);
+      const refereeAssignments = events.filter((event) => event.type === 'REFEREE_ASSIGNED');
+      if (refereeAssignments.length !== 1 || refereeAssignments[0]?.type !== 'REFEREE_ASSIGNED' || refereeAssignments[0].refereeId !== session.getReferee().id) allChainsValid = false;
+      matches++;
+      fixtureMatches++;
+      for (const event of events) {
+        if (event.type === 'FOUL_CALLED') {
+          sawFoul = true;
+          const restartIndex = events.findIndex((candidate) => candidate.type === 'RESTART_AWARDED' && candidate.sourceFoulEventId === event.id);
+          const restart = restartIndex >= 0 ? events[restartIndex] : undefined;
+          if (!restart || restart.type !== 'RESTART_AWARDED' || restart.second !== event.second || restart.restartType !== event.restartType || restart.side !== event.side || restart.refereeId !== session.getReferee().id) allChainsValid = false;
         }
-        if (event.restartType === 'free_kick') {
-          const attempt = events.find((candidate) => candidate.type === 'SHOT' && candidate.shotType === 'free_kick' && candidate.second === event.second && candidate.side === event.side);
-          // A free kick need not be taken as a direct shot, but every direct attempt must use the assigned taker.
-          if (attempt && attempt.type === 'SHOT' && attempt.shooterId !== event.takerId) allChainsValid = false;
+        if (event.type === 'RESTART_AWARDED') {
+          seenRestarts.add(event.restartType);
+          const roleConfig = event.side === 'home' ? homeSetPieces : awaySetPieces;
+          if (!rosterIds.has(event.takerId) || (event.takerSelection === 'assigned' && !Object.values(roleConfig).includes(event.takerId))) allTakersEligible = false;
+          if (event.restartType === 'penalty') {
+            fixturePenalties++;
+            const attempt = events.find((candidate) => candidate.type === 'SHOT' && candidate.shotType === 'penalty' && candidate.second === event.second && candidate.side === event.side && candidate.shooterId === event.takerId);
+            if (!attempt) allChainsValid = false;
+          }
+          if (event.restartType === 'free_kick') {
+            const attempt = events.find((candidate) => candidate.type === 'SHOT' && candidate.shotType === 'free_kick' && candidate.second === event.second && candidate.side === event.side);
+            // A free kick need not be taken as a direct shot, but every direct attempt must use the assigned taker.
+            if (attempt && attempt.type === 'SHOT' && attempt.shooterId !== event.takerId) allChainsValid = false;
+          }
+          if (event.restartType === 'corner') {
+            const source = events.find((candidate) => candidate.type === 'SHOT' && candidate.shotId === event.sourceShotId);
+            const restartIndex = events.indexOf(event);
+            const cornerAttempt = events.slice(restartIndex + 1).find((candidate) => candidate.type === 'SHOT' && candidate.shotType === 'corner' && candidate.second === event.second && candidate.side === event.side);
+            if (!source || source.type !== 'SHOT' || source.side !== event.side || !cornerAttempt || cornerAttempt.type !== 'SHOT' || cornerAttempt.shooterId !== event.takerId) allChainsValid = false;
+          }
         }
-        if (event.restartType === 'corner') {
-          const source = events.find((candidate) => candidate.type === 'SHOT' && candidate.shotId === event.sourceShotId);
-          const restartIndex = events.indexOf(event);
-          const cornerAttempt = events.slice(restartIndex + 1).find((candidate) => candidate.type === 'SHOT' && candidate.shotType === 'corner' && candidate.second === event.second && candidate.side === event.side);
-          if (!source || source.type !== 'SHOT' || source.side !== event.side || !cornerAttempt || cornerAttempt.type !== 'SHOT' || cornerAttempt.shooterId !== event.takerId) allChainsValid = false;
+        if (event.type === 'SHOT') seenShotTypes.add(event.shotType);
+        if (event.type === 'YELLOW_CARD' || event.type === 'RED_CARD') {
+          seenCards.add(event.type);
+          if (!rosterIds.has(event.playerId) || event.refereeId !== session.getReferee().id) allChainsValid = false;
+        }
+        if (event.type === 'FOUL_CALLED' || event.type === 'RESTART_AWARDED') {
+          if (event.refereeId !== session.getReferee().id) allChainsValid = false;
         }
       }
-      if (event.type === 'SHOT') seenShotTypes.add(event.shotType);
-      if (event.type === 'YELLOW_CARD' || event.type === 'RED_CARD') {
-        seenCards.add(event.type);
-        if (!rosterIds.has(event.playerId) || event.refereeId !== session.getReferee().id) allChainsValid = false;
-      }
-      if (event.type === 'FOUL_CALLED' || event.type === 'RESTART_AWARDED') {
-        if (event.refereeId !== session.getReferee().id) allChainsValid = false;
-      }
+      allStatsReconciled &&= summary.home.foulsCommitted === result.stats.foulsH
+        && summary.away.foulsCommitted === result.stats.foulsA
+        && summary.home.corners === result.stats.cornersH && summary.away.corners === result.stats.cornersA
+        && summary.home.yellowCards === result.stats.yellowH && summary.away.yellowCards === result.stats.yellowA
+        && summary.home.redCards === result.stats.redH && summary.away.redCards === result.stats.redA
+        && summary.home.freeKicks === events.filter((event) => event.type === 'RESTART_AWARDED' && event.side === 'home' && event.restartType === 'free_kick').length
+        && summary.away.freeKicks === events.filter((event) => event.type === 'RESTART_AWARDED' && event.side === 'away' && event.restartType === 'free_kick').length
+        && summary.home.penalties === events.filter((event) => event.type === 'RESTART_AWARDED' && event.side === 'home' && event.restartType === 'penalty').length
+        && summary.away.penalties === events.filter((event) => event.type === 'RESTART_AWARDED' && event.side === 'away' && event.restartType === 'penalty').length;
     }
-    allStatsReconciled &&= summary.home.foulsCommitted === result.stats.foulsH
-      && summary.away.foulsCommitted === result.stats.foulsA
-      && summary.home.corners === result.stats.cornersH && summary.away.corners === result.stats.cornersA
-      && summary.home.yellowCards === result.stats.yellowH && summary.away.yellowCards === result.stats.yellowA
-      && summary.home.redCards === result.stats.redH && summary.away.redCards === result.stats.redA
-      && summary.home.freeKicks === events.filter((event) => event.type === 'RESTART_AWARDED' && event.side === 'home' && event.restartType === 'free_kick').length
-      && summary.away.freeKicks === events.filter((event) => event.type === 'RESTART_AWARDED' && event.side === 'away' && event.restartType === 'free_kick').length
-      && summary.home.penalties === events.filter((event) => event.type === 'RESTART_AWARDED' && event.side === 'home' && event.restartType === 'penalty').length
-      && summary.away.penalties === events.filter((event) => event.type === 'RESTART_AWARDED' && event.side === 'away' && event.restartType === 'penalty').length;
+    coverage.push(`${fixture.name}:${fixtureMatches} matches/${fixturePenalties} penalties`);
   }
-  const complete = sawFoul && seenRestarts.has('corner') && seenRestarts.has('free_kick') && seenRestarts.has('penalty') && seenShotTypes.has('free_kick') && seenShotTypes.has('corner') && seenCards.has('YELLOW_CARD');
-  check('Foul→restart→shot/card chains and event-derived foul/corner/card stats reconcile', complete && allChainsValid && allTakersEligible && allStatsReconciled, `matches=${matches} restarts=${[...seenRestarts].join(',')} shots=${[...seenShotTypes].join(',')} cards=${[...seenCards].join(',')} chains=${allChainsValid} takers=${allTakersEligible} stats=${allStatsReconciled}`);
+  const complete = allEventsSeen();
+  check('Foul→restart→shot/card chains and event-derived foul/corner/card stats reconcile', complete && allChainsValid && allTakersEligible && allStatsReconciled, `matches=${matches} fixtures=${coverage.join(';')} restarts=${[...seenRestarts].join(',')} shots=${[...seenShotTypes].join(',')} cards=${[...seenCards].join(',')} chains=${allChainsValid} takers=${allTakersEligible} stats=${allStatsReconciled}`);
 }
 
 {

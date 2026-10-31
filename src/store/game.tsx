@@ -25,7 +25,8 @@ import { evaluateIncomingCounter } from '../data/saleNegotiation';
 import { evaluateRenewalOffer, renewalBonus, renewalDemand, RENEWAL_YEARS, type RenewalTerms } from '../data/contractNegotiation';
 import type { TransferTone } from '../data/transferPresentation';
 import { academyIntakeExpired, evaluateAcademySigning, normalizeAcademyIntake } from '../data/academy';
-import { addSeasonCultureHonors, assessFfp, normalizeClubCulture, resolveCultureChoice, type CultureChoice } from '../data/culture';
+import { addSeasonCultureHonors, assessFfp, clubSeasonTransferTotals, normalizeClubCulture, resolveCultureChoice, type CultureChoice } from '../data/culture';
+import { assessBoardBudget, boardBudgetMessageId, type BoardBudgetAssessment } from '../data/boardBudget';
 import { applyInterviewEffect, INTERVIEW_INBOX_TITLE, type InterviewOption } from '../data/interview';
 import { bumpFamiliarity } from '../engine/tacticsStudio';
 import { advanceInternationalSeason, archiveInternationalSeason, buildInternationalSeason, internationalFixtures, normalizeInternationalSeason, recordInternationalAiScorers, recordInternationalResult, recordInternationalScorers, type InternationalArchiveEntry, type InternationalCup, type InternationalSeason } from '../data/international';
@@ -133,6 +134,7 @@ interface GameState extends PersistedState {
   nextFixture: DemoFixture | null;
   unread: number;
   effectiveStrength: (clubId: string) => number;
+  boardBudgetRequest: BoardBudgetAssessment;
   saveNow: (silent?: boolean) => Promise<boolean>;
   saveError: string | null;
   snapshotForBackup: () => SaveBlob;
@@ -151,6 +153,7 @@ interface GameActions {
   recordManagerYellow: () => { yellows: number; banned: boolean };
   consumeManagerSuspension: (wasSuspended: boolean) => void;
   setBudget: (fn: (b: { tb: number; wbExtra?: number }) => { tb: number; wbExtra?: number }) => void;
+  requestBoardBudget: () => { ok: boolean; approved?: boolean; amount?: number; reason?: string };
   addSquadPlayer: (p: Player, fee: number) => void;
   // Aşama 2
   buyPlayer: (p: Player, fee: number, wage: number, years?: number, status?: 'rotasyon' | 'ilk11' | 'yildiz', swapPlayerId?: string, sellOnPct?: number) => { ok: boolean; reason?: string };
@@ -399,6 +402,16 @@ export function GameProvider({ career: initialCareer, snapshot, initialUpdatedAt
   const myClub = useMemo(() => ({ ...clubById(st.career.clubId), league: st.leagueOf[st.career.clubId] }), [st.career.clubId, st.leagueOf]);
   const myLeague = myClub.league;
   const mySquad = squads[st.career.clubId] ?? [];
+  const evaluateBoardBudget = useCallback((state: PersistedState): BoardBudgetAssessment => {
+    const club = clubById(state.career.clubId);
+    return assessBoardBudget({
+      career: state.career, club, seasonNo: state.seasonNo,
+      leagueTable: state.table[state.leagueOf[club.id] ?? club.league] ?? [],
+      squad: squads[club.id] ?? [], transferLog: state.transferLog ?? [], inbox: state.inbox,
+      budget: state.budget,
+    });
+  }, [squads]);
+  const boardBudgetRequest = evaluateBoardBudget(st);
 
   // Kullanıcının tüm resmi maçları (lig + kupa + hazırlık), gün sıralı
   const allMyFixtures = useMemo(() => {
@@ -1073,8 +1086,8 @@ export function GameProvider({ career: initialCareer, snapshot, initialUpdatedAt
       const squad = squads[next.career.clubId] ?? [];
       const payrollM = squad.reduce((sum, player) => sum + (player.wage ?? 0), 0) / 1000;
       const wageCapM = club.wageBudget + (next.budget.wbExtra ?? 0);
-      const seasonTransfers = next.transferLog.filter((entry) => entry.seasonNo === next.seasonNo);
-      const ffp = assessFfp({ payrollM, wageCapM, transferSpendM: seasonTransfers.filter((entry) => entry.kind === 'in').reduce((sum, entry) => sum + entry.fee, 0), transferIncomeM: seasonTransfers.filter((entry) => entry.kind === 'out').reduce((sum, entry) => sum + entry.fee, 0), baseBudgetM: club.transferBudget });
+      const totals = clubSeasonTransferTotals(next.transferLog, club.id, next.seasonNo);
+      const ffp = assessFfp({ payrollM, wageCapM, transferSpendM: totals.spendM, transferIncomeM: totals.incomeM, baseBudgetM: club.transferBudget });
       let issue: Career['pendingCultureIssue'];
       if (next.career.day % 30 === 0 && ffp.status === 'breach' && culture.lastFfpReviewSeason !== next.seasonNo) {
         issue = { id: `ffp-${next.seasonNo}`, kind: 'ffp', day: next.career.day, headline: 'Mali uyum incelemesi', body: `Kayıtlı maaş oranı %${Math.round(ffp.payrollRatio * 100)}, net transfer harcaması ₺${ffp.netSpendM.toFixed(2)}M. Kurul iki seçenekli mali inceleme talep ediyor.` };
@@ -1479,6 +1492,27 @@ export function GameProvider({ career: initialCareer, snapshot, initialUpdatedAt
     scheduleSave();
   }, [scheduleSave]);
 
+  const requestBoardBudget = useCallback((): { ok: boolean; approved?: boolean; amount?: number; reason?: string } => {
+    const s = stateRef.current;
+    const assessment = evaluateBoardBudget(s);
+    if (!assessment.canRequest) return { ok: false, reason: assessment.blockedReason ?? 'Talep şu anda gönderilemez.' };
+    const amount = assessment.approved ? assessment.amount : 0;
+    const balance = Math.round((s.budget.tb + amount) * 100) / 100;
+    const evidence = `Yönetim güveni %${assessment.confidence} · lig ${assessment.rank === null ? 'henüz sıralama yok' : `${assessment.rank}. sıra`} (${assessment.matches} maç) · mali durum ${assessment.ffp.status === 'clear' ? 'uyumlu' : assessment.ffp.status === 'watch' ? 'izlemede' : 'ihlal riski'}.`;
+    const body = assessment.approved
+      ? `Yönetim ₺${amount.toFixed(1)}M ek transfer bütçesini onayladı. Yeni bakiye ₺${balance.toFixed(1)}M. ${evidence} Bu kulüpte bu sezon başka ek bütçe onayı verilmez.`
+      : `Yönetim ek transfer bütçesini reddetti; bakiye değişmedi. ${assessment.reasons.join(' ')} ${evidence} 30 gün sonra yeniden talep edebilirsin.`;
+    const next: PersistedState = {
+      ...s,
+      budget: { ...s.budget, tb: balance },
+      inbox: [{ id: boardBudgetMessageId(s.career.clubId, s.seasonNo, s.career.day, assessment.approved), kind: 'yonetim', title: assessment.approved ? 'Ek bütçe talebi onaylandı' : 'Ek bütçe talebi reddedildi', body, day: s.career.day, read: false }, ...s.inbox],
+    };
+    // Update the ref synchronously: rapid clicks cannot grant money twice before React renders.
+    stateRef.current = next; setSt(next);
+    scheduleSave();
+    return { ok: true, approved: assessment.approved, amount, reason: assessment.approved ? undefined : assessment.reasons.join(' ') };
+  }, [evaluateBoardBudget, scheduleSave]);
+
   const resolveCultureIssue = useCallback((issueId: string, choice: CultureChoice): { ok: boolean; reason?: string } => {
     const s = stateRef.current;
     const issue = s.career.pendingCultureIssue;
@@ -1809,10 +1843,11 @@ export function GameProvider({ career: initialCareer, snapshot, initialUpdatedAt
       return {
         ...cur,
         transferListed: listed ? cur.transferListed.filter((x) => x !== playerId) : [...cur.transferListed, playerId],
-        inbox: listed ? cur.inbox : [{ id: `tl-${playerId}`, kind: 'transfer', title: 'Satış listesine eklendi', body: `${p?.name ?? 'Oyuncu'} satış listesine alındı — AI kulüpler pencere içinde teklifle gelebilir. Kadro ekranından geri alınabilir.`, day: cur.career.day, read: false }, ...cur.inbox],
+        inbox: listed ? cur.inbox : [{ id: `tl-${playerId}`, kind: 'transfer', title: 'Satış listesine eklendi', body: `${p?.name ?? 'Oyuncu'} satış listesine alındı — AI kulüpler pencere içinde teklifle gelebilir. Kadro ekranından geri alınabilir.`, day: cur.career.day, read: false }, ...cur.inbox.filter((message) => message.id !== `tl-${playerId}`)],
       };
     });
-  }, [playerOf]);
+    scheduleSave();
+  }, [playerOf, scheduleSave]);
 
   // Quote and signature share every eligibility, financial and player-response rule.
   // The quote is ephemeral; only the existing wage/contract fields are saved on signature.
@@ -1953,8 +1988,8 @@ export function GameProvider({ career: initialCareer, snapshot, initialUpdatedAt
   const value: GameState & GameActions = {
     ...st,
     myClub, myLeague, mySquad, squads, nextFixture, unread,
-    effectiveStrength, saveNow, saveError, snapshotForBackup, restoreBackup,
-    advanceDay, buildDemoMatch, playLeagueMatch, updateTactic, setInbox, setCareer, updateMarketShortlist, recordManagerYellow, consumeManagerSuspension, setBudget, addSquadPlayer, clearSeasonFinale,
+    effectiveStrength, boardBudgetRequest, saveNow, saveError, snapshotForBackup, restoreBackup,
+    advanceDay, buildDemoMatch, playLeagueMatch, updateTactic, setInbox, setCareer, updateMarketShortlist, recordManagerYellow, consumeManagerSuspension, setBudget, requestBoardBudget, addSquadPlayer, clearSeasonFinale,
     setTrainingFocus, signAcademyCandidate, passAcademyCandidate, acceptJob,
     buyPlayer, clinicTreat, setRiskPlay, applyRiskOutcome, setMentor, respondOffer, toggleTransferList, playerOf, clubOfPlayer, quoteRenewal, renewContract,
     loanIn, loanOut, promiseMinutes, minuteState, resolveCultureIssue,

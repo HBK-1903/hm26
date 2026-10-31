@@ -82,7 +82,7 @@ const check = (name: string, pass: boolean, detail: string) => checks.push({ nam
   const store = readFileSync(new URL('../src/store/game.tsx', import.meta.url), 'utf8');
   const prep = readFileSync(new URL('../src/screens/MatchPrep.tsx', import.meta.url), 'utf8');
   const live = readFileSync(new URL('../src/screens/LiveMatch.tsx', import.meta.url), 'utf8');
-  const session = readFileSync(new URL('../src/engine/session.ts', import.meta.url), 'utf8');
+  const simulation = readFileSync(new URL('../src/engine/core/simulation.ts', import.meta.url), 'utf8');
   const start = store.indexOf('const buildDemoMatch =');
   const end = store.indexOf('const playLeagueMatch =', start);
   const builder = start >= 0 && end > start ? store.slice(start, end) : '';
@@ -92,7 +92,7 @@ const check = (name: string, pass: boolean, detail: string) => checks.push({ nam
   const quickUsesProductionPath = /g\.playLeagueMatch\(\{\s*\.\.\.next\s*\},\s*undefined,\s*activeTacticIdx\)/.test(prep);
   const difficultyIsPreMatch = builder.includes('challengeClubId: career.clubId') && builder.includes('challengePoints: career.manager.challengePoints')
     && live.includes('challengeClubId: g.career.clubId') && live.includes('challengePoints: g.career.manager.challengePoints')
-    && session.includes('const opponentChallengePoints = this.input.challengeClubId && club.id !== this.input.challengeClubId');
+    && simulation.includes('const opponentChallengePoints = this.input.challengeClubId && club.id !== this.input.challengeClubId');
   check('Production quick-match path has no post-score patch and carries KZP into pre-match opponent AI input',
     noPostResultPatch && quickUsesProductionPath && difficultyIsPreMatch,
     `no post-result patch=${noPostResultPatch}; quick path=${quickUsesProductionPath}; pre-match AI difficulty=${difficultyIsPreMatch}`);

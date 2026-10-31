@@ -2,6 +2,7 @@
 //  C3: fikstür xG'leri (kullanıcı + AI), MatchPrep rakip xG hücresi, StatsHub tam lig xPTS tablosu
 //  C2: arşivde sıkıştırılmış olaylar + gol dakika profili kartı
 //  C1: sezon istatistik verimliliği kartı
+import 'fake-indexeddb/auto';
 import { JSDOM } from 'jsdom';
 const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', { url: 'http://localhost/', pretendToBeVisual: true });
 (globalThis as any).window = dom.window;

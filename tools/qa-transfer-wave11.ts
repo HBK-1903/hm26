@@ -56,9 +56,11 @@ const check = (name: string, pass: boolean, detail: string) => results.push({ na
 {
   const store = readFileSync(new URL('../src/store/game.tsx', import.meta.url), 'utf8');
   const market = readFileSync(new URL('../src/screens/Market.tsx', import.meta.url), 'utf8');
+  // Direct and accepted counter offers now share one settlement path using the chosen fee.
+  // Behaviour of both paths is exercised against the real provider in qa:sale:ui.
   const persistence = store.includes('sellOnClauses: normalizeSellOnClauses(pxAny.sellOnClauses)')
-    && store.includes('sellOnClauses,') && store.includes('calculateSellOnSettlement(of.fee')
-    && store.includes('calculateSellOnSettlement(counterFee!');
+    && store.includes('sellOnClauses,')
+    && /let fee = offer\.fee;[\s\S]*?fee = counterFee!;[\s\S]*?calculateSellOnSettlement\(fee, clauses\[offer\.playerId\]/.test(store);
   const onlySwapAndNoBuyback = market.includes('Oyuncu + nakit takası') && market.includes('Geri alım')
     && market.includes('>Yok</div>') && !/buyBack|buyback|geriAlimHakki/i.test(market + store);
   check('Store persistence/settlement is wired; transfer table stays player+cash with no buy-back', persistence && onlySwapAndNoBuyback,

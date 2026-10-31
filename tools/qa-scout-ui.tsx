@@ -1,5 +1,6 @@
 // HM26 — B katmanı UI QA: Newsroom maç haberleri + menajer basın profili,
 // MatchPrep gerçek scout kartı (sahte "G─B─M" kaldırıldı) ve risk/rotasyon masası.
+import 'fake-indexeddb/auto';
 import { JSDOM } from 'jsdom';
 const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', { url: 'http://localhost/', pretendToBeVisual: true });
 (globalThis as any).window = dom.window;

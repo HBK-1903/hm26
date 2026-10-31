@@ -1,4 +1,5 @@
 // QA: maç bitiş/tekrar oynama akışını gerçek GameProvider ve jsdom ile sınar (fikstür played işaretlenir, nextFixture ilerler).
+import 'fake-indexeddb/auto';
 import { JSDOM } from 'jsdom';
 const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', { url: 'http://localhost/' });
 (globalThis as any).window = dom.window;
@@ -18,6 +19,7 @@ Object.defineProperty(globalThis, 'matchMedia', { value: dom.window.matchMedia, 
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { GameProvider, useGame, type DemoMatchResult } from '../src/store/game';
+import { readSave } from '../src/store/persist';
 import { MatchSession } from '../src/engine/session';
 import { buildEngineInput } from '../src/engine/adapter';
 import { tacticalFamiliarity } from '../src/engine/tacticsStudio';
@@ -177,7 +179,10 @@ function Harness({ done }: { done: (report: string[]) => void }) {
             ? `✅ Taraftar nabzı gerçek veriyle çalıştı (momentum: ${pulse.momentum}, güven ${liveCulture.fanTrust}/100)`
             : '❌ Taraftar nabzı tutarsız');
         }
-        if (errors.length) log.push('YAKALANAN HATALAR:\n' + errors.slice(0, 5).join('\n---\n'));
+        const stored = await g().saveNow() ? await readSave(career.slot) : null;
+        const savedFriendly = (stored?.blob as any)?.friendlies?.find((f: any) => f.day === f0.day && f.homeId === f0.homeId && f.awayId === f0.awayId);
+        log.push(savedFriendly?.played ? '✅ Oynanan maç gerçek test yuvasına kaydedildi.' : '❌ Oynanan maç kaydedilemedi.');
+        if (errors.length) log.push('❌ YAKALANAN HATALAR:\n' + errors.slice(0, 5).join('\n---\n'));
         done(log);
       } catch (err) {
         log.push('❌ HARNESS İSTİSNASI: ' + ((err as Error).stack ?? err));
@@ -200,8 +205,10 @@ const career: any = {
 const rootEl = dom.window.document.getElementById('root')!;
 const root = createRoot(rootEl);
 const report = await new Promise<string[]>((resolve) => {
-  root.render(React.createElement(GameProvider, { career }, React.createElement(Harness, { done: resolve })));
+  root.render(React.createElement(GameProvider, { career, children: React.createElement(Harness, { done: resolve }) }));
 });
 await tick();
+root.unmount();
+console.error = origErr;
 console.log(report.join('\n'));
-process.exit(report.some((l) => l.includes('❌')) ? 1 : 0);
+process.exit(report.some((l) => l.includes('❌')) || errors.length ? 1 : 0);

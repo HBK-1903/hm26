@@ -8,7 +8,7 @@ import { FACILITY_TIERS } from '../data/meta';
 import { archiveSummary } from '../data/history';
 import { clubById } from '../data/clubs';
 import { academyIntakeExpired, academySigningFeeM, evaluateAcademySigning } from '../data/academy';
-import { assessFfp, normalizeClubCulture, type CultureChoice } from '../data/culture';
+import { assessFfp, clubSeasonTransferTotals, normalizeClubCulture, type CultureChoice } from '../data/culture';
 
 type FacKind = 'training' | 'health' | 'academy' | 'analysis' | 'stadium';
 const FAC_META: Record<FacKind, { icon: string; name: string; effect: string }> = {
@@ -32,12 +32,14 @@ export const ClubScreen: React.FC = () => {
   const wbExtra = g.budget?.wbExtra ?? 0;            // Dalga 9: TB'den aktarılan aylık maaş payı
   const wageCap = c.wageBudget + wbExtra;            // efektif aylık maaş tavanı
   const wagePct = Math.min(99, Math.round((wageUse / wageCap) * 100));
+  const boardRequest = g.boardBudgetRequest;
   const trust = g.career.boardConfidence ?? 70;
   const projectInfo = g.career.pending.activeProject;
   const culture = normalizeClubCulture(g.career.culture, g.career.seed, g.career.clubId, c.rivalIds ?? []);
-  const seasonTransfers = g.transferLog.filter((entry) => entry.seasonNo === g.seasonNo);
-  const transferSpend = seasonTransfers.filter((entry) => entry.kind === 'in').reduce((sum, entry) => sum + entry.fee, 0);
-  const transferIncome = seasonTransfers.filter((entry) => entry.kind === 'out').reduce((sum, entry) => sum + entry.fee, 0);
+  const seasonTransfers = g.transferLog.filter((entry) => entry.seasonNo === g.seasonNo && (entry.kind === 'in' ? entry.toClubId === c.id : entry.kind === 'out' && entry.fromClubId === c.id));
+  const totals = clubSeasonTransferTotals(g.transferLog, c.id, g.seasonNo);
+  const transferSpend = totals.spendM;
+  const transferIncome = totals.incomeM;
   const netTransfer = transferSpend - transferIncome;
   const ffp = assessFfp({ payrollM: wageUse, wageCapM: wageCap, transferSpendM: transferSpend, transferIncomeM: transferIncome, baseBudgetM: c.transferBudget });
 
@@ -102,7 +104,7 @@ export const ClubScreen: React.FC = () => {
               {[
                 ['Aylık maaş yükü', `−₺${wageUse.toFixed(2)}M`, 'var(--c-danger)', `${g.mySquad.length} futbolcu · tavan ₺${wageCap.toFixed(2)}M`],
                 ['Transfer harcaması', `−₺${transferSpend.toFixed(2)}M`, 'var(--c-danger)', `${seasonTransfers.filter((e) => e.kind === 'in').length} oyuncu`],
-                ['Transfer geliri', `+₺${transferIncome.toFixed(2)}M`, 'var(--c-ok)', `${seasonTransfers.filter((e) => e.kind === 'out').length} satış`],
+                ['Transfer geliri', `+₺${transferIncome.toFixed(2)}M`, 'var(--c-ok)', `${seasonTransfers.filter((e) => e.kind === 'out').length} satış · paylar sonrası`],
                 ['Net transfer harcaması', `${netTransfer >= 0 ? '−' : '+'}₺${Math.abs(transferSpend - transferIncome).toFixed(2)}M`, (transferSpend - transferIncome) > 0 ? 'var(--c-warn)' : 'var(--c-ok)', 'FFP hesabına giren kalem'],
                 ['Kalan transfer bütçesi', `₺${(g.budget?.tb ?? c.transferBudget).toFixed(1)}M`, 'var(--c-special)', 'sezon içi kullanılabilir'],
               ].map(([k, v, col, sub]) => (
@@ -133,9 +135,17 @@ export const ClubScreen: React.FC = () => {
               }}>Aktarımı Onayla</Btn>
             </Card>
             <Card className="border-dashed">
-              <div className="text-primary text-[13px] font-bold">Bütçe aktarımı / yönetim talebi</div>
-              <p className="text-secondary text-[12px] mt-1.5 leading-snug">Güven, sportif hedef ve mali denge değerlendirilir. Sahte bütçede görmezden gelme yok — talep tesis projesi/gerekçeyle onaya girer.</p>
-              <Btn variant="secondary" className="w-full mt-3 !text-[12.5px]" onClick={() => g.setInbox((ms) => [...ms, { id: `fin-${g.career.day}`, kind: 'yonetim', title: 'Bütçe talibi iletildi', body: `Aylık maaş kullanımı %${wagePct}. Yönetim, sportif ilerlemeyi görmeden yeni mali alan açmayı erteledi (prototip akış).`, day: g.career.day, read: false }])}>Talep Gönder</Btn>
+              <div className="text-primary text-[13px] font-bold">Yönetimden ek bütçe talebi</div>
+              <p className="text-secondary text-[12px] mt-1.5 leading-snug">Onaylanırsa transfer bütçesine ₺{boardRequest.amount.toFixed(1)}M eklenir. Tutar kulübün başlangıç bütçesinin %12'sidir (en az ₺0,2M, en fazla ₺5M).</p>
+              <p className="text-muted text-[11px] mt-1.5 leading-snug">En az 4 lig maçı ve %60 yönetim güveni gerekir; lig hedefinden en fazla 2 sıra geride olmalısın. Mali ihlal riski olmamalı ve kalan transfer bütçesi başlangıcın en fazla %60'ı olmalı. Sezonda bir onay; redden sonra 30 gün bekleme.</p>
+              <div className="text-secondary text-[11.5px] mt-2 leading-snug">Güven %{boardRequest.confidence} · {boardRequest.matches} lig maçı{boardRequest.rank !== null ? ` · ${boardRequest.rank}. sıra` : ''} · Mali durum {boardRequest.ffp.status === 'clear' ? 'uyumlu' : boardRequest.ffp.status === 'watch' ? 'izlemede' : 'ihlal riski'}</div>
+              {boardRequest.blockedReason ? <p role="status" className="text-warn text-[11.5px] mt-2">{boardRequest.blockedReason}</p> : boardRequest.reasons.length > 0 ? <p className="text-warn text-[11.5px] mt-2 leading-snug">Mevcut değerlendirme: {boardRequest.reasons.join(' ')}</p> : <p className="text-ok text-[11.5px] mt-2">Mevcut koşullar onay için uygun.</p>}
+              <Btn variant="secondary" className="w-full mt-3 !text-[12.5px]" disabled={!boardRequest.canRequest} onClick={() => {
+                const result = g.requestBoardBudget();
+                if (!result.ok) showToast(result.reason ?? 'Talep gönderilemedi.', 'warn');
+                else if (result.approved) showToast(`Ek bütçe onaylandı: +₺${(result.amount ?? 0).toFixed(1)}M.`, 'ok');
+                else showToast('Talep reddedildi. Gerekçe gelen kutunda.', 'warn');
+              }}>Talep Gönder</Btn>
             </Card>
           </div>
         )}

@@ -1,6 +1,7 @@
 // HM26 — Analitik derinlik UI QA (A katmanı): oyuncu tam profil maç günlüğü,
 // StatsHub xG trend kartı ve MatchPrep H2H kartı. Tek GameProvider üzerinde
 // gerçek store aksiyonlarıyla maçlar işlenir; sahte veri yok, yeni şema alanı yok.
+import 'fake-indexeddb/auto';
 import { JSDOM } from 'jsdom';
 const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', { url: 'http://localhost/', pretendToBeVisual: true });
 (globalThis as any).window = dom.window;

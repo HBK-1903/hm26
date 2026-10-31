@@ -1,8 +1,8 @@
 // HM26 Maç Motoru §12.3 — Canlı anlatım (v0.9.10: oyuncu zincirli, pozisyon-duyarlı yayın dili)
-import { Club } from '../types';
-import { Possession, PassStep } from './possession';
-import { LineupSlot } from './profiles';
-import { ZoneId } from './zones';
+import type { Club } from '../types';
+import type { Possession, PassStep } from './possession';
+import type { LineupSlot } from './profiles';
+import type { ZoneId } from './zones';
 
 export type BroadcastVisual = 'free_kick' | 'brawl' | 'woodwork' | 'volley';
 

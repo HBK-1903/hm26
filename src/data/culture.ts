@@ -1,5 +1,5 @@
 // Wave 14 — persistent club culture, supporter affairs and evidence-led FFP status.
-import type { CultureHonor, CultureIssueKind, OffPitchCulture } from '../types';
+import type { CultureHonor, CultureIssueKind, OffPitchCulture, TransferLogEntry } from '../types';
 
 const CHAIRMAN_NAMES = ['Sarp Erdem', 'Tunca Yalçın', 'Nehir Aksoy', 'Bora Keskin', 'Deren Arı'];
 const CHAIRMAN_STYLES: OffPitchCulture['chairmanStyle'][] = ['patient', 'ambitious', 'pragmatic', 'community'];
@@ -47,6 +47,17 @@ export interface FfpAssessment {
   payrollRatio: number;
   netSpendM: number;
   netSpendRatio: number;
+}
+
+/** Only this club's transactions this season; resale shares are not retained income. */
+export function clubSeasonTransferTotals(log: readonly TransferLogEntry[], clubId: string, seasonNo: number): { spendM: number; incomeM: number } {
+  return log.reduce((totals, entry) => {
+    if (entry.seasonNo !== seasonNo) return totals;
+    // Academy registrations are paid from the same transfer budget as signings.
+    if ((entry.kind === 'in' || entry.kind === 'youth') && entry.toClubId === clubId) totals.spendM += entry.fee;
+    if (entry.kind === 'out' && entry.fromClubId === clubId) totals.incomeM += Math.max(0, entry.fee - (entry.sellOnPaid ?? 0));
+    return totals;
+  }, { spendM: 0, incomeM: 0 });
 }
 
 export function assessFfp(input: { payrollM: number; wageCapM: number; transferSpendM: number; transferIncomeM: number; baseBudgetM: number }): FfpAssessment {

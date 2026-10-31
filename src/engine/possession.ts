@@ -1,9 +1,9 @@
 // HM26 Maç Motoru §6/§7 — Possession zinciri üretimi ve bölge geçişi
 // v0.9.10: zincir artık OYUNCU SEVİYESİNDE — her adımda top kimde (ballHolder),
 // kime pas (receiver), hangi niyetle (PassIntent) ve rakipte topu kim kapmaya çalışıyor (interceptor).
-import { ZoneId, forwardNeighbors, laneOf, bandOf } from './zones';
-import { TeamMatchProfile, LineupSlot, effective, isActiveOnPitch } from './profiles';
-import { PositionGroup, TacticPlan } from '../types';
+import { forwardNeighbors, laneOf, bandOf, type ZoneId } from './zones';
+import { effective, isActiveOnPitch, type TeamMatchProfile, type LineupSlot } from './profiles';
+import type { PositionGroup, TacticPlan } from '../types';
 
 export type PassIntent =
   | 'distribute'   // kaleciden oyun kurma
@@ -65,8 +65,16 @@ export function resolvePossessionOwner(
   const diffH = (home.midfield + home.buildUp) / 2 - away.press * 0.9;
   const diffA = (away.midfield + away.buildUp) / 2 - home.press * 0.9;
   // §9.3: farkı tanh ile sıkıştır — büyük kalite farkı possession'ı tamamen tıkamaz
-  const pHome = Math.tanh(diffH / 18) * 7 + 1.0 + (ctx.rng() - 0.5) * ctx.jitter * 6;
-  const pAway = Math.tanh(diffA / 18) * 7 + (ctx.rng() - 0.5) * ctx.jitter * 6;
+  const homeRoll = ctx.rng(), awayRoll = ctx.rng();
+  const pHome = Math.tanh(diffH / 18) * 7 + 1.0 + (homeRoll - 0.5) * ctx.jitter * 6;
+  const pAway = Math.tanh(diffA / 18) * 7 + (awayRoll - 0.5) * ctx.jitter * 6;
+  // Restarts and loose balls give even an outmatched side a small chance to
+  // have the ball. Without this, low-randomness matches could give the weaker
+  // team literally zero possessions. Reuse the existing rolls; no score patch.
+  const qualityGap = home.raw.baseQuality - away.raw.baseQuality;
+  const underdogFloor = 0.12 * Math.max(0, Math.min(1, (Math.abs(qualityGap) - 12) / 16));
+  if (qualityGap > 0 && awayRoll < underdogFloor) return 'away';
+  if (qualityGap < 0 && homeRoll < underdogFloor) return 'home';
   return pHome >= pAway ? 'home' : 'away';
 }
 
@@ -282,7 +290,7 @@ export function runPossession(
       // Şut: top KİMDEYSE o vurur (v0.9.10 top-oyuncu ayrımı); uygun değilse esnek havuza düş
       const shooter = holder && ['ST', 'AM', 'WG', 'CM', 'DM', 'WB', 'FB', 'CB'].includes(holder.slotGroup) ? holder : pickSlot(attSlots, zone, true);
       const shooterEff = shooter ? effective(shooter) : 50;
-      xgPotential = qualityToXG(attProf.finalThird, defProf.block, defProf.keeper, shooterEff, rng);
+      xgPotential = qualityToXG(attProf.finalThird, defProf.block, defProf.keeper, shooterEff, attProf.raw.baseQuality - defProf.raw.baseQuality, zone, rng);
       // QA-DENGE (v0.4.4): düşük-kalite maçlarda alt-lig kaos payı — zayıf hücumlar gerçek hayatta daha
       // rastgele/kaotik pozisyonlar üretir; zirve kalitesinde (~70+) çarpan ≈1.0, kök kalitesinde (~50) ×~1.45
       xgPotential *= 1 + Math.max(0, (64 - (attProf.finalThird + shooterEff) / 2) * 0.032);
@@ -310,10 +318,30 @@ export function pickSlot(slots: LineupSlot[], zone: ZoneId, shooterBias = false)
   return sorted[0];
 }
 
-/** §8.2 — kalite → xG bandı */
-function qualityToXG(finalThird: number, block: number, keeper: number, shooterEff: number, rng: () => number): number {
+/**
+ * A big quality advantage creates opportunities, not an automatic one-on-one on
+ * every shot. In extreme mismatches the defending team can still close space,
+ * especially when the shot starts far from its goal. This depends on the live
+ * team profiles and shot zone, never on the score or on the number of goals.
+ */
+export function clearChanceRetention(qualityAdvantage: number, zone: ZoneId): number {
+  const mismatch = Math.max(0, Math.min(1, (qualityAdvantage - 10) / 18));
+  const resistance = bandOf(zone) === 'A' ? 0.60 : bandOf(zone) === 'M' ? 0.75 : 0.90;
+  return 1 - mismatch * resistance;
+}
+
+/** §8.2 — kalite ve savunma konumu → xG bandı */
+function qualityToXG(finalThird: number, block: number, keeper: number, shooterEff: number, qualityAdvantage: number, zone: ZoneId, rng: () => number): number {
   const q = (finalThird + shooterEff) / 2 - (block * 0.5 + keeper * 0.4);
-  if (q > 24 || (rng() < 0.04)) return 0.30 + rng() * 0.18; // §9.4: nadir bire-bir sürprizi  // büyük bir bir
+  if (q > 24) {
+    const retention = clearChanceRetention(qualityAdvantage, zone);
+    // With no extreme mismatch, preserve the established chance distribution and RNG stream.
+    if (retention === 1 || rng() < retention) return 0.30 + rng() * 0.18;
+    // A closed-down attempt is less dangerous the further it is from goal.
+    const band = bandOf(zone);
+    return band === 'A' ? 0.14 + rng() * 0.11 : band === 'M' ? 0.09 + rng() * 0.10 : 0.04 + rng() * 0.08;
+  }
+  if (rng() < 0.04) return 0.30 + rng() * 0.18; // rare one-on-one for either side
   if (q > 16) return 0.16 + rng() * 0.14;  // ceza sahası neti
   if (q > 9)  return 0.07 + rng() * 0.09;  // orta sonrası
   if (q > 3)  return 0.03 + rng() * 0.05;  // ceza yayı

@@ -1,6 +1,7 @@
 // Real-browser regression: advanced world settings, wizard navigation and saved career.
 import { chromium } from 'playwright';
 import { mkdirSync } from 'node:fs';
+import { readCareerSave, waitForCareerSave } from './qa-browser-save.mjs';
 
 const base = process.env.HM26_BASE_URL ?? 'http://127.0.0.1:4173';
 const executablePath = process.env.HM26_CHROMIUM;
@@ -33,34 +34,13 @@ async function setOption(page, label, choice) {
 async function isSelected(page, label, choice) {
   return await page.getByRole('group', { name: label }).getByRole('button', { name: choice, exact: true }).getAttribute('aria-pressed') === 'true';
 }
-async function readSave(page) {
-  return page.evaluate(async () => {
-    const db = await new Promise((resolve, reject) => {
-      const request = indexedDB.open('manager26', 1);
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
-    });
-    const saved = await new Promise((resolve, reject) => {
-      const request = db.transaction('saves').objectStore('saves').get(1);
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
-    });
-    db.close();
-    return saved?.blob ? { version: saved.blob.version, manager: saved.blob.career.manager, settings: saved.blob.career.settings } : null;
-  });
-}
-async function finishCareer(page) {
+async function finishCareer(page, managerName) {
   await page.getByRole('button', { name: 'Devam', exact: true }).click();
   await page.getByText('Denizli Yeşilova').first().click();
   await page.getByRole('button', { name: /Kulüp Brifingine Git/ }).click();
   await page.getByRole('button', { name: /Kariyeri Başlat/ }).click();
   await page.getByRole('button', { name: 'Anladım' }).first().click({ timeout: 4000 }).catch(() => {});
-  await page.waitForFunction(async () => {
-    const db = await new Promise((resolve, reject) => { const r = indexedDB.open('manager26', 1); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error); });
-    const result = await new Promise((resolve, reject) => { const r = db.transaction('saves').objectStore('saves').get(1); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error); });
-    db.close();
-    return !!result?.blob?.career;
-  }, null, { timeout: 12000 });
+  return waitForCareerSave(page, managerName);
 }
 
 try {
@@ -118,8 +98,7 @@ try {
   await setOption(page, 'Sakatlık sıklığı', 'Yüksek');
   await page.getByRole('button', { name: 'Devam', exact: true }).click();
   await page.getByRole('button', { name: /Zorlu Kariyer/ }).click();
-  await finishCareer(page);
-  const saved = await readSave(page);
+  const saved = await finishCareer(page, 'Dünya Ayar Testi');
   check('Seçilen dönem, bağımsız zorluk ve dört ayar kariyere kaydedilir', saved?.version === 4 && saved.manager.era === 'acik' && saved.manager.difficulty === 'zorlu' && saved.manager.challengePoints === 70 && saved.settings.goalPace === 'yuksek' && saved.settings.randomness === 'low' && saved.settings.injuryRate === 'yuksek' && saved.settings.marketRefresh === 'yogun', JSON.stringify(saved));
   await page.locator('nav[aria-label="Ana gezinme"] button', { hasText: 'Piyasa' }).click();
   check('Yoğun piyasa seçimi oyunda 7 günlük döngüyü uygular', /yenilenme:\s*6g/i.test(await page.locator('body').innerText()));
@@ -127,7 +106,7 @@ try {
   await page.getByRole('button', { name: /Devam Et/ }).first().click();
   await page.getByRole('button', { name: 'Anladım' }).first().click({ timeout: 1500 }).catch(() => {});
   await page.locator('nav[aria-label="Ana gezinme"] button', { hasText: 'Piyasa' }).click();
-  const reloaded = await readSave(page);
+  const reloaded = await readCareerSave(page);
   check('Kayıt yeniden açıldığında tercihler ve piyasa ritmi korunur', reloaded?.settings.randomness === 'low' && reloaded?.settings.injuryRate === 'yuksek' && reloaded?.settings.marketRefresh === 'yogun' && /yenilenme:\s*6g/i.test(await page.locator('body').innerText()));
   check('Tarayıcıda yakalanmamış uygulama hatası yok', errors.length === 0, errors.join(' | '));
 
@@ -147,9 +126,8 @@ try {
   check('390 px ekranda panel açıldığında ilk seçenek görünür ve yatay taşma yoktur', defaultLayout.scrollWidth <= defaultLayout.width && defaultLayout.firstGroupBottom <= defaultLayout.rootBottom + 1, JSON.stringify(defaultLayout));
   if (screenshots) await defaultsPage.screenshot({ path: `${screenshots}/career-world-390.png` });
   await defaultsPage.getByRole('button', { name: 'Devam', exact: true }).click();
-  await finishCareer(defaultsPage);
-  const defaults = await readSave(defaultsPage);
-  check('Ayarlar değiştirilmeden başlayan kariyerin mevcut varsayılanları değişmez', defaults?.manager.era === 'gecis' && defaults.manager.difficulty === 'dengeli' && defaults.settings.goalPace === 'dengeli' && defaults.settings.randomness === 'normal' && defaults.settings.injuryRate === 'normal' && defaults.settings.marketRefresh === 'dengeli', JSON.stringify(defaults?.settings));
+  const defaults = await finishCareer(defaultsPage, 'Varsayılan Dünya');
+  check('Ayarlar değiştirilmeden başlayan kariyerin mevcut varsayılanları değişmez', defaults?.manager.era === 'gecis' && defaults.manager.difficulty === 'dengeli' && defaults.settings.goalPace === 'dengeli' && defaults.settings.randomness === 'normal' && defaults.settings.injuryRate === 'normal' && defaults.settings.marketRefresh === 'dengeli', JSON.stringify(defaults));
   check('Varsayılan kariyerde de yakalanmamış uygulama hatası yok', errors.length === 0, errors.join(' | '));
 } catch (error) {
   failed++;

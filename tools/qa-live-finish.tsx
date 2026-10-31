@@ -47,6 +47,25 @@ const faultMode = process.env.HM26_FAULT;
 const halftimeBatch = process.env.HM26_HALFTIME_BATCH;
 const finalBatch = process.env.HM26_FINAL_BATCH;
 const cancelledGoal = process.env.HM26_CANCELLED_GOAL === '1';
+const injuryDecisionTest = process.env.HM26_INJURY_DECISION_TEST === '1';
+let injectedInjury: { side: 'home' | 'away'; playerId: string } | null = null;
+let injuryPhase: 'none' | 'injured' | 'waiting' | 'returned' = 'none';
+let injuryWaitCalls = 0, allowInjuryReturn = false, injuryReturned = false;
+if (injuryDecisionTest) {
+  const originalSlots = MatchSession.prototype.getSlots;
+  MatchSession.prototype.getSlots = function injuryTestSlots(side) {
+    const slots = originalSlots.call(this, side);
+    return slots.map((slot) => injectedInjury?.side === side && slot.player.id === injectedInjury.playerId
+      ? { ...slot, injured: injuryPhase === 'injured' || injuryPhase === 'waiting' }
+      : slot);
+  };
+  MatchSession.prototype.waitForInjuredPlayer = function injuryTestWait(playerId) {
+    if (injectedInjury?.playerId !== playerId || injuryPhase !== 'injured') return false;
+    injuryWaitCalls++;
+    injuryPhase = 'waiting';
+    return true;
+  };
+}
 let halftimeInjected = false;
 let finalInjected = false;
 let cancelledInjected = false;
@@ -61,7 +80,7 @@ if (cancelledGoal) {
     return play(kind);
   };
 }
-if (faultMode || halftimeBatch || finalBatch || cancelledGoal) {
+if (faultMode || halftimeBatch || finalBatch || cancelledGoal || injuryDecisionTest) {
   const origStep = MatchSession.prototype.step;
   let calls = 0;
   MatchSession.prototype.step = function patchedStep(...args: any[]) {
@@ -71,6 +90,18 @@ if (faultMode || halftimeBatch || finalBatch || cancelledGoal) {
       if (faultMode === 'fatal' || calls === 8) throw new Error('ENJEKTE_EDİLMİŞ_ADIM_HATASI');
     }
     const events = origStep.apply(this, args as any);
+    if (injuryDecisionTest && !injectedInjury && calls === 5) {
+      const side = this.getSimulationInput().userSide ?? 'home';
+      const slot = this.getSlots(side).find((candidate) => candidate.slotGroup !== 'GK');
+      if (!slot) throw new Error('QA injury fixture needs an outfield player');
+      injectedInjury = { side, playerId: slot.player.id };
+      injuryPhase = 'injured';
+      events.push({ minute: this.getMinute(), kind: 'injury', side, playerId: slot.player.id, text: 'QA: sakatlık için karar gerekli.' });
+    } else if (injuryDecisionTest && injectedInjury && injuryPhase === 'waiting' && allowInjuryReturn) {
+      injuryPhase = 'returned';
+      injuryReturned = true;
+      events.push({ minute: this.getMinute(), kind: 'injury', side: injectedInjury.side, playerId: injectedInjury.playerId, text: 'QA: oyuncu tedavi sonrası oyuna döndü.' });
+    }
     if (cancelledGoal && !cancelledInjected && calls === 5) {
       cancelledInjected = true;
       events.push({ minute: this.getMinute(), kind: 'goal', side: 'home', text: 'QA: GOL İPTAL' });
@@ -163,6 +194,37 @@ function Harness({ done }: { done: (report: string[]) => void }) {
         // Otomatik karar kapatıcı + maç sonu bekleyici
         if (finalBatch) await clickByText([/Kulübe & Tribün/]);
         await clickByText([/4 kat hız/]);
+        if (injuryDecisionTest) {
+          const deadline = Date.now() + 12000;
+          while (Date.now() < deadline) {
+            const dialogs = Array.from(dom.window.document.querySelectorAll('[role="dialog"]'));
+            const injected = dialogs.find((dialog) => dialog.textContent?.includes('QA: sakatlık için karar gerekli.'));
+            if (injected) {
+              const selected = await clickByText([/Dönüşünü bekle/]);
+              await tick(150);
+              const repeated = Array.from(dom.window.document.querySelectorAll('[role="dialog"]')).some((dialog) => dialog.textContent?.includes('Tedavi kararı: iki maç dakikası'));
+              log.push(selected && injuryWaitCalls === 1 && !repeated
+                ? '✅ Tedaviyi bekleme seçimi motorca bir kez alındı ve aynı karar açılmadı'
+                : `❌ Tedavi kararı tekrar açıldı veya motor isteği yanlış: selected=${selected} calls=${injuryWaitCalls} repeated=${repeated}`);
+              if (repeated) { done(log); return; }
+              allowInjuryReturn = true;
+              while (!injuryReturned && Date.now() < deadline) await tick(80);
+              await tick(150);
+              const returnDialog = Array.from(dom.window.document.querySelectorAll('[role="dialog"]')).some((dialog) => dialog.textContent?.includes('QA: oyuncu tedavi sonrası oyuna döndü.'));
+              await clickByText([/^Spiker$/]);
+              const feed = dom.window.document.querySelector('[role="log"][aria-label="Maç olay akışı"]')?.textContent ?? '';
+              log.push(injuryReturned && !returnDialog && feed.includes('Tedavi kararı: iki maç dakikası') && feed.includes('QA: oyuncu tedavi sonrası oyuna döndü.')
+                ? '✅ Tedavi ve sahaya dönüş akışta kalır, dönüş yeni bir sakatlık kararı açmaz'
+                : `❌ Dönüş akışı veya karar durumu yanlış: returned=${injuryReturned} dialog=${returnDialog} feed=${feed}`);
+              done(log);
+              return;
+            }
+            if (dialogs.length) await clickByText([/Sessiz kal/, /Dönüşünü bekle/, /Devam Et/, /Kapat$/]);
+            await tick(80);
+          }
+          done([...log, '❌ Enjekte edilen sakatlık kararı zamanında açılmadı']);
+          return;
+        }
         const startedAt = Date.now();
         let finished = false;
         let lastClock = '';

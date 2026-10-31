@@ -6,7 +6,9 @@ const base = process.env.HM26_BASE_URL ?? 'http://127.0.0.1:4173';
 const executablePath = process.env.HM26_CHROMIUM;
 const launchOptions = executablePath ? { executablePath, headless: true, args: ['--no-sandbox', '--single-process', '--no-zygote', '--disable-gpu', '--disable-dev-shm-usage'] } : {};
 const browser = await chromium.launch(launchOptions);
-const context = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'tr', acceptDownloads: true });
+const width = Number(process.env.HM26_VIEWPORT_WIDTH ?? 390);
+const viewport = { width, height: width <= 320 ? 720 : 844 };
+const context = await browser.newContext({ viewport, locale: 'tr', acceptDownloads: true });
 let historicalBrowser, historicalContext;
 let passed = 0, failed = 0;
 const pageErrors = [];
@@ -48,6 +50,37 @@ try {
   await notice(page);
   const original = await waitForSave(page, (record) => !!record?.blob?.career);
   check('Yeni kariyer gerçek IndexedDB yuvasına kaydedildi', original.blob.career.manager.name === 'Aktif Menajer' && original.blob.version === 4);
+
+  await page.locator('nav[aria-label="Ana gezinme"]').getByRole('button', { name: 'Kadro', exact: true }).click();
+  const playerCard = page.locator('button').filter({ hasText: /yaş/ }).first();
+  await playerCard.click();
+  await page.getByRole('button', { name: 'Satış Listesine Koy' }).click();
+  const listed = await waitForSave(page, (record) => record?.blob?.transferListed?.length === 1);
+  const listedPlayer = listed.blob.transferListed[0];
+  check('Kadrodan satış listesine ekleme ve haber elle kaydetmeden saklanır', !!listedPlayer && listed.blob.inbox.some((message) => message.id === `tl-${listedPlayer}`));
+  await playerCard.click();
+  await page.getByRole('button', { name: 'Listeden Çıkar' }).click();
+  let unlisted = await waitForSave(page, (record) => record?.meta?.updatedAt > listed.meta.updatedAt && !record?.blob?.transferListed?.includes(listedPlayer));
+  check('Satış listesinden çıkarma da elle kaydetmeden saklanır', !unlisted.blob.transferListed.includes(listedPlayer));
+  await playerCard.click();
+  await page.getByRole('button', { name: 'Satış Listesine Koy' }).click();
+  const relisted = await waitForSave(page, (record) => record?.meta?.updatedAt > unlisted.meta.updatedAt && record?.blob?.transferListed?.includes(listedPlayer));
+  check('Aynı oyuncu tekrar listeye alınca yinelenen haber oluşmaz', relisted.blob.inbox.filter((message) => message.id === `tl-${listedPlayer}`).length === 1);
+  await playerCard.click();
+  await page.getByRole('button', { name: 'Listeden Çıkar' }).click();
+  unlisted = await waitForSave(page, (record) => record?.meta?.updatedAt > relisted.meta.updatedAt && !record?.blob?.transferListed?.includes(listedPlayer));
+
+  await goMore(page, 'Kulüp');
+  await page.getByRole('button', { name: 'Finans', exact: true }).click();
+  check('Yönetim ek bütçenin tutarını ve koşullarını önceden açıklar', await page.getByText(/Onaylanırsa transfer bütçesine/).isVisible() && await page.getByText(/En az 4 lig maçı ve %60 yönetim güveni/).isVisible());
+  await page.getByRole('button', { name: 'Talep Gönder' }).click();
+  const requested = await waitForSave(page, (record) => record?.blob?.inbox?.some((message) => message.title === 'Ek bütçe talebi reddedildi'));
+  check('Sezon başındaki koşulsuz talep gerekçeyle reddedilir ve bütçeyi değiştirmez', requested.blob.budget.tb === unlisted.blob.budget.tb && requested.blob.inbox.some((message) => message.title === 'Ek bütçe talebi reddedildi' && message.body.includes('en az 4 lig maçı')));
+  check('Ret sonrası tekrar talep engellenir ve mali kayıt kimliğiyle çakışmaz', await page.getByRole('button', { name: 'Talep Gönder' }).isDisabled() && requested.blob.inbox.filter((message) => message.id === `board-budget-v1:${requested.blob.career.clubId}:${requested.blob.seasonNo}:${requested.blob.career.day}:rejected`).length === 1 && requested.blob.inbox.every((message) => message.title !== 'Ek bütçe talebi reddedildi' || message.id !== `fin-${requested.blob.career.day}`));
+  await page.locator('input[type="range"]').fill('1');
+  await page.getByRole('button', { name: 'Aktarımı Onayla' }).click();
+  const moved = await waitForSave(page, (record) => record?.blob?.budget?.tb === requested.blob.budget.tb - 1 && record?.blob?.budget?.wbExtra === 0.05);
+  check('Transferden maaşa aktarım ve yönetim haberi birlikte otomatik kaydedilir', moved.blob.inbox.some((message) => message.title === 'Bütçe aktarımı onaylandı'));
 
   await goMore(page, 'Ayarlar');
   const contrast = page.getByRole('switch', { name: 'Yüksek kontrast' });
@@ -155,7 +188,7 @@ try {
 
   // A synthetic career exported by the actual initial public app (commit 3fb2aa7314, SAVE_VERSION 2).
   historicalBrowser = await chromium.launch(launchOptions);
-  historicalContext = await historicalBrowser.newContext({ viewport: { width: 390, height: 844 }, locale: 'tr' });
+  historicalContext = await historicalBrowser.newContext({ viewport, locale: 'tr' });
   const historicalPage = await historicalContext.newPage(); instrument(historicalPage);
   await historicalPage.goto(base, { waitUntil: 'networkidle' });
   await historicalPage.getByRole('button', { name: 'Başla' }).click();

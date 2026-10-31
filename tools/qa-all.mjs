@@ -1,7 +1,9 @@
 // HM26: sıralı tam regresyon otomasyonu. Build/core/stress/features ve her UI E2E'yi tek akışta çalıştırır.
 // Kullanım: npm run qa:all
-import { spawn, spawnSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { existsSync, writeFileSync } from 'node:fs';
+import { qaChildStatus, qaFailureAnnotation } from './qa-child-status.mjs';
+import { startQaPreview, stopQaPreview } from './qa-preview.mjs';
 
 const root = process.cwd();
 const reportPath = `${root}/QA-AUTOMATION-LATEST.md`;
@@ -17,8 +19,10 @@ function run(name, command, args, timeout = 300_000, extraEnv = {}) {
   const stderr = clean(res.stderr ?? '');
   if (stdout) console.log(stdout);
   if (stderr) console.error(stderr);
-  const code = res.status ?? (res.error ? 1 : 0);
-  rows.push({ name, code, stdout, stderr, error: res.error?.message ?? '' });
+  // A signal-terminated or timed-out child has no exit status; it must never
+  // be reported as a successful QA stage.
+  const { code, error } = qaChildStatus(res);
+  rows.push({ name, code, stdout, stderr, error });
   console.log(`[${code === 0 ? 'PASS' : 'FAIL'}] ${name} (exit ${code})`);
   return code === 0;
 }
@@ -28,7 +32,7 @@ async function ensurePreview() {
     const response = await fetch('http://127.0.0.1:4173', { signal: AbortSignal.timeout(1200) });
     if (response.ok) { console.log('\n[QA] Preview :4173 hazır; mevcut server kullanılacak.'); return true; }
   } catch { /* start local preview below */ }
-  previewProcess = spawn('npm', ['run', 'preview', '--', '--host', '0.0.0.0', '--port', '4173'], { cwd: root, stdio: 'ignore' });
+  previewProcess = startQaPreview(root);
   for (let i = 0; i < 40; i++) {
     await new Promise((resolve) => setTimeout(resolve, 500));
     try {
@@ -41,7 +45,10 @@ async function ensurePreview() {
 
 try {
   if (!existsSync(`${root}/node_modules/.bin/tsc`)) run('Install locked dependencies', 'npm', ['ci'], 300_000);
+  run('QA runner exit, signal and timeout handling', process.execPath, ['tools/qa-child-status.test.mjs'], 60_000);
+  run('Browser save readiness handles delay and stale data', process.execPath, ['tools/qa-browser-save.test.mjs'], 60_000);
   run('Production build + TypeScript + offline manifest', 'npm', ['run', 'build'], 300_000);
+  run('QA preview server startup and cleanup', process.execPath, ['tools/qa-preview.test.mjs'], 60_000);
   run('PWA headers, manifest, icons and update lifecycle', 'npm', ['run', 'qa:pwa'], 120_000);
   run('Content-derived service-worker build identity', 'npm', ['run', 'qa:sw-manifest'], 60_000);
   run('Save integrity, legacy migration and transaction conflicts (jsdom)', 'npm', ['run', 'qa:save-integrity'], 120_000);
@@ -69,6 +76,31 @@ try {
     ['Market refresh, shortlist and press-room links', ['tsx', 'tools/qa-market-improvements.ts']],
   ];
   for (const [name, args] of core) run(name, 'npx', ['--yes', ...args], name.includes('simulation') ? 300_000 : 180_000);
+
+  // Feature-specific suites that used to be runnable only individually.
+  const focused = [
+    ['MatchCore event/reducer contracts', 'qa:match-core'],
+    ['Production simulation isolation, legacy adapter and replay', 'qa:production-core'],
+    ['MatchCore state and deterministic input', 'qa:match-core:wave2'],
+    ['MatchCore live/instant and replay parity', 'qa:match-core:wave3'],
+    ['MatchCore shot and VAR consistency', 'qa:match-core:wave4'],
+    ['MatchCore time, fatigue and player minutes', 'qa:match-core:wave5'],
+    ['MatchCore injuries and substitutions', 'qa:match-core:wave6'],
+    ['MatchCore referees and set pieces', 'qa:match-core:wave7'],
+    ['MatchCore tactics and AI decisions', 'qa:match-core:wave8'],
+    ['Goal pace, randomness and causal score calibration (6,480 matches)', 'qa:goal-calibration'],
+    ['League and favorite balance simulation (10,000 matches)', 'qa:match-core:wave8:balance'],
+    ['Challenge balance simulation (15,000 matches)', 'qa:match-core:challenge-balance'],
+    ['Transfer negotiation and resale clauses', 'qa:transfer:wave11'],
+    ['Academy recruitment and limits', 'qa:academy:wave12'],
+    ['Club culture and financial decisions', 'qa:culture:wave14'],
+    ['Board budget approval, refusal, limits and durable save', 'qa:board-budget'],
+    ['International competition progression', 'qa:international:wave15'],
+    ['Classic interviews and outcomes', 'qa:interview'],
+    ['GameProvider played-fixture and durable save', 'qa:store-fixture'],
+  ];
+  for (const [name, script] of focused) run(name, 'npm', ['run', script], name.includes('simulation') ? 300_000 : 180_000);
+
   run('Transfer negotiation and save integration (jsdom)', 'npm', ['run', 'qa:transfer:scene:ui'], 180_000);
   run('Sale negotiation, settlement and save integration (jsdom)', 'npm', ['run', 'qa:sale:ui'], 180_000);
   run('Market potential, rotation, match plan and legacy saves (jsdom)', 'npm', ['run', 'qa:market-squad:ui'], 180_000);
@@ -80,10 +112,18 @@ try {
   run('Squad rotation and health regression (jsdom)', 'npm', ['run', 'qa:wave3:ui'], 180_000);
   run('Matchday preparation regression (jsdom)', 'npm', ['run', 'qa:wave5:ui'], 180_000);
   run('Batched halftime event and decision flow (jsdom)', 'npm', ['run', 'qa:live:halftime'], 180_000);
+  run('Injury treatment and return do not repeat decisions (jsdom)', 'npm', ['run', 'qa:match-finish'], 180_000, { HM26_INJURY_DECISION_TEST: '1' });
   run('Match finish, last-whistle reaction and manual interview (jsdom)', 'npm', ['run', 'qa:match-finish'], 180_000, { HM26_FINAL_BATCH: 'card' });
   run('Cancelled goal live presentation, audio and match finish (jsdom)', 'npm', ['run', 'qa:match-finish'], 180_000, { HM26_CANCELLED_GOAL: '1' });
   run('Match finish recovery after simulated engine failure (jsdom)', 'npm', ['run', 'qa:match-finish'], 180_000, { HM26_FAULT: 'finish' });
   run('Matchday progression and end-day regression (jsdom)', 'npm', ['run', 'qa:dayflow'], 180_000);
+  for (const [name, script] of [
+    ['Team insights and statistics UI (jsdom)', 'qa:wave6:ui'],
+    ['Player analytics and match history UI (jsdom)', 'qa:analytics:ui'],
+    ['Scout, interview and press profile UI (jsdom)', 'qa:scout:ui'],
+    ['News and career analytics UI (jsdom)', 'qa:fixwave:ui'],
+    ['Match preparation and league analytics UI (jsdom)', 'qa:cwave:ui'],
+  ]) run(name, 'npm', ['run', script], 180_000);
 
   const browserProbe = spawnSync(process.execPath, ['-e', "import('playwright').then(({ chromium }) => console.log(chromium.executablePath()))"], { cwd: root, encoding: 'utf8' });
   const chromiumExecutable = clean(browserProbe.stdout ?? '').split('\n').filter(Boolean).at(-1) ?? '';
@@ -105,12 +145,16 @@ try {
   else if (!previewReady) rows.push({ name: 'Playwright preview server', code: 1, stdout: '', stderr: 'Could not start or reach http://127.0.0.1:4173' });
   else {
     const ui = [
+      ['Delayed career save readiness E2E', 'tools/e2e-career-save-readiness.mjs'],
       ['New career advanced world settings and save E2E', 'tools/e2e-career-world.mjs'],
       ['Embedded asset rendering E2E', 'tools/e2e-assets.mjs'],
       ['Icon system E2E', 'tools/e2e-icons.mjs'],
       ['Statistics and career history E2E', 'tools/e2e-stats.mjs'],
       ['Save-slot delete flow E2E', 'tools/e2e-slots.mjs'],
-      ['Backup, storage failure, legacy migration and stale-tab E2E', 'tools/e2e-save-integrity.mjs'],
+      ['Backup, storage failure, legacy migration and stale-tab E2E (390px)', 'tools/e2e-save-integrity.mjs'],
+      ['Backup, storage failure, legacy migration and stale-tab E2E (320px)', 'tools/e2e-save-integrity.mjs', { HM26_VIEWPORT_WIDTH: '320' }],
+      ['Board budget approval and reload on migrated career E2E (390px)', 'tools/e2e-board-budget.mjs'],
+      ['Board budget approval and reload on migrated career E2E (320px)', 'tools/e2e-board-budget.mjs', { HM26_VIEWPORT_WIDTH: '320' }],
       ['Service-worker two-release and offline isolation E2E', 'tools/e2e-sw-update.mjs'],
       ['Save-before-update and multi-tab game update E2E', 'tools/e2e-update-game.mjs'],
       ['Full profile → starting XI E2E', 'tools/e2e-xi-full.mjs'],
@@ -122,17 +166,19 @@ try {
       ['Contract renewal and recorded match highlights E2E', 'tools/e2e-renewal-highlights.mjs'],
       ['Live reactions, player comparison and weekly paper E2E', 'tools/e2e-atmosphere-comparison-paper.mjs'],
       ['Match arrival, award, training and career story E2E', 'tools/e2e-career-scenes.mjs'],
-      ['Market filters and match-flow E2E', 'tools/e2e-v099.mjs'],
+      ['Market filters and live tactic flow E2E (390px)', 'tools/e2e-v099.mjs'],
+      ['Market filters and live tactic flow E2E (320px)', 'tools/e2e-v099.mjs', { HM26_VIEWPORT_WIDTH: '320' }],
+      ['Injury treatment and return E2E (320px home, 390px away)', 'tools/e2e-injury-decision.mjs'],
       ['Live scorebug, feed, accessible Phaser pitch and action E2E (v0.9.12)', 'tools/e2e-live-v0911.mjs'],
       ['Deterministic Phaser motion and pause E2E', 'tools/e2e-pitch-motion.mjs'],
       ['PWA offline shell + cached bundles E2E (v0.9.12)', 'tools/e2e-offline-v0911.mjs'],
     ];
-    for (const [name, script] of ui) run(name, process.execPath, [script], 240_000);
+    for (const [name, script, extraEnv] of ui) run(name, process.execPath, [script], 240_000, extraEnv);
   }
 } catch (error) {
   rows.push({ name: 'QA automation runner', code: 1, stdout: '', stderr: String(error) });
 } finally {
-  if (previewProcess) { previewProcess.kill('SIGTERM'); }
+  await stopQaPreview(previewProcess);
   const pass = rows.filter((row) => row.code === 0).length;
   const fail = rows.length - pass;
   const failingStages = rows.filter((row) => row.code !== 0).map((row) => row.name);
@@ -149,7 +195,11 @@ try {
     `- **Bu koşudaki testler:** ${fail === 0 ? 'tüm aşamalar geçti; test kapsamı dışındaki kusurlar ayrıca incelenmelidir.' : `başarısız aşamalar: ${failingStages.join(', ')}.`}`,
     '- **Otomasyon düzeltmesi:** eski E2E betiklerindeki :3001 adresleri ortak `HM26_BASE_URL` ile :4173 preview adresine alındı; yeniden koşuda ilgili akışlar geçti.',
     '- **Tarayıcı ortamı:** Chromium indirme ve paylaşımlı sistem kütüphanelerini kontrol etme/kurma adımları ile launch smoke testi otomasyona eklendi.',
-    '- **Uyarılar:** `qa-extended` 37/37 testte sıfır başarısızlıkla iki istatistiksel uyarı üretir (100 maçlık skor dağılımı örneklemi ve farklı skor çeşitliliği). Build ayrıca kabul edilmiş Phaser lazy-chunk boyut uyarısını verir; Phaser maç ekranında lazy-load edilir.',
+    '- **Ek kapsam:** maç çekirdeği, klasik röportajlar, transfer/akademi/kulüp kültürü/uluslararası kupa ve ek arayüz testleri de artık bu sıraya dahildir.',
+    '- **Yönetim bütçesi:** mevcut güven, lig performansı ve mali verilere dayalı onay/ret; sezon başına tek onay, redden sonra 30 günlük bekleme ve kayıt/yeniden açma testleri kapsamdadır.',
+    '- **Maç çekirdeği:** canlı ve hızlı maçlar callback içermeyen, kopyalanmış girdi kullanan ortak üretim çekirdeğinde çalışır; eski oturum ve komut tekrar oynatma yolları uyumluluk adaptörleriyle korunur.',
+    '- **Denge:** ayrı normal lig ve favori ev/deplasman senaryoları 15.000 ve 10.000 maçta, gol temposu/rastlantısallık ayarları 6.480 maçta izlenir. Örneklem sınırları ve önce/sonra karşılaştırması `QA-MATCH-BALANCE.md` dosyasındadır; skorlar sonradan kesilmez.',
+    '- **Uyarılar:** `qa-extended` 100 maçlık küçük örneklemde istatistiksel uyarılar üretebilir; her koşunun çıktısı aşağıdadır. Build Phaser lazy-chunk boyut uyarısı verir; Phaser maç ekranında lazy-load edilir.',
     '- **Dağıtım:** bu koşu yerel build/QA’dır; üretime deployment yapılmadı.',
     '',
     ...rows.flatMap((row, i) => [
@@ -163,5 +213,8 @@ try {
   ].filter(Boolean).join('\n');
   writeFileSync(reportPath, `${report}\n`);
   console.log(`\nQA report: ${reportPath}\n${pass}/${rows.length} stages passed; ${fail} failed.`);
+  if (fail && process.env.GITHUB_ACTIONS === 'true') {
+    for (const row of rows.filter((item) => item.code !== 0)) console.error(qaFailureAnnotation(row));
+  }
   if (fail) process.exitCode = 1;
 }

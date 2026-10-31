@@ -1,8 +1,8 @@
 // Deterministic real-Chromium motion checks against the actual Phaser scene and React wrapper.
 // The isolated fixture is served by Vite only for this test; it is not part of the PWA.
 import { chromium } from 'playwright';
-import { spawn } from 'node:child_process';
 import { createServer } from 'node:net';
+import { createServer as createViteServer } from 'vite';
 
 async function freePort() {
   const probe = createServer();
@@ -11,18 +11,7 @@ async function freePort() {
   await new Promise((resolve) => probe.close(resolve));
   return port;
 }
-const port = await freePort();
-const server = spawn(process.execPath, ['node_modules/vite/bin/vite.js', '--host', '0.0.0.0', '--port', String(port), '--strictPort'], { stdio: ['ignore', 'pipe', 'pipe'] });
-let serverLog = '';
-server.stdout.on('data', (data) => { serverLog += data; });
-server.stderr.on('data', (data) => { serverLog += data; });
-const ready = new Promise((resolve, reject) => {
-  const timer = setTimeout(() => reject(new Error(`Vite başlamadı: ${serverLog}`)), 30000);
-  const onData = () => { if (/Local:|Network:/.test(serverLog)) { clearTimeout(timer); resolve(); } };
-  server.stdout.on('data', onData);
-  server.once('exit', (code) => { clearTimeout(timer); reject(new Error(`Vite erken kapandı (${code}): ${serverLog}`)); });
-});
-let browser;
+let server, browser;
 let total = 0, failed = 0;
 const errors = [];
 const check = (name, condition, detail = '') => {
@@ -32,7 +21,11 @@ const check = (name, condition, detail = '') => {
 const closeTo = (a, b, tolerance = 1) => Math.abs(a - b) <= tolerance;
 const samePoint = (a, b, tolerance = 0.2) => closeTo(a.x, b.x, tolerance) && closeTo(a.y, b.y, tolerance);
 try {
-  await ready;
+  // Await the server itself rather than parsing Vite's colorized console output.
+  // The latter differs between CI and local terminals and can split across streams.
+  const port = await freePort();
+  server = await createViteServer({ server: { host: '127.0.0.1', port, strictPort: true }, logLevel: 'silent' });
+  await server.listen();
   const executablePath = process.env.HM26_CHROMIUM;
   browser = await chromium.launch(executablePath ? { executablePath, args: ['--no-sandbox', '--single-process', '--no-zygote', '--disable-dev-shm-usage'] } : {});
   const page = await browser.newPage({ viewport: { width: 800, height: 620 }, locale: 'tr' });
@@ -142,7 +135,7 @@ try {
   failed++; console.error('❌ Phaser tarayıcı testi:', error);
 } finally {
   if (browser) await browser.close();
-  server.kill('SIGTERM');
+  if (server) await server.close();
 }
 console.log(`\nPITCH-MOTION-BROWSER: ${total - failed}/${total}`);
 if (failed) process.exitCode = 1;

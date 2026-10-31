@@ -69,7 +69,9 @@ function buildSession(seed: number) {
     const session = buildSession(seed * 37);
     // Her iki takımın kalecisini maç başlamadan saha dışına it (sakatlık + kırmızı kart karışık)
     for (const side of ['home', 'away'] as const) {
-      const gk = session.getSlots(side).find((s) => s.slotGroup === 'GK');
+      // Deliberate rare-state fault injection; the public getSlots() is a detached view.
+      const core = (session as unknown as { core: { homeLine: { slots: import('../src/engine/profiles').LineupSlot[] }; awayLine: { slots: import('../src/engine/profiles').LineupSlot[] } } }).core;
+      const gk = (side === 'home' ? core.homeLine.slots : core.awayLine.slots).find((s) => s.slotGroup === 'GK');
       if (!gk) continue;
       if (seed % 2 === 0) gk.injured = true;
       else gk.sentOff = true;

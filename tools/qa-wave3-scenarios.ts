@@ -48,7 +48,9 @@ const check = (name: string, ok: boolean, detail: string) => checks.push({ name,
 
 {
   const session = new MatchSession(input);
-  const player = session.getSlots('home').find((slot) => slot.slotGroup !== 'GK')!;
+  // Deliberate injury fault injection; public slot views are detached snapshots.
+  const core = (session as unknown as { core: { homeLine: { slots: import('../src/engine/profiles').LineupSlot[] } } }).core;
+  const player = core.homeLine.slots.find((slot) => slot.slotGroup !== 'GK')!;
   player.injured = true; player.liveFitness = 30;
   const accepted = session.waitForInjuredPlayer(player.player.id);
   const excludedDuringTreatment = !session.getSlots('home').some((slot) => slot.player.id === player.player.id && !slot.injured);

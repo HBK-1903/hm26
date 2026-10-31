@@ -25,7 +25,7 @@ function runPair(ha: ClubType, hb: ClubType, seed: number, label: string, weathe
   else if (res.stats.hg === res.stats.ag) stats[K].draws++;
   else stats[K].awayWins++;
   stats[K].reds += res.stats.redH + res.stats.redA;
-  stats[K].cards += res.stats.yellowH + stats.yellowA;
+  stats[K].cards += res.stats.yellowH + res.stats.yellowA;
   stats[K].xgH += res.stats.xgH; stats[K].xgA += res.stats.xgA;
 }
 
@@ -77,7 +77,7 @@ for (const [k, b] of Object.entries(stats)) {
   const dPct = ((b.draws / b.games) * 100).toFixed(1);
   const aPct = ((b.awayWins / b.games) * 100).toFixed(1);
   const xgh = (b.xgH / b.games).toFixed(2); const xga = (b.xgA / b.games).toFixed(2);
-  console.log(`${k.padEnd(8)} | n=${b.games} | ort. gol ${avg.toFixed(2)} | xG ${xgh}–${xga} | ev ${hPct}% ber ${dPct}% dep ${aPct}% | kırmızı/maç ${(b.reds / b.games).toFixed(2)}`);
+  console.log(`${k.padEnd(8)} | n=${b.games} | ort. gol ${avg.toFixed(2)} | xG ${xgh}–${xga} | ev ${hPct}% ber ${dPct}% dep ${aPct}% | sarı/maç ${(b.cards / b.games).toFixed(2)} kırmızı/maç ${(b.reds / b.games).toFixed(2)}`);
 }
 console.log('—'.repeat(72));
 console.log('Not: hedef davranışlar\n - Güçlü takım uzun vadeli kazanır\n - Ev sahibi ortalama hafif üstün\n - Kupa sürpriz düşük ama sıfır değil\n - Kırmızı kart ~%10–20 maçta');

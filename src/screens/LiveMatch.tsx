@@ -309,7 +309,12 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onE
     if (paused || done || decision) return;
     const last = currentEvent;
     if (last) {
-      const needsDecision = last.kind === 'card' || last.kind === 'var' || (last.kind === 'injury' && last.side === mySide);
+      // Injury events also describe a player's return from treatment. Only an
+      // actually injured, active roster slot needs a new manager decision.
+      const injuredSlot = last.kind === 'injury' && last.side === mySide && last.playerId
+        ? session.getSlots(mySide).find((slot) => slot.player.id === last.playerId)
+        : undefined;
+      const needsDecision = last.kind === 'card' || last.kind === 'var' || !!injuredSlot?.injured;
       const key = `${last.minute}:${last.kind}:${last.text}`;
       if (needsDecision && lastDecisionShown.current !== key) {
         lastDecisionShown.current = key;
@@ -448,7 +453,7 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; onE
   };
   const waitForInjuryReturn = () => {
     if (!decision?.playerId || !session.waitForInjuredPlayer(decision.playerId)) { setDecision(null); setPaused(false); return; }
-    setEventsShown((ev) => [...ev, { minute: session.getMinute(), side: decision.side, kind: 'injury', playerId: decision.playerId, text: 'Tedavi kararı: iki maç dakikası 10 kişi beklenecek.' }]);
+    setEventsShown((ev) => [...ev, { minute: session.getMinute(), side: decision.side, kind: 'info', playerId: decision.playerId, text: 'Tedavi kararı: iki maç dakikası 10 kişi beklenecek.' }]);
     setDecision(null); setPaused(false); setTick((v) => v + 1);
   };
   const tiredAny = !done && clockMinute >= 60 && session.getSlots(mySide).some((s) => s.slotGroup !== 'GK' && s.liveFitness < 62);

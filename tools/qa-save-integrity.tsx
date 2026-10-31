@@ -24,8 +24,17 @@ const check = (name: string, condition: unknown, detail = '') => { condition ? p
 const career = { slot: 1, manager: { name: 'Kayıt Testi', portrait: 0, background: 'eskiFutbolcu', era: 'gecis', difficulty: 'dengeli', challengePoints: 40 }, clubId: 'denizli_yesilova', seed: 12345, day: 1, week: 1, settings: { goalPace: 'dengeli', randomness: 'normal', marketRefresh: 'dengeli', boardPressure: 'orta', injuryRate: 'normal', textSize: 'normal', highContrast: false, reduceMotion: false, matchSpeed: 'normal', suggestions: true }, pending: { marketShortlist: [], activeProject: null } } as Career;
 const clone = <T,>(x: T): T => JSON.parse(JSON.stringify(x));
 const envelope = (blob: unknown, format = 'hm26-save', version = 4) => JSON.stringify({ format, version, exportedAt: 123, blob });
+const waitForSlot = async (predicate: (value: Awaited<ReturnType<typeof readSave>>) => boolean) => {
+  const deadline = Date.now() + 3000;
+  let value = await readSave(1);
+  while (!predicate(value) && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    value = await readSave(1);
+  }
+  return value;
+};
 const root = createRoot(dom.window.document.getElementById('root')!);
-let game: ReturnType<typeof useGame>;
+let game!: ReturnType<typeof useGame>;
 const Capture = () => { game = useGame(); return null; };
 
 try {
@@ -55,6 +64,20 @@ try {
   original = await readSave(1);
   check('Ayar, bütçe ve gelen kutusu değişiklikleri kendiliğinden birlikte kaydedilir', !!original?.blob.career.settings.reduceMotion && (original.blob as any).budget.tb === game.budget.tb && (original.blob as any).inbox.some((m: any) => m.id === 'qa-save'));
   if (!original) throw new Error('Otomatik kayıt yok');
+  const listedPlayer = game.mySquad[0].id;
+  await act(async () => { game.toggleTransferList(listedPlayer); });
+  const listedSave = await act(async () => waitForSlot((value) => !!(value?.blob as any)?.transferListed?.includes(listedPlayer)));
+  const listedPersisted = !!(listedSave?.blob as any)?.transferListed?.includes(listedPlayer);
+  check('Satış listesine ekleme elle kayıt olmadan kaydedilir', listedPersisted);
+  const listedRevision = listedSave?.meta.updatedAt ?? Infinity;
+  await act(async () => { game.toggleTransferList(listedPlayer); });
+  await act(async () => { original = await waitForSlot((value) => !!value && value.meta.updatedAt > listedRevision && !(value.blob as any).transferListed.includes(listedPlayer)); });
+  check('Satış listesinden çıkarma da otomatik kaydedilir', listedPersisted && !!original && original.meta.updatedAt > listedRevision && !(original.blob as any).transferListed.includes(listedPlayer));
+  const unlistedRevision = original?.meta.updatedAt ?? Infinity;
+  await act(async () => { game.toggleTransferList(listedPlayer); });
+  await act(async () => { original = await waitForSlot((value) => !!value && value.meta.updatedAt > unlistedRevision && (value.blob as any).transferListed.includes(listedPlayer)); });
+  check('Aynı oyuncu tekrar listeye alınınca haber yinelenmez', !!original && (original.blob as any).inbox.filter((message: any) => message.id === `tl-${listedPlayer}`).length === 1);
+  if (!original) throw new Error('Satış listesi kaydı yok');
   const baseline = original.blob as SaveBlob & Record<string, any>;
   // Stop the fresh-career startup timer before the isolated transaction tests.
   await act(async () => root.render(<></>));

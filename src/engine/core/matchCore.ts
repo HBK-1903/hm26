@@ -82,9 +82,10 @@ function copyConfig(config: EngineConfig): EngineConfig {
 }
 
 /**
- * Deterministic MatchCore shell. Wave 2 establishes validated snapshots,
- * explicit state and phase transitions; possession/shot generation is added
- * in later waves. This class has no React, Phaser, DOM, timer, or storage code.
+ * Wave-2 phase/clock contract retained for compatible consumers and tests.
+ * The production football simulation uses the separate SimulationCore and its
+ * own full-squad SimulationInput; these are deliberately not interchangeable.
+ * Both are independent of React, Phaser, DOM, timers and storage.
  */
 export class MatchCore {
   readonly input: NormalizedMatchInput;

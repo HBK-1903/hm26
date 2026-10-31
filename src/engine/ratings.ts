@@ -1,5 +1,5 @@
 // HM26 Maç Motoru §4 — Oyuncu Etkili Puanı ve pozisyon genel ağırlıkları
-import { Player, PlayerRatings, PositionGroup } from '../types';
+import type { Player, PlayerRatings, PositionGroup } from '../types';
 
 /** §4.3 Pozisyona göre genel puan ağırlıkları */
 const WG: Record<PositionGroup, (r: PlayerRatings) => number> = {
