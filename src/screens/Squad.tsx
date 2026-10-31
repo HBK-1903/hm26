@@ -75,8 +75,13 @@ export const SquadScreen: React.FC<{ goXI: (p: Player) => void }> = ({ goXI }) =
       return xiAuto.slots.map((slot) => ({ playerId: slot.player.id, slotGroup: slot.slotGroup }));
     }
     const boardGroups = engineToBoard(plan0.formation, FORMATION_SLOTS[plan0.formation]);
-    // Preserve original board indices even when a manual lineup contains empty slots.
-    return plan0.customLineup.flatMap((id, i) => id ? [{ playerId: id, slotGroup: boardGroups[i] ?? 'CM' }] : []);
+    // Preserve original board indices, but don't repeat advice for duplicate legacy IDs.
+    const seen = new Set<string>();
+    return plan0.customLineup.flatMap((id, i) => {
+      if (!id || seen.has(id)) return [];
+      seen.add(id);
+      return [{ playerId: id, slotGroup: boardGroups[i] ?? 'CM' }];
+    });
   }, [plan0.customLineup, plan0.formation, xiAuto]);
   const advice = useMemo(() => rotationAdvice({ squad, xi: xiSlots, reports: g.matchReports ?? [] }), [squad, xiSlots, g.matchReports]);
   const trendById = useMemo(() => {

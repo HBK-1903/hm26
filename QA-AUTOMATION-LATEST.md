@@ -2,7 +2,7 @@
 **Çalıştırma:** 2026-10-31T09:15:27.020Z
 **Sonuç:** 98/98 geçti · 0 başarısız
 **Tam koşu kaynağı:** `f1108cd` uygulama ve test dosyaları; Node 22 ve Chromium 153 ile yerel çalışma.
-**Sonraki kadro düzeltmeleri:** `f1108cd` sonrasında maç kadrosu rozetleri ve eski kayıtlardaki çift oyuncu görünümü düzeltildi. Build, gerçek maç oturumu/IndexedDB ile kadro-piyasa kontrolleri (62/62), Kadro UI testi ve 320/390 px açık-koyu Chromium kontrolleri (176/176) ayrıca geçti. Aşağıdaki 98/98 tam koşu bu son düzeltmelerden öncedir.
+**Sonraki düzeltmeler:** `f1108cd` sonrasında maç kadrosu rozetleri ve eski kayıtlardaki çift oyuncu/rotasyon görünümü düzeltildi. Build, gerçek maç oturumu/IndexedDB ile kadro-piyasa kontrolleri (63/63), Kadro UI testi ve 320/390 px açık-koyu Chromium kontrolleri (184/184) ayrıca geçti. `d0080b2` üzerindeki bağımsız tam koşu **97/98** tamamlandı; sözleşme testindeki klavye adımı başarısız oldu, aynı test tek başına 32/32 geçti. Bir panelin hızlı odaklanılmış kontrolün odağını geri alabildiği ayrıca tekrarlanıp düzeltildi; gerçek Chromium sözleşme/özet testi bu ek kontrolle 33/33 geçti. Aşağıdaki 98/98 tam koşu bu son düzeltmelerden öncedir.
 | # | Aşama | Sonuç |
 |---:|---|---|
 | 1 | QA runner exit, signal and timeout handling | ✅ PASS |

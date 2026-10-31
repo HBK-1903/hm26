@@ -37,11 +37,15 @@ function Seed({ ready }: { ready: (snapshot: any) => void }) {
       snapshot.extraSquads[g.career.clubId] = [duplicate];
       (window as any).__duplicatePlayer = duplicate.id;
     }
-    if (scenario === 'stale') {
+    if (scenario === 'stale' || scenario === 'stale-tired') {
       plan.customLineup = [...board];
       plan.customLineup[0] = 'sold-player-not-in-squad';
       plan.customLineup[1] = board[2]; // duplicate/stale saved lineup
       plan.customBench = [board[2], 'sold-player-not-in-squad', xi.bench[0]?.id, xi.bench[0]?.id];
+      if (scenario === 'stale-tired') {
+        snapshot.playerPatch[board[2]!] = { ...snapshot.playerPatch[board[2]!], fitness: 50 };
+        (window as any).__tiredDuplicate = board[2];
+      }
     }
     if (scenario === 'unavailable' || scenario === 'risk') {
       const reserves = squad.filter((p) => !board.includes(p.id));

@@ -81,6 +81,16 @@ try {
   await page.getByRole('button', { name: /^Diğer/ }).click();
   await page.getByRole('dialog', { name: 'Diğer piyasa bölümleri' }).getByRole('button', { name: 'Sözleşmeler' }).click();
   const row = page.locator(`[data-testid="contract-player"][data-player-id="${playerId}"]`);
+  // Simulate a user focusing a control immediately as the panel appears.
+  await page.evaluate(() => {
+    window.__fastRenewalFocus = false;
+    const observer = new MutationObserver(() => {
+      const input = document.querySelector('[data-testid="renewal-wage"]');
+      if (input) { input.focus(); window.__fastRenewalFocus = document.activeElement === input; observer.disconnect(); }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+    setTimeout(() => observer.disconnect(), 2000);
+  });
   await row.getByRole('button', { name: 'Yenile' }).click();
   const flow = page.getByTestId('renewal-flow');
   const scene = page.getByTestId('transfer-theatre');
@@ -90,6 +100,8 @@ try {
   await screenshot('01-renewal-offer-320');
   check('Cevap seçilmeden teklif gönderilemez', await page.getByTestId('renewal-send').isDisabled());
   const slider = page.getByTestId('renewal-wage');
+  await page.waitForTimeout(150);
+  check('Hızlı odaklanan maaş kontrolü panel açılışında odağını korur', await page.evaluate(() => window.__fastRenewalFocus) && await slider.evaluate((input) => document.activeElement === input));
   await slider.focus(); await slider.press('Home');
   check('Maaş teklifi klavyeyle değiştirilebilir', await slider.inputValue() === '112');
   await page.getByTestId('renewal-reply-calm').click();

@@ -58,6 +58,8 @@ try {
       check(`${prefix}: kadro rozetlerinin hangi planı gösterdiği yazılır ve ekran taşmaz`, await page.getByText(/XI \/ YDK: Ana Plan/).isVisible() && !(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1)));
       await page.getByRole('button', { name: 'Test: Taktik', exact: true }).click();
       let dialog = await openRoster(page);
+      await page.waitForTimeout(120);
+      check(`${prefix}: tam liste açılınca odak panele otomatik geçer`, await dialog.evaluate((el) => el.contains(document.activeElement)));
       let modalIds = await dialog.locator('[data-roster-list-id]').evaluateAll((els) => els.map((el) => el.dataset.rosterListId));
       check(`${prefix}: tam liste 13 oyuncuyu tekrarsız ve tam adlarıyla gösterir`, sameSet(modalIds, reserveIds) && (await dialog.locator('[data-roster-list-id]').allTextContents()).every((text, i) => text.includes(data.squad.find((p) => p.id === modalIds[i]).name)));
       const panel = dialog.locator('.overflow-y-auto');
@@ -156,6 +158,15 @@ try {
       await page.getByRole('button', { name: 'Test: Kadro', exact: true }).click();
       badges = await squadBadges(page);
       check(`${prefix}: eski kayıttaki kadro rozetleri düzeltilmiş 11+9 ile eşleşir`, sameSet(badges.xi, data.lineup) && sameSet(badges.bench, data.matchBench));
+      await visit('stale-tired');
+      data = await model(page);
+      const tiredId = await page.evaluate(() => window.__tiredDuplicate);
+      const tiredName = data.squad.find((p) => p.id === tiredId)?.name;
+      await page.getByRole('button', { name: 'Test: Kadro', exact: true }).click();
+      await page.locator('[data-testid="rotation-desk"] [aria-controls="rotation-desk-content"]').click();
+      const tiredAdvice = page.locator('[data-testid="rotation-desk"] [data-advice-kind="rest"]').filter({ hasText: tiredName });
+      check(`${prefix}: çift ilk 11 tercihi yorgun oyuncunun rotasyon uyarısını çoğaltmaz`, !!tiredName && await tiredAdvice.count() === 1);
+
       await visit('duplicate');
       data = await model(page);
       dialog = await openRoster(page);
