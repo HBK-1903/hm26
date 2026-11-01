@@ -69,6 +69,16 @@ try {
   const playerName = await theatre.locator('.transfer-theatre__caption strong').innerText();
   check('Sahne gerçek oyuncuyu ve rakip kulübü kullanır', playerName.length > 1 && /Sakarya Vadi/i.test(await theatre.getAttribute('aria-label')));
   await screenshot('01-negotiation-320');
+  await page.setViewportSize({ width: 320, height: 480 });
+  const compactTransfer = await page.evaluate(() => {
+    const rect = (selector) => { const r = document.querySelector(selector)?.getBoundingClientRect(); return r && { left:r.left, right:r.right, top:r.top, bottom:r.bottom }; };
+    return { heading:rect('.transfer-theatre__heading > div'), actors:[...document.querySelectorAll('.transfer-theatre__actor svg')].map((el) => { const r=el.getBoundingClientRect(); return { left:r.left,right:r.right,top:r.top,bottom:r.bottom }; }),
+      desk:rect('.transfer-theatre__desk'), caption:rect('.transfer-theatre__caption'), labels:[...document.querySelectorAll('.transfer-theatre__actor > span')].map((el) => getComputedStyle(el).display) };
+  });
+  const overlap = (a, b) => !!a && !!b && a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+  check('Kısa ekranda görüşme etiketi, yüzler ve masa birbirini örtmez', compactTransfer.actors.length === 2 && compactTransfer.actors.every((actor) => !overlap(compactTransfer.heading, actor)) && !overlap(compactTransfer.desk, compactTransfer.caption) && compactTransfer.labels.every((display) => display === 'none'), JSON.stringify(compactTransfer));
+  await screenshot('01a-negotiation-short-320');
+  await page.setViewportSize({ width: 320, height: 720 });
   await page.getByTestId('transfer-reply-seller-firm').click();
   const decisionScroll = await page.getByTestId('cinematic-decisions').evaluate((element) => element.scrollTop);
   await shot('transfer-theatre', 'manager');
@@ -154,6 +164,13 @@ try {
   b = await bounds();
   const subtitleScrollable = await page.locator('.cinematic-layout__subtitle').evaluate((el) => el.scrollHeight <= el.clientHeight || ['auto', 'scroll'].includes(getComputedStyle(el).overflowY));
   check('Kısa ekranda altyazı okunabilir ve karar alanı ulaşılabilir kalır', fits(b) && subtitleScrollable && await page.getByTestId('interview-option-2').count() === 1, JSON.stringify(b));
+  await page.getByTestId('cinematic-camera-toggle').click();
+  const compactInterview = await page.evaluate(() => {
+    const rect = (element) => { const r=element.getBoundingClientRect(); return {left:r.left,right:r.right,top:r.top,bottom:r.bottom}; };
+    return { heading:rect(document.querySelector('.interview-theatre__heading > div')), actors:[...document.querySelectorAll('.interview-theatre__person svg')].map(rect),
+      labels:[...document.querySelectorAll('.interview-theatre__person > span')].map((el) => getComputedStyle(el).display) };
+  });
+  check('Kısa röportajda başlık karakter yüzlerini ve etiketleri kapatmaz', compactInterview.actors.length === 2 && compactInterview.actors.every((actor) => !overlap(compactInterview.heading, actor)) && compactInterview.labels.every((display) => display === 'none'), JSON.stringify(compactInterview));
   await screenshot('04a-interview-short-320');
   await page.setViewportSize({ width: 1280, height: 800 });
   b = await bounds();

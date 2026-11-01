@@ -135,3 +135,15 @@ html.m26-rm .transfer-theatre *, html.m26-rm .transfer-theatre *::before, html.m
 
 html.m26-rm .transfer-theatre__world { transition:none !important; transform:none !important; }
 @media (prefers-reduced-motion:reduce) { .transfer-theatre__world { transition:none !important; transform:none !important; } }
+/* Compact scenes still show both people and the table, without covering their faces with labels. */
+@media (max-height:560px) and (max-width:859px) {
+  .transfer-theatre--cinematic .transfer-theatre__heading { top:6px; left:10px; right:10px; }
+  .transfer-theatre--cinematic .transfer-theatre__eyebrow { font-size:8px; }
+  .transfer-theatre--cinematic .transfer-theatre__venue { font-size:11px; }
+  .transfer-theatre--cinematic .transfer-theatre__actors { inset:28% 5% 22%; gap:clamp(12px,5vw,45px); }
+  .transfer-theatre--cinematic .transfer-theatre__actor { width:20%; }
+  .transfer-theatre--cinematic .transfer-puppet svg { max-height:clamp(42px,12vh,67px); }
+  .transfer-theatre--cinematic .transfer-theatre__actor > span { display:none; }
+  .transfer-theatre--cinematic .transfer-theatre__desk { bottom:23%; }
+  .transfer-theatre--cinematic .transfer-theatre__caption { bottom:4px; left:10px; right:10px; }
+}

@@ -38,3 +38,15 @@
 html.m26-rm .interview-theatre__world { transition:none !important; transform:none !important; }
 html.m26-rm .interview-theatre * { animation:none !important; }
 @media (prefers-reduced-motion:reduce) { .interview-theatre__world { transition:none !important; transform:none !important; } .interview-theatre * { animation:none !important; } }
+/* Keep titles, faces and the score distinct on very short phones/landscape. */
+@media (max-height:560px) and (max-width:859px) {
+  .interview-theatre__heading { top:6px; left:10px; right:10px; }
+  .interview-theatre__heading strong { font-size:11px; }
+  .interview-theatre__actors { inset:30% 5% 20%; gap:clamp(16px,5vw,45px); }
+  .interview-theatre__person { width:20%; }
+  .interview-theatre__person .transfer-puppet svg { max-height:clamp(42px,12vh,67px); }
+  .interview-theatre__person > span { display:none; }
+  .interview-theatre__score { bottom:4px; padding:2px 7px; gap:6px; }
+  .interview-theatre__score strong { font-size:13px; }
+  .interview-theatre__score img, .interview-theatre__score svg { width:18px; height:18px; }
+}
