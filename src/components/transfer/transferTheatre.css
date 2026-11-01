@@ -3,12 +3,13 @@
   position: relative; isolation: isolate; overflow: hidden; aspect-ratio: 16 / 10;
   width: 100%; min-width: 0; max-height: 265px; border-radius: 18px;
   border: 1px solid rgba(226, 188, 113, .36); color: #fff8ed;
-  background: #111e2c url('/assets/transfer/negotiation-room.webp') center / cover no-repeat;
+  background: #111e2c;
   box-shadow: 0 10px 24px rgba(9, 18, 29, .22), inset 0 1px rgba(255,255,255,.1);
 }
-.transfer-theatre--press { background-image: url('/assets/transfer/press-room.webp'); }
-.transfer-theatre--stadium, .transfer-theatre--star { background-image: url('/assets/transfer/stadium.webp'); }
-.transfer-theatre__veil { position:absolute; inset:0; z-index:-1; background:linear-gradient(180deg,rgba(5,12,22,.68),rgba(7,15,24,.12) 38%,rgba(4,10,19,.84)); }
+.transfer-theatre__world { position:absolute; inset:0; overflow:hidden; background:#111e2c url('/assets/transfer/negotiation-room.webp') center / cover no-repeat; transform-origin:50% 58%; transition:transform 700ms cubic-bezier(.2,.65,.25,1); }
+.transfer-theatre--press .transfer-theatre__world { background-image: url('/assets/transfer/press-room.webp'); }
+.transfer-theatre--stadium .transfer-theatre__world, .transfer-theatre--star .transfer-theatre__world { background-image: url('/assets/transfer/stadium.webp'); }
+.transfer-theatre__veil { position:absolute; inset:0; z-index:0; background:linear-gradient(180deg,rgba(5,12,22,.68),rgba(7,15,24,.12) 38%,rgba(4,10,19,.84)); }
 .transfer-theatre__heading { position:absolute; top:11px; left:13px; right:12px; display:flex; align-items:flex-start; justify-content:space-between; gap:10px; z-index:3; }
 .transfer-theatre__eyebrow { font-size:9px; letter-spacing:.16em; font-weight:900; color:#f3c875; text-shadow:0 1px 4px #000; }
 .transfer-theatre__venue { font-size:12px; font-weight:750; line-height:1.2; margin-top:3px; text-shadow:0 2px 5px #000; }
@@ -21,6 +22,9 @@
 .transfer-puppet--opponent { animation-duration:4.7s; animation-delay:-2.3s; }
 .transfer-puppet svg { display:block; width:100%; max-height:155px; overflow:visible; }
 .transfer-puppet__torso { transform-origin:64px 126px; }
+.transfer-puppet__arm { transform-origin:64px 105px; }
+.transfer-puppet.is-talking .transfer-puppet__arm--left { animation:transfer-arm-left 2.3s ease-in-out infinite; }
+.transfer-puppet.is-talking .transfer-puppet__arm--right { animation:transfer-arm-right 2.6s ease-in-out infinite; }
 .transfer-puppet__head { transform-origin:64px 85px; animation:transfer-head 6s ease-in-out infinite; }
 .transfer-puppet--opponent .transfer-puppet__head { animation-duration:6.8s; animation-delay:-2.1s; }
 .transfer-puppet__expression { transform-origin:64px 85px; }
@@ -85,6 +89,34 @@
 .transfer-facts > div { background:var(--c-base); border:1px solid var(--c-line); border-radius:10px; padding:9px 10px; }
 .transfer-facts span { display:block; color:var(--c-muted); font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; }
 .transfer-facts strong { display:block; color:var(--c-primary); font-size:13px; margin-top:3px; overflow-wrap:anywhere; }
+/* Immersive version: a full stage rather than a card inside a form. */
+.transfer-theatre--cinematic { width:100%; height:100%; max-height:none; aspect-ratio:auto; border:0; border-radius:0; box-shadow:none; }
+.transfer-theatre--cinematic[data-shot="manager"] .transfer-theatre__world { transform:scale(1.15) translateX(5%); }
+.transfer-theatre--cinematic[data-shot="opponent"] .transfer-theatre__world { transform:scale(1.15) translateX(-5%); }
+.transfer-theatre--cinematic .transfer-theatre__heading { top:14px; left:16px; right:16px; }
+.transfer-theatre--cinematic .transfer-theatre__eyebrow { font-size:10px; }
+.transfer-theatre--cinematic .transfer-theatre__venue { font-size:14px; }
+.transfer-theatre--cinematic .transfer-theatre__actors { inset:15% 5% 17%; align-items:flex-end; gap:clamp(12px,5vw,65px); }
+.transfer-theatre--cinematic .transfer-theatre__actor { width:31%; max-width:230px; height:auto; max-height:100%; }
+.transfer-theatre--cinematic .transfer-puppet svg { max-height:min(49vh,440px); }
+.transfer-theatre--cinematic .transfer-theatre__actor > span { position:absolute; top:-22px; margin:0; font-size:9px; padding:3px 9px; }
+.transfer-theatre--cinematic .transfer-theatre__caption { bottom:13px; left:17px; right:17px; }
+.transfer-theatre--cinematic .transfer-theatre__caption strong { font-size:15px; }
+.transfer-theatre--cinematic .transfer-theatre__caption span, .transfer-theatre--cinematic .transfer-theatre__caption small { font-size:10px; }
+.transfer-theatre--cinematic .transfer-theatre__desk { z-index:2; left:7%; right:7%; bottom:13%; height:9%; min-height:18px; border-radius:48% 48% 9px 9px; border-top:2px solid #dab47b; background:linear-gradient(180deg,#86603e,#503323 42%,#251a17); box-shadow:0 6px 15px #000b,inset 0 2px 4px #ecd2a448; }
+.transfer-theatre--cinematic .transfer-theatre__desk i { width:clamp(36px,12%,85px); height:clamp(14px,4vh,34px); left:42%; bottom:55%; border-radius:2px; background:repeating-linear-gradient(0deg,#eadfc5 0 4px,#b8ac8d 5px,#eadfc5 6px); box-shadow:0 2px 4px #0008; }
+.transfer-theatre--cinematic .transfer-theatre__desk b { width:clamp(24px,7%,55px); height:3px; left:53%; bottom:82%; background:#caa664; }
+.transfer-theatre--cinematic .transfer-theatre__desk em, .transfer-theatre--cinematic .transfer-theatre__desk strong { position:absolute; bottom:65%; width:clamp(13px,4%,28px); height:clamp(14px,3.5vh,29px); border:1px solid #e6dfc677; border-radius:2px 2px 5px 5px; background:linear-gradient(90deg,#ffffff30,#ffffff08,#ffffff30); }
+.transfer-theatre--cinematic .transfer-theatre__desk em { left:23%; }.transfer-theatre--cinematic .transfer-theatre__desk strong { right:23%; }
+.transfer-theatre--cinematic[data-beat="review"] .transfer-theatre__desk i, .transfer-theatre--cinematic[data-beat="signed"] .transfer-theatre__desk i { animation:transfer-paper 1s ease-out both; }
+.transfer-theatre--cinematic[data-beat="signed"] .transfer-theatre__desk i::after { content:""; position:absolute; left:16%; right:12%; bottom:22%; height:4px; border-bottom:2px solid #5d3d27; border-radius:50%; transform-origin:left center; animation:transfer-signature 1.6s .7s ease both; }
+.transfer-theatre--cinematic[data-beat="signed"] .transfer-theatre__desk b { animation:transfer-pen 1.8s .55s ease-in-out both; }
+@keyframes transfer-signature { from { transform:scaleX(0); } to { transform:scaleX(1); } }
+@keyframes transfer-pen { 0% { transform:translate(-20px,7px) rotate(32deg); } 30% { transform:translate(-8px,2px) rotate(18deg); } 55% { transform:translate(2px,5px) rotate(26deg); } 80% { transform:translate(11px,1px) rotate(16deg); } 100% { transform:translate(15px,0) rotate(20deg); } }
+
+@keyframes transfer-paper { from { transform:translateY(18px) rotate(-13deg); } to { transform:translateY(0) rotate(-5deg); } }
+@keyframes transfer-arm-left { 0%,100% { transform:rotate(0); } 45% { transform:rotate(5deg) translateY(-1px); } }
+@keyframes transfer-arm-right { 0%,100% { transform:rotate(0); } 50% { transform:rotate(-5deg) translateY(-1px); } }
 @keyframes transfer-gesture { 0%,100% { transform:rotate(0); } 35% { transform:rotate(-1.1deg); } 70% { transform:rotate(.7deg); } }
 @keyframes transfer-voice { from { transform:scaleY(.35); } to { transform:scaleY(1.1); } }
 @keyframes transfer-flag { from { transform:rotate(-8deg) skewY(-4deg); } to { transform:rotate(9deg) skewY(5deg); } }
@@ -100,3 +132,6 @@
 @media (max-width:340px) { .transfer-theatre__caption { grid-template-columns:minmax(0,1fr) auto; } .transfer-theatre__caption span { display:none; } .transfer-theatre__actors { inset-inline:3%; } }
 html.m26-rm .transfer-theatre *, html.m26-rm .transfer-theatre *::before, html.m26-rm .transfer-theatre *::after, html.m26-rm .transfer-floating-cue * { animation:none !important; }
 @media (prefers-reduced-motion:reduce) { .transfer-theatre *, .transfer-theatre *::before, .transfer-theatre *::after, .transfer-floating-cue * { animation:none !important; } }
+
+html.m26-rm .transfer-theatre__world { transition:none !important; transform:none !important; }
+@media (prefers-reduced-motion:reduce) { .transfer-theatre__world { transition:none !important; transform:none !important; } }

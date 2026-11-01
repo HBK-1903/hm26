@@ -132,6 +132,8 @@ const runUntil = async (page, target) => {
     await reloadResume(page);
     check('Röportaj sayfa yenilendikten sonra aynı aşamada açılır', await page.getByTestId('post-match-interview').isVisible());
     await page.getByTestId('interview-option-0').click();
+    check('Seçilen cevap sahnede kalır; analiz otomatik açılmaz', await page.getByTestId('interview-answer').isVisible() && await page.getByTestId('post-match-interview').getAttribute('data-stage') === 'answer' && (await cp(page)).view.phase === 'interview');
+    await page.getByTestId('interview-continue').click();
     const report = await acknowledged(page);
     check('Seçilen röportaj cevabı raporla birlikte kaydedilir', report.view.phase === 'report' && !!report.view.interviewChoice?.id);
     await reloadResume(page);

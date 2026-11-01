@@ -59,21 +59,20 @@ try {
   const reply = await page.getByTestId('transfer-reply-player-calm').locator('.transfer-reply__label').innerText();
   const subtitle = await page.getByTestId('transfer-subtitle').innerText();
   check('Seçilen konuşma gerçek tarayıcıda altyazıya yansıyor', subtitle.includes(reply.replace(/[“”]/g, '')));
-  const scrollBeforeCue = await page.getByTestId('transfer-flow').evaluate((el) => el.closest('.overflow-y-auto')?.scrollTop ?? 0);
-  await page.getByTestId('transfer-speaking-cue').waitFor({ state: 'visible', timeout: 5000 });
-  const visibleCue = await page.evaluate(() => {
-    const cue = document.querySelector('[data-testid="transfer-speaking-cue"]');
+  await page.waitForFunction(() => document.querySelector('[data-testid="transfer-theatre"]')?.getAttribute('data-speaking') === 'manager', null, { timeout: 5000 });
+  const visibleScene = await page.evaluate(() => {
     const scene = document.querySelector('[data-testid="transfer-theatre"]');
-    const scroll = document.querySelector('[data-testid="transfer-flow"]')?.closest('.overflow-y-auto');
-    const cueBox = cue?.getBoundingClientRect(), sceneBox = scene?.getBoundingClientRect(), scrollBox = scroll?.getBoundingClientRect();
-    return { speaker: cue?.getAttribute('data-speaker'), sceneSpeaker: scene?.getAttribute('data-speaking'),
-      mainActors: scene?.querySelectorAll('.transfer-puppet.is-talking').length,
-      cueTop: cueBox?.top, cueBottom: cueBox?.bottom, sceneBottom: sceneBox?.bottom, scrollTop: scrollBox?.top, scrollBottom: scrollBox?.bottom, scrollY: scroll?.scrollTop };
+    const scroll = document.querySelector('[data-testid="cinematic-decisions"]');
+    const subtitle = document.querySelector('[data-testid="transfer-subtitle"]');
+    const sceneBox = scene?.getBoundingClientRect(), scrollBox = scroll?.getBoundingClientRect(), subtitleBox = subtitle?.getBoundingClientRect();
+    return { speaker: scene?.getAttribute('data-speaking'), mainActors: scene?.querySelectorAll('.transfer-puppet.is-talking').length,
+      sceneTop: sceneBox?.top, sceneBottom: sceneBox?.bottom, subtitleTop: subtitleBox?.top, subtitleBottom: subtitleBox?.bottom,
+      scrollTop: scrollBox?.top, scrollY: scroll?.scrollTop, viewportHeight: innerHeight };
   });
-  check('Mobilde sahne ekran dışındayken gerçek konuşmacı seçimleri oynatmadan görünür', visibleCue.speaker === 'manager' && visibleCue.sceneSpeaker === 'manager' && visibleCue.mainActors === 1 && visibleCue.sceneBottom < visibleCue.scrollTop && visibleCue.cueTop >= visibleCue.scrollTop && visibleCue.cueBottom <= visibleCue.scrollBottom && Math.abs(visibleCue.scrollY - scrollBeforeCue) < 3, JSON.stringify(visibleCue));
-  await screenshot('02-speaking-cue');
-  await page.getByRole('button', { name: 'Konuşmayı atla' }).click();
-  check('Konuşmayı atla hareketi durdurur, altyazı ve seçilen cevap kalır', await page.getByTestId('transfer-speaking-cue').count() === 0 && await page.getByTestId('transfer-theatre').getAttribute('data-speaking') === 'none' && await page.getByTestId('transfer-reply-player-calm').getAttribute('aria-pressed') === 'true' && (await page.getByTestId('transfer-subtitle').innerText()).includes(reply.replace(/[“”]/g, '')));
+  check('Mobilde form kayarken sahne, gerçek konuşmacı ve altyazı görünür kalır', visibleScene.speaker === 'manager' && visibleScene.mainActors === 1 && visibleScene.scrollY > 0 && visibleScene.sceneTop >= 0 && visibleScene.sceneBottom <= visibleScene.subtitleTop + 1 && visibleScene.subtitleBottom <= visibleScene.scrollTop + 1 && visibleScene.scrollTop < visibleScene.viewportHeight, JSON.stringify(visibleScene));
+  await screenshot('02-speaking-scene');
+  await page.getByRole('button', { name: 'Repliği atla' }).click();
+  check('Repliği atla hareketi durdurur, altyazı ve seçilen cevap kalır', await page.getByTestId('transfer-theatre').getAttribute('data-speaking') === 'none' && await page.getByTestId('transfer-reply-player-calm').getAttribute('aria-pressed') === 'true' && (await page.getByTestId('transfer-subtitle').innerText()).includes(reply.replace(/[“”]/g, '')));
   const voiceInfo = await page.evaluate(() => ({
     audio: performance.getEntriesByType('resource').map((entry) => entry.name).filter((url) => url.includes('/assets/transfer/voice/')).at(-1) || null,
     codec: document.createElement('audio').canPlayType('audio/mpeg'),
@@ -88,7 +87,15 @@ try {
   check('İmza öncesi şartlar ekranda ve onay kullanıcıda', await page.getByTestId('transfer-flow').getAttribute('data-stage') === 'review' && await page.getByTestId('transfer-sign').isEnabled());
   await screenshot('03-review');
   await page.getByTestId('transfer-sign').dblclick();
+  check('İmza sonrası masa sahnesi kullanıcı kararına kadar kalır', await page.getByTestId('transfer-signing').isVisible() && await page.getByTestId('transfer-theatre').getAttribute('data-beat') === 'signed' && await page.getByTestId('transfer-complete').count() === 0);
+  check('İmza sırasında belge ve kalem görünür biçimde hareket eder', await page.locator('.transfer-theatre__desk b').evaluate((el) => getComputedStyle(el).animationName === 'transfer-pen') && await page.locator('.transfer-theatre__desk i').evaluate((el) => getComputedStyle(el, '::after').animationName === 'transfer-signature'));
+  await page.waitForTimeout(3000);
+  check('İmza animasyonu tamamlanınca tanıtım otomatik açılmaz', await page.getByTestId('transfer-signing').isVisible() && await page.getByTestId('transfer-complete').count() === 0);
+  await screenshot('04a-signing');
+  await page.getByTestId('transfer-open-reveal').click();
   await page.getByTestId('transfer-complete').waitFor();
+  await page.waitForFunction(() => document.querySelector('[data-testid="cinematic-decisions"]')?.scrollTop === 0);
+  check('Tanıtım karar alanının başından açılır', await page.getByTestId('cinematic-decisions').evaluate((el) => el.scrollTop) === 0);
   check('Tekrarlı tıklama sonrası imza ve basın tanıtımı', await page.getByTestId('transfer-theatre').getAttribute('data-scene') === 'press' && (await page.getByTestId('transfer-complete').innerText()).includes('imza atıldı'));
   await screenshot('04-press');
   await page.getByTestId('transfer-announcement').click();
@@ -142,6 +149,7 @@ try {
   await page.getByTestId('transfer-send-player').click();
   await page.getByTestId('transfer-review').click();
   await page.getByTestId('transfer-sign').click();
+  await page.getByTestId('transfer-open-reveal').click();
   await page.getByTestId('transfer-complete').waitFor();
   check('85 GEN bedelsiz oyuncu gerçek tarayıcıda özel yıldız stadyumuna çıkar', await page.getByTestId('transfer-theatre').getAttribute('data-scene') === 'star' && (await page.getByTestId('transfer-complete').innerText()).includes('Bedelsiz'));
   await screenshot('05-star');
@@ -153,10 +161,10 @@ try {
   check('320 px dar mobil ekranda yıldız sahnesi kırpılmadan çizilir', narrow.scrollWidth <= narrow.width && narrow.scene >= 260 && narrow.left >= 0 && narrow.right <= narrow.width, JSON.stringify(narrow));
   await screenshot('06-star-320');
   await page.getByTestId('transfer-announcement').click();
-  await page.getByTestId('transfer-speaking-cue').waitFor({ state: 'visible', timeout: 5000 });
-  const narrowCue = await page.getByTestId('transfer-speaking-cue').evaluate((el) => { const rect = el.getBoundingClientRect(); return { left: rect.left, right: rect.right, speaker: el.getAttribute('data-speaker') }; });
-  check('320 px ekranda sunucu bildirimi kesilmeden ve doğru konuşmacıyla görünür', narrowCue.left >= 0 && narrowCue.right <= 320 && narrowCue.speaker === 'announcer', JSON.stringify(narrowCue));
-  await page.getByRole('button', { name: 'Konuşmayı atla' }).click();
+  await page.waitForFunction(() => document.querySelector('[data-testid="transfer-theatre"]')?.getAttribute('data-speaking') === 'announcer', null, { timeout: 5000 });
+  const narrowSubtitle = await page.getByTestId('transfer-subtitle').evaluate((el) => { const rect = el.getBoundingClientRect(); return { left: rect.left, right: rect.right, text: el.textContent }; });
+  check('320 px ekranda sunucu altyazısı kesilmeden ve sahneyle birlikte görünür', narrowSubtitle.left >= 0 && narrowSubtitle.right <= 320 && /Sunucu/i.test(narrowSubtitle.text) && await page.getByTestId('transfer-theatre').isVisible(), JSON.stringify(narrowSubtitle));
+  await page.getByRole('button', { name: 'Repliği atla' }).click();
 
   // Worker üretim derlemesinde tüm yeni varlıkları kurulum anında önbelleğe almalı.
   const workerReady = await page.evaluate(async () => {
@@ -166,12 +174,12 @@ try {
   });
   check('Üretim servis çalışanı etkin', !!workerReady?.active, JSON.stringify(workerReady));
   await context.setOffline(true);
-  const offlinePaths = ['/assets/transfer/negotiation-room.webp', '/assets/transfer/press-room.webp', '/assets/transfer/stadium.webp',
+  const offlinePaths = ['/assets/cinematic/interview-tunnel.webp', '/assets/transfer/negotiation-room.webp', '/assets/transfer/press-room.webp', '/assets/transfer/stadium.webp',
     ...readdirSync('public/assets/transfer/voice').filter((file) => file.endsWith('.mp3')).map((file) => `/assets/transfer/voice/${file}`)];
   const offline = await page.evaluate(async (paths) => Promise.all(paths.map(async (path) => {
     try { const response = await fetch(path); return response.ok && (await response.arrayBuffer()).byteLength > 1000; } catch { return false; }
   })), offlinePaths);
-  check('Üç sahne ve 40 ses çevrimdışı önbellekten açılıyor', offline.every(Boolean) && offline.length === 43, `${offline.filter(Boolean).length}/${offline.length}`);
+  check('Dört sahne ve 40 ses çevrimdışı önbellekten açılıyor', offline.every(Boolean) && offline.length === 44, `${offline.filter(Boolean).length}/${offline.length}`);
   const decoded = await page.evaluate(async (paths) => {
     const audio = new AudioContext(); let valid = 0;
     try {

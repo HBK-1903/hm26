@@ -16,7 +16,8 @@ import { inWindow } from '../data/calendar';
 import { counterCashAsk, sellOnCredit, transferLeakRisk, transferOfferLeaks } from '../data/transferNegotiation';
 import { playerToneHints, respondToPlayerWithTone, respondToSellerWithTone, sellerToneHints, transferRevealForGen, type PlayerToneResult, type TransferTone } from '../data/transferPresentation';
 import { managerTransferLine, playerTransferLine, sellerTransferLine, signedTransferLine, signingReadyLine, transferAnnouncement, transferLeakLine } from '../data/transferVoices';
-import { TransferSpeechCue, TransferSubtitle, TransferTheatre } from '../components/transfer/TransferTheatre';
+import { TransferSubtitle, TransferTheatre } from '../components/transfer/TransferTheatre';
+import { CinematicLayout, CinematicOverlay, resetCinematicScroll, type CameraCue } from '../components/cinematic/Cinematic';
 import { SaleFlow } from '../components/transfer/SaleFlow';
 import { ContractRenewal } from '../components/transfer/ContractRenewal';
 import { transferVoiceVolume, useTransferSpeech } from '../components/transfer/useTransferSpeech';
@@ -287,7 +288,7 @@ export const MarketScreen: React.FC<{ go?: (s: Screen) => void }> = ({ go }) => 
         </div>
       </Sheet>
 
-      <Sheet open={!!offer} onClose={() => setOffer(null)} title="Transfer Görüşmesi" tall>
+      <CinematicOverlay open={!!offer} onClose={() => setOffer(null)} title="Transfer Görüşmesi" reducedMotion={g.career.settings.reduceMotion}>
         {offer && (
           <OfferFlow
             p={offer}
@@ -301,7 +302,7 @@ export const MarketScreen: React.FC<{ go?: (s: Screen) => void }> = ({ go }) => 
             buy={g.buyPlayer}
           />
         )}
-      </Sheet>
+      </CinematicOverlay>
       {compare !== null && <ComparisonDesk initialPlayer={compare === 'empty' ? null : compare} onClose={() => setCompare(null)} />}
       {ToastView}
     </div>
@@ -373,9 +374,9 @@ const IncomingOffers: React.FC = () => {
           })}
         </>
       )}
-      <Sheet open={!!activeSale} onClose={() => setActiveSale(null)} title="Oyuncu Satışı Görüşmesi" tall>
+      <CinematicOverlay open={!!activeSale} onClose={() => setActiveSale(null)} title="Oyuncu Satışı Görüşmesi" reducedMotion={g.career.settings.reduceMotion}>
         {activeSale && <SaleFlow key={activeSale.offer.id} offer={activeSale.offer} player={activeSale.player} buyer={activeSale.buyer} onClose={() => setActiveSale(null)} />}
-      </Sheet>
+      </CinematicOverlay>
       {ToastView}
     </div>
   );
@@ -412,9 +413,9 @@ const Contracts: React.FC = () => {
           </Card>
         );
       })}
-      <Sheet open={!!confirm} onClose={() => setConfirm(null)} title="Sözleşme Yenileme">
+      <CinematicOverlay open={!!confirm} onClose={() => setConfirm(null)} title="Sözleşme Yenileme" reducedMotion={g.career.settings.reduceMotion}>
         {confirm && <ContractRenewal key={confirm.id} player={confirm} onClose={() => setConfirm(null)} />}
-      </Sheet>
+      </CinematicOverlay>
     </div>
   );
 };
@@ -486,24 +487,14 @@ export const OfferFlow: React.FC<{
   const [signedSwap, setSignedSwap] = useState<Player | null>(null);
   const [signedBudget, setSignedBudget] = useState(0);
   const [signedWageRoom, setSignedWageRoom] = useState(0);
+  const [showReveal, setShowReveal] = useState(false);
   const sellerSubmitted = useRef(false);
   const playerSubmitted = useRef(false);
   const signedOnce = useRef(false);
   const stageRef = useRef<HTMLDivElement>(null);
-  const [sceneVisible, setSceneVisible] = useState(true);
   const crowdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const originalSquad = useRef(g.mySquad);
-  useEffect(() => { stageRef.current?.scrollIntoView?.({ block: 'start', behavior: 'auto' }); }, [stage]);
-  useEffect(() => {
-    const root = stageRef.current;
-    const scene = root?.querySelector('[data-testid="transfer-theatre"]');
-    if (!root || !scene || typeof IntersectionObserver === 'undefined') { setSceneVisible(true); return; }
-    const observer = new IntersectionObserver(([entry]) => setSceneVisible(entry.isIntersecting && entry.intersectionRatio >= 0.55), {
-      root: root.closest('.overflow-y-auto'), threshold: [0, 0.55, 1],
-    });
-    observer.observe(scene);
-    return () => observer.disconnect();
-  }, [stage]);
+  useEffect(() => { resetCinematicScroll(stageRef.current); }, [stage, showReveal]);
   useEffect(() => () => { if (crowdTimer.current) clearTimeout(crowdTimer.current); audio.stopCrowd(); }, []);
 
   const swapPlayer = swapId ? g.mySquad.find((x) => x.id === swapId) ?? null : null;
@@ -532,7 +523,15 @@ export const OfferFlow: React.FC<{
   const subtitle = <TransferSubtitle line={voice.lastLine} muted={voice.muted} systemMuted={transferVoiceVolume() <= 0}
     onReplay={() => { if (voice.lastLine) voice.play(voice.lastLine); }} onSkip={voice.stop}
     onToggle={() => { if (!voice.muted) { if (crowdTimer.current) clearTimeout(crowdTimer.current); audio.stopCrowd(); } voice.toggle(); }} />;
-  const theatre = (mode: 'seller' | 'player' | 'reveal') => <TransferTheatre mode={mode} player={p} club={g.myClub} seller={seller} manager={g.career.manager} speaking={voice.speaking} />;
+  const theatreMode = stage === 'signed' && showReveal ? 'reveal' : stage === 'seller' || (stage === 'offer' && !!seller) ? 'seller' : 'player';
+  const significantResponse = voice.lastLine && ((stage === 'seller' && voice.lastLine.speaker === 'representative')
+    || (stage === 'player' && !!playerResponse && voice.lastLine.speaker === 'player')
+    || (stage === 'review' && voice.lastLine.speaker === 'player'));
+  const firmReply = voice.lastLine?.speaker === 'manager' && ((stage === 'offer' && sellerTone === 'firm') || (stage === 'player' && playerTone === 'firm'));
+  const cameraCue: CameraCue = significantResponse || firmReply
+    ? { key: `${stage}:${voice.lastLine!.id}:${round}:${playerRound}`, target: firmReply ? 'manager' : 'opponent' } : null;
+  const theatre = <TransferTheatre mode={theatreMode} player={p} club={g.myClub} seller={seller} manager={g.career.manager}
+    speaking={voice.speaking} cinematic cameraCue={cameraCue} beat={stage} />;
   const clearPlayerResponse = () => { setPlayerResponse(null); setPlayerTone(null); playerSubmitted.current = false; voice.clear(); };
   const goOffer = () => { sellerSubmitted.current = false; setSellerTone(null); setAgreedFee(null); voice.clear(); setStage('offer'); };
   const goPlayer = (finalFee: number) => { setAgreedFee(finalFee); clearPlayerResponse(); setStage('player'); };
@@ -590,15 +589,18 @@ export const OfferFlow: React.FC<{
     setSignedSwap(swapPlayer);
     setSignedBudget(Math.round((tb - agreedFee) * 10) / 10);
     setSignedWageRoom(wageHeadroom - wage + (swapPlayer?.wage ?? 0));
+    setShowReveal(false);
     setStage('signed');
     voice.play(signedTransferLine(voiceKey));
+    if (!voice.muted) { audio.unlock(); audio.play('click'); }
+  };
+  const openReveal = () => {
+    if (showReveal) return;
+    voice.stop();
+    setShowReveal(true);
     if (!voice.muted) {
-      audio.unlock();
-      audio.play('celebrate');
-      if (reveal !== 'press') {
-        audio.startCrowd();
-        crowdTimer.current = setTimeout(() => audio.stopCrowd(), 6000);
-      }
+      audio.unlock(); audio.play('celebrate');
+      if (reveal !== 'press') { audio.startCrowd(); crowdTimer.current = setTimeout(() => audio.stopCrowd(), 6000); }
     }
   };
   const newMeeting = () => {
@@ -630,12 +632,7 @@ export const OfferFlow: React.FC<{
     <div><span>Sabit maaş toplamı</span><strong>₺{(wage * 12 * years / 1000).toFixed(2)}M</strong></div>
   </div>;
 
-  return <div ref={stageRef} className="m26-in space-y-4" data-testid="transfer-flow" data-stage={stage}>
-    <div className="transfer-floating-cue">
-      {!sceneVisible && <TransferSpeechCue player={p} club={g.myClub} seller={seller} manager={g.career.manager}
-        mode={stage === 'signed' ? 'reveal' : stage === 'seller' || (stage === 'offer' && !!seller) ? 'seller' : 'player'}
-        speaking={voice.speaking} line={voice.lastLine} onSkip={voice.stop} />}
-    </div>
+  return <CinematicLayout ref={stageRef} testId="transfer-flow" stage={stage} scene={theatre} subtitle={subtitle}>
     <div className="flex items-center gap-1 text-[10px] font-bold tracking-wide text-secondary" aria-label="Görüşme adımları">
       <span className={stage === 'offer' || stage === 'seller' ? 'text-amber' : ''}>01 {seller ? 'KULÜP' : 'SERBEST'}</span><span>—</span>
       <span className={stage === 'player' ? 'text-amber' : ''}>02 OYUNCU</span><span>—</span>
@@ -644,8 +641,6 @@ export const OfferFlow: React.FC<{
     {!inWindow && <div role="alert" className="bg-danger/10 border border-danger/40 rounded-xl p-3 text-[12.5px] text-danger font-semibold">Pencere kapalı — kulüplü oyuncu alınamaz.</div>}
 
     {stage === 'offer' && <div className="space-y-4">
-      {theatre(seller ? 'seller' : 'player')}
-      {subtitle}
       <div className="bg-base rounded-xl p-3 flex items-center gap-3">
         <PlayerPortrait player={p} size={44} /><div className="flex-1 min-w-0"><div className="text-primary font-bold truncate">{p.name}</div><div className="text-secondary text-[12px]">{seller?.name ?? 'Serbest oyuncu'} · {p.ratings.gen} GEN · {p.age} yaş</div></div>
         <div className="text-right"><div className="m26-overline">Piyasa</div><div className="num text-amber font-bold">₺{price.toFixed(1)}M</div></div>
@@ -676,7 +671,6 @@ export const OfferFlow: React.FC<{
     </div>}
 
     {stage === 'seller' && <div className="space-y-4">
-      {theatre('seller')}{subtitle}
       {seller && <div className="flex items-center gap-3 rounded-xl bg-surface p-3"><Crest club={seller} size={36} /><div className="flex-1"><div className="text-primary font-bold">{seller.name} temsilcisi</div><div className="text-secondary text-[12px]">Pazarlık turu {round} · sabır {patience}/3</div></div><div className="flex gap-1" aria-label={`Satıcı sabrı ${patience} / 3`}>{[0, 1, 2].map((index) => <span key={index} className={`w-2.5 h-2.5 rounded-full ${index < patience ? 'bg-ok' : 'bg-line'}`} />)}</div></div>}
       <div className="transfer-facts"><div><span>Nakit teklif</span><strong>₺{fee.toFixed(2)}M</strong></div><div><span>Masadaki toplam değer</span><strong>₺{offerValue.toFixed(2)}M</strong></div></div>
       {swapPlayer && <p className="text-secondary text-[12px]">Takas: {swapPlayer.name} · ₺{swapVal.toFixed(1)}M. {sellOnPct > 0 ? `Satış payı: %${sellOnPct}.` : ''}</p>}
@@ -688,7 +682,7 @@ export const OfferFlow: React.FC<{
     </div>}
 
     {stage === 'player' && <div className="space-y-4">
-      {theatre('player')}{subtitle}{leakNotice}
+      {leakNotice}
       <div className="rounded-xl border border-line bg-surface p-3 text-[12px] text-secondary">{seller ? `${seller.name} ile nakit ₺${(agreedFee ?? 0).toFixed(2)}M üzerinde anlaşıldı.` : 'Serbest oyuncu ile sözleşme görüşmesi · bonservis ₺0M.'} İmza henüz atılmadı.</div>
       <div><div className="flex justify-between text-[13px] mb-1.5"><span className="text-primary font-semibold">Aylık maaş teklifi</span><span className="num text-amber font-bold">₺{wage}B</span></div>
         <input aria-label="Aylık maaş teklifi" type="range" min={p.wage} max={Math.max(p.wage, Math.ceil(p.wage * 2.5))} step={1} value={wage} onChange={(e) => { setWage(+e.target.value); clearPlayerResponse(); }} className="w-full accent-amber h-6" />
@@ -706,7 +700,6 @@ export const OfferFlow: React.FC<{
     </div>}
 
     {stage === 'review' && agreedFee !== null && <div className="space-y-4">
-      {theatre('player')}{subtitle}
       <div className="rounded-xl border border-line bg-surface p-3 space-y-3"><h3 className="font-display text-primary text-[17px] font-bold">İmza öncesi son kontrol</h3><p className="text-secondary text-[12px]">{p.name} · {seller?.name ?? 'Serbest statü'} → {g.myClub.name}</p>{termsFacts(agreedFee)}
         {swapPlayer && <p className="text-secondary text-[12px]">Takas: {swapPlayer.name} → {seller?.name}.</p>}{sellOnPct > 0 && <p className="text-secondary text-[12px]">Sonraki satıştan %{sellOnPct} satıcı kulübe.</p>}
         <p className="text-secondary text-[12px]">İmzadan sonra transfer bütçesi: ₺{(Math.round((tb - agreedFee) * 10) / 10).toFixed(1)}M · Yabancı kadrosu (takas sonrası): {foreignCount}/{quota}.</p>
@@ -720,8 +713,17 @@ export const OfferFlow: React.FC<{
       {seller && <Btn variant="secondary" className="w-full" onClick={goOffer}>Kulüp Şartlarını Düzenle</Btn>}
     </div>}
 
-    {stage === 'signed' && <div className="space-y-4" data-testid="transfer-complete" data-reveal-tier={reveal}>
-      {theatre('reveal')}{subtitle}
+    {stage === 'signed' && !showReveal && <div className="space-y-4" data-testid="transfer-signing">
+      <div className="rounded-2xl border border-ok/40 bg-ok/10 p-4 space-y-3">
+        <div className="text-ok font-display text-[18px] font-bold">{p.name} · sözleşme imzalandı</div>
+        <p className="text-secondary text-[12px]">İmza atıldı, oyuncu kadroya katıldı. Tanıtıma ne zaman geçeceğine sen karar verirsin.</p>
+        {termsFacts(signedFee)}
+        <div className="transfer-facts"><div><span>Kalan transfer bütçesi</span><strong>₺{signedBudget.toFixed(1)}M</strong></div><div><span>Kalan maaş alanı</span><strong>₺{signedWageRoom}B / ay</strong></div></div>
+        {signedSwap && <p className="text-secondary text-[12px]">Takas: {signedSwap.name} → {seller?.short ?? 'satıcı kulüp'}.</p>}
+      </div>
+      <Btn variant="amber" testId="transfer-open-reveal" className="w-full" onClick={openReveal}>Tanıtıma Geç →</Btn>
+    </div>}
+    {stage === 'signed' && showReveal && <div className="space-y-4" data-testid="transfer-complete" data-reveal-tier={reveal}>
       <div className="rounded-2xl border border-ok/40 bg-ok/10 p-4 space-y-3">
         <div className="flex items-center gap-3"><PlayerPortrait player={{ ...p, clubId: g.myClub.id }} size={52} /><div><div className="text-ok font-display text-[18px] font-bold">{p.name} · imza atıldı</div><div className="text-secondary text-[12px]">{seller?.name ?? 'Serbest statü'} → {g.myClub.name}</div></div></div>
         {termsFacts(signedFee)}
@@ -736,5 +738,5 @@ export const OfferFlow: React.FC<{
       <Btn variant="amber" className="w-full min-h-touch" onClick={() => { onDone(true, `${p.name} kadroya katıldı.`); onHome?.(); }}>Ana Merkeze Dön</Btn>
       <Btn variant="secondary" className="w-full" onClick={() => onDone(true, `${p.name} kadroya katıldı.`)}>Piyasada Kal</Btn>
     </div>}
-  </div>;
+  </CinematicLayout>;
 };

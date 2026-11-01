@@ -153,7 +153,12 @@ try {
   check('Karşı teklif kabulünde de son onay beklenir', await flow.getAttribute('data-stage') === 'response' && /henüz satılmadı/i.test(await flow.innerText()));
   await page.getByTestId('sale-review').click();
   await page.getByTestId('sale-confirm').dblclick();
+  check('Satış tamamlandıktan sonra imza sahnesi kullanıcıyı bekler', await page.getByTestId('sale-signing').isVisible() && await page.getByTestId('transfer-theatre').getAttribute('data-beat') === 'signed' && await page.getByTestId('sale-complete').count() === 0);
+  await screenshot('04a-sale-signing');
+  await page.getByTestId('sale-open-reveal').click();
   await page.getByTestId('sale-complete').waitFor();
+  await page.waitForFunction(() => document.querySelector('[data-testid="cinematic-decisions"]')?.scrollTop === 0);
+  check('Satış tanıtımı karar alanının başından açılır', await page.getByTestId('cinematic-decisions').evaluate((el) => el.scrollTop) === 0);
   const complete = page.getByTestId('sale-complete');
   check('85 GEN satışında özel yıldız tanıtımı ve alıcı kulüp gösterilir', await complete.getAttribute('data-reveal-tier') === 'star' && (await complete.innerText()).includes('Sakarya'));
   const completedText = await complete.textContent() ?? '';
