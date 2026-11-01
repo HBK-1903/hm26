@@ -54,15 +54,16 @@ try {
   check('Bacaklar ve kollar ayrı hareket katmanlarına sahip', await ground.locator('.training-actor__leg').count() === 6 && await ground.locator('.training-actor__arm').count() === 6 && await style(ground.locator('.training-actor__leg').first(), 'animationName') === 'training-legs');
   const actor = ground.locator('.training-actor--one');
   const initialTransform = await style(actor, 'transform');
-  await page.waitForFunction((before) => getComputedStyle(document.querySelector('.training-actor--one')).transform !== before, initialTransform);
-  check('Antrenman figürü seçili çalışmada gerçekten hareket ediyor', await style(actor, 'transform') !== initialTransform);
+  const moved = await page.waitForFunction((before) => getComputedStyle(document.querySelector('.training-actor--one')).transform !== before, initialTransform);
+  check('Antrenman figürü seçili çalışmada gerçekten hareket ediyor', await moved.jsonValue());
   await ground.getByRole('button', { name: 'Durdur' }).click();
+  await page.waitForFunction(() => getComputedStyle(document.querySelector('.training-actor--one')).animationPlayState === 'paused');
   const frozen = await style(actor, 'transform');
   await page.waitForTimeout(250);
   check('Durdur figürleri ve uzuv animasyonlarını dondurur', await style(actor, 'transform') === frozen && await style(ground.locator('.training-actor__leg').first(), 'animationPlayState') === 'paused');
   await ground.getByRole('button', { name: 'Devam' }).click();
-  await page.waitForFunction((before) => getComputedStyle(document.querySelector('.training-actor--one')).transform !== before, frozen);
-  check('Antrenman duraklatıldığı yerden devam eder', await style(actor, 'transform') !== frozen);
+  const resumed = await page.waitForFunction((before) => getComputedStyle(document.querySelector('.training-actor--one')).transform !== before, frozen);
+  check('Antrenman duraklatıldığı yerden devam eder', await resumed.jsonValue());
   const drillProps = { Teknik: 'cones', 'Hücum': 'attack', Defans: 'defence', Fizik: 'lanes', 'Zekâ': 'triangle' };
   let propsCorrect = true;
   for (const [area, prop] of Object.entries(drillProps)) {

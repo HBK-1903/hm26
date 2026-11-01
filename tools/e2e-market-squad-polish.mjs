@@ -153,7 +153,10 @@ try {
   check('Karşı teklif kabulünde de son onay beklenir', await flow.getAttribute('data-stage') === 'response' && /henüz satılmadı/i.test(await flow.innerText()));
   await page.getByTestId('sale-review').click();
   await page.getByTestId('sale-confirm').dblclick();
+  await page.waitForFunction(() => { const flow = document.querySelector('[data-testid="sale-flow"]'); return !flow || flow.getAttribute('data-stage') === 'signed'; });
   check('Satış tamamlandıktan sonra imza sahnesi kullanıcıyı bekler', await page.getByTestId('sale-signing').isVisible() && await page.getByTestId('transfer-theatre').getAttribute('data-beat') === 'signed' && await page.getByTestId('sale-complete').count() === 0);
+  await page.getByTestId('sale-open-reveal').dispatchEvent('click', { detail: 2 });
+  check('Satış onayındaki çift tıklama tanıtıma yanlışlıkla geçirmez', await page.getByTestId('sale-signing').isVisible() && await page.getByTestId('sale-complete').count() === 0);
   await screenshot('04a-sale-signing');
   await page.getByTestId('sale-open-reveal').click();
   await page.getByTestId('sale-complete').waitFor();

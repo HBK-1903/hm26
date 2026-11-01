@@ -80,6 +80,12 @@ export const CinematicLayout = React.forwardRef<HTMLDivElement, {
   </div>;
 });
 
+/** A second click from the signature gesture must not activate a newly mounted
+ * continue button beneath the pointer. Keyboard and fresh single clicks still work. */
+export function preventAccidentalDoubleClick(event: React.MouseEvent<HTMLElement>) {
+  if (event.detail > 1) { event.preventDefault(); event.stopPropagation(); }
+}
+
 export function resetCinematicScroll(root: HTMLElement | null) {
   const content = root?.querySelector<HTMLElement>('[data-testid="cinematic-decisions"]');
   if (content) content.scrollTop = 0;

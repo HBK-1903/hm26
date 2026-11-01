@@ -87,7 +87,19 @@ try {
   check('İmza öncesi şartlar ekranda ve onay kullanıcıda', await page.getByTestId('transfer-flow').getAttribute('data-stage') === 'review' && await page.getByTestId('transfer-sign').isEnabled());
   await screenshot('03-review');
   await page.getByTestId('transfer-sign').dblclick();
-  check('İmza sonrası masa sahnesi kullanıcı kararına kadar kalır', await page.getByTestId('transfer-signing').isVisible() && await page.getByTestId('transfer-theatre').getAttribute('data-beat') === 'signed' && await page.getByTestId('transfer-complete').count() === 0);
+  await page.waitForFunction(() => { const flow = document.querySelector('[data-testid="transfer-flow"]'); return !flow || flow.getAttribute('data-stage') === 'signed'; });
+  const signingState = await page.evaluate(() => ({
+    stage: document.querySelector('[data-testid="transfer-flow"]')?.getAttribute('data-stage') ?? null,
+    scene: document.querySelector('[data-testid="transfer-theatre"]')?.getAttribute('data-scene') ?? null,
+    beat: document.querySelector('[data-testid="transfer-theatre"]')?.getAttribute('data-beat') ?? null,
+    signing: !!document.querySelector('[data-testid="transfer-signing"]'),
+    reveal: !!document.querySelector('[data-testid="transfer-complete"]'),
+    message: document.body.innerText.slice(-500),
+  }));
+  check('İmza sonrası masa sahnesi kullanıcı kararına kadar kalır', signingState.signing && signingState.beat === 'signed' && signingState.scene === 'negotiation' && !signingState.reveal, JSON.stringify(signingState));
+  if (!signingState.signing) throw new Error(`İmza sahnesi açılamadı: ${JSON.stringify(signingState)}`);
+  await page.getByTestId('transfer-open-reveal').dispatchEvent('click', { detail: 2 });
+  check('İmzadaki çift tıklama tanıtıma yanlışlıkla geçirmez', await page.getByTestId('transfer-signing').isVisible() && await page.getByTestId('transfer-complete').count() === 0);
   check('İmza sırasında belge ve kalem görünür biçimde hareket eder', await page.locator('.transfer-theatre__desk b').evaluate((el) => getComputedStyle(el).animationName === 'transfer-pen') && await page.locator('.transfer-theatre__desk i').evaluate((el) => getComputedStyle(el, '::after').animationName === 'transfer-signature'));
   await page.waitForTimeout(3000);
   check('İmza animasyonu tamamlanınca tanıtım otomatik açılmaz', await page.getByTestId('transfer-signing').isVisible() && await page.getByTestId('transfer-complete').count() === 0);

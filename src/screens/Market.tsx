@@ -17,7 +17,7 @@ import { counterCashAsk, sellOnCredit, transferLeakRisk, transferOfferLeaks } fr
 import { playerToneHints, respondToPlayerWithTone, respondToSellerWithTone, sellerToneHints, transferRevealForGen, type PlayerToneResult, type TransferTone } from '../data/transferPresentation';
 import { managerTransferLine, playerTransferLine, sellerTransferLine, signedTransferLine, signingReadyLine, transferAnnouncement, transferLeakLine } from '../data/transferVoices';
 import { TransferSubtitle, TransferTheatre } from '../components/transfer/TransferTheatre';
-import { CinematicLayout, CinematicOverlay, resetCinematicScroll, type CameraCue } from '../components/cinematic/Cinematic';
+import { CinematicLayout, CinematicOverlay, preventAccidentalDoubleClick, resetCinematicScroll, type CameraCue } from '../components/cinematic/Cinematic';
 import { SaleFlow } from '../components/transfer/SaleFlow';
 import { ContractRenewal } from '../components/transfer/ContractRenewal';
 import { transferVoiceVolume, useTransferSpeech } from '../components/transfer/useTransferSpeech';
@@ -721,7 +721,7 @@ export const OfferFlow: React.FC<{
         <div className="transfer-facts"><div><span>Kalan transfer bütçesi</span><strong>₺{signedBudget.toFixed(1)}M</strong></div><div><span>Kalan maaş alanı</span><strong>₺{signedWageRoom}B / ay</strong></div></div>
         {signedSwap && <p className="text-secondary text-[12px]">Takas: {signedSwap.name} → {seller?.short ?? 'satıcı kulüp'}.</p>}
       </div>
-      <Btn variant="amber" testId="transfer-open-reveal" className="w-full" onClick={openReveal}>Tanıtıma Geç →</Btn>
+      <div onClickCapture={preventAccidentalDoubleClick}><Btn variant="amber" testId="transfer-open-reveal" className="w-full" onClick={openReveal}>Tanıtıma Geç →</Btn></div>
     </div>}
     {stage === 'signed' && showReveal && <div className="space-y-4" data-testid="transfer-complete" data-reveal-tier={reveal}>
       <div className="rounded-2xl border border-ok/40 bg-ok/10 p-4 space-y-3">
