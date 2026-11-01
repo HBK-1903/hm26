@@ -1,8 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { Club } from '../../types';
 import type { DemoMatchEvent } from '../../store/game';
 import { makeHighlightReel, type HighlightKind } from '../../engine/highlights';
 import { Crest } from '../assets/Crest';
+import { useReducedMotion } from '../useReducedMotion';
+import { pointOnHighlightPath, type HighlightPoint } from './highlightMotion';
 import './matchHighlights.css';
 
 const LABELS: Record<HighlightKind, string> = {
@@ -10,11 +12,50 @@ const LABELS: Record<HighlightKind, string> = {
 };
 const SYMBOLS: Record<HighlightKind, string> = { goal: '●', chance: '◆', save: '◈', card: '▣', sub: '↔', injury: '+', var: '▧' };
 
+const ROUTE_DURATION_MS = 1500;
+
+/** A visual trace of saved zones. Pause freezes both the line and the marker. */
+const HighlightRoute: React.FC<{ path: HighlightPoint[]; color: string; playing: boolean; reduced: boolean }> = ({ path, color, playing, reduced }) => {
+  const [progress, setProgress] = useState(playing && !reduced && path.length > 1 ? 0 : 1);
+  const progressRef = useRef(0);
+  const started = useRef(false);
+  useEffect(() => {
+    if (reduced) { progressRef.current = 1; setProgress(1); return; }
+    if (!playing || path.length < 2) return;
+    if (!started.current) { started.current = true; progressRef.current = 0; setProgress(0); }
+    if (progressRef.current >= 1) return;
+    const start = window.performance.now() - progressRef.current * ROUTE_DURATION_MS;
+    let frame = 0;
+    let lastPaint = 0;
+    const tick = (now: number) => {
+      const next = Math.min(1, Math.max(0, (now - start) / ROUTE_DURATION_MS));
+      progressRef.current = next;
+      // Thirty updates a second are enough for this small diagram on a phone.
+      if (now - lastPaint >= 32 || next === 1) { setProgress(next); lastPaint = now; }
+      if (next < 1) frame = window.requestAnimationFrame(tick);
+    };
+    frame = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(frame);
+  }, [playing, reduced, path.length]);
+  const shown = reduced ? 1 : progress;
+  const marker = pointOnHighlightPath(path, shown);
+  const points = path.map((point) => `${point.x},${point.y}`).join(' ');
+  return <g className="highlights__route" data-testid="highlights-route" data-points={points} data-progress={shown.toFixed(3)}>
+    {path.length > 1 && <polyline points={points} fill="none" stroke="#0b241b" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" opacity=".65" />}
+    {path.length > 1 && <polyline className="highlights__route-line" points={points} fill="none" stroke={color} strokeWidth="1.3" strokeLinejoin="round" strokeLinecap="round" pathLength="100" strokeDasharray="100" strokeDashoffset={100 * (1 - shown)} />}
+    {path.map((point, i) => <circle key={i} cx={point.x} cy={point.y} r={i === path.length - 1 ? 2.5 : 1.25} fill={i === path.length - 1 ? '#fff' : color} stroke="#123927" strokeWidth=".65" />)}
+    {marker && <g className="highlights__route-ball" data-testid="highlight-ball" data-x={marker.x.toFixed(3)} data-y={marker.y.toFixed(3)} transform={`translate(${marker.x} ${marker.y})`}>
+      <circle r="2.4" fill="#fff8e8" stroke="#182e23" strokeWidth=".6" /><path d="M-1-1 1-.9 1 .7 0 1.3 -1 .5Z" fill="#294238" />
+    </g>}
+  </g>;
+};
+
 /** User-controlled replay of the engine's recorded facts, not a second simulation. */
 export const MatchHighlights: React.FC<{
   home: Club; away: Club; homeGoals: number; awayGoals: number;
   events: readonly DemoMatchEvent[]; archived?: boolean; reduceMotion?: boolean;
 }> = ({ home, away, homeGoals, awayGoals, events, archived = false, reduceMotion = false }) => {
+  const reduced = useReducedMotion(reduceMotion);
   const reel = useMemo(() => makeHighlightReel(events, homeGoals, awayGoals, { homeId: home.id, awayId: away.id }), [events, homeGoals, awayGoals, home.id, away.id]);
   const [index, setIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
@@ -23,9 +64,16 @@ export const MatchHighlights: React.FC<{
 
   useEffect(() => { setIndex(0); setPlaying(false); }, [reel]);
   useEffect(() => {
+    const onVisibility = () => { if (document.hidden) setPlaying(false); };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, []);
+  useEffect(() => {
     if (!playing) return;
-    if (index >= last) { setPlaying(false); return; }
-    const timer = window.setTimeout(() => setIndex((i) => Math.min(i + 1, last)), 2600);
+    // Let the final recorded route finish before stopping; never leave the screen.
+    const timer = index >= last
+      ? window.setTimeout(() => setPlaying(false), ROUTE_DURATION_MS + 200)
+      : window.setTimeout(() => setIndex((i) => Math.min(i + 1, last)), 2600);
     return () => window.clearTimeout(timer);
   }, [index, last, playing]);
   const goTo = (next: number) => { setPlaying(false); setIndex(Math.max(0, Math.min(last, next))); };
@@ -37,9 +85,8 @@ export const MatchHighlights: React.FC<{
   const score = selected?.score;
   const team = selected?.side === 'home' ? home : selected?.side === 'away' ? away : null;
   const coordinates = selected?.path;
-  const points = coordinates?.map((point) => `${point.x},${point.y}`).join(' ') ?? '';
 
-  return <section className="highlights" data-testid="match-highlights" data-playing={playing ? 'true' : 'false'} data-reduce-motion={reduceMotion ? 'true' : 'false'}>
+  return <section className="highlights" data-testid="match-highlights" data-playing={playing ? 'true' : 'false'} data-reduce-motion={reduced ? 'true' : 'false'}>
     <div className="highlights__stage" data-testid="highlights-stage">
       <div className="highlights__stage-shade" />
       <div className="highlights__topline"><span>HM26 · MAÇ ÖZETİ</span><span>{selected ? `${selected.minute}′` : 'MAÇ SONU'}</span></div>
@@ -58,11 +105,7 @@ export const MatchHighlights: React.FC<{
             <rect x="29" y="3" width="42" height="16" /><rect x="38" y="3" width="24" height="6" />
             <rect x="29" y="81" width="42" height="16" /><rect x="38" y="91" width="24" height="6" />
           </g>
-          {coordinates && <g key={index} className="highlights__route" data-testid="highlights-route" data-points={points}>
-            {coordinates.length > 1 && <polyline points={points} fill="none" stroke="#0b241b" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" opacity=".65" />}
-            {coordinates.length > 1 && <polyline className="highlights__route-line" points={points} fill="none" stroke={selected?.pathSide === 'away' ? '#83d8ff' : '#ffde7e'} strokeWidth="1.3" strokeLinejoin="round" strokeLinecap="round" pathLength="100" />}
-            {coordinates.map((point, i) => <circle key={i} cx={point.x} cy={point.y} r={i === coordinates.length - 1 ? 2.5 : 1.25} fill={i === coordinates.length - 1 ? '#fff' : selected?.pathSide === 'away' ? '#83d8ff' : '#ffde7e'} stroke="#123927" strokeWidth=".65" />)}
-          </g>}
+          {coordinates && <HighlightRoute key={`${index}:${coordinates.map((p) => `${p.x},${p.y}`).join(';')}`} path={coordinates} color={selected?.pathSide === 'away' ? '#83d8ff' : '#ffde7e'} playing={playing} reduced={reduced} />}
         </svg>
       </div>
       {selected && <div className="highlights__stage-label"><span>{LABELS[selected.kind]}</span><b>{team?.short ?? 'TAKIM BİLGİSİ YOK'}</b></div>}
@@ -88,7 +131,7 @@ export const MatchHighlights: React.FC<{
           aria-label={`${moment.minute}. dakika ${LABELS[moment.kind]}${moment.side ? ` ${moment.side === 'home' ? home.short : away.short}` : ''}`}
           onClick={() => goTo(i)}><b>{SYMBOLS[moment.kind]}</b><span>{moment.minute}′</span></button>)}
       </div>
-      <p className="highlights__note">Saha çizimi yalnızca maç motorunun kaydettiği bölgeleri gösterir. Oynatma sen başlatmadıkça ilerlemez.</p>
+      <p className="highlights__note">Topun çizimi yalnızca kaydedilen bölgeler arasındaki temsili rotadır. Oynatma sen başlatmadıkça ilerlemez; maçın sonucunu değiştirmez.</p>
     </>}
   </section>;
 };

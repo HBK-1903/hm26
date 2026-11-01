@@ -51,6 +51,9 @@ export class PitchScene extends Phaser.Scene {
   private heatTeam: 'all' | 'home' | 'away' = 'all';
   private trail!: Phaser.GameObjects.Graphics;
   private ball!: Phaser.GameObjects.Arc;
+  private ballDetail!: Phaser.GameObjects.Container;
+  private ballRotation = 0;
+  private ballPlaced = false;
   private shadow!: Phaser.GameObjects.Ellipse;
   private dotLayer!: Phaser.GameObjects.Container;
   private spriteById = new Map<string, Phaser.GameObjects.Container>();
@@ -79,6 +82,11 @@ export class PitchScene extends Phaser.Scene {
     this.dotLayer = this.add.container(0, 0).setDepth(2);
     this.shadow = this.add.ellipse(0, 0, 8, 4, 0x07130a, 0.36).setDepth(2.5);
     this.ball = this.add.circle(0, 0, 4.1, 0xfffaf0, 1).setDepth(4).setStrokeStyle(1.2, 0x17221a, 0.9);
+    // The small panel rotates only as the real ball moves; no additional simulation.
+    this.ballDetail = this.add.container(0, 0, [
+      this.add.circle(0.8, 0, 1.35, 0x304338, 0.95),
+      this.add.circle(-1.7, -1.7, 0.6, 0xffffff, 0.9),
+    ]).setDepth(4.1);
     this.drawField();
     const centre = this.groundPoint(50, 50);
     this.setBall(centre.x, centre.y);
@@ -86,10 +94,7 @@ export class PitchScene extends Phaser.Scene {
     this.game.events.on('pitchstate', (state: PitchPresentationState, initial = false) => this.applyPresentation(state, initial));
     this.scale.on(Phaser.Scale.Events.RESIZE, () => {
       // Old tweens use pixel coordinates from the old size; never drag them across the resized pitch.
-      this.cancelBallAnimation();
-      this.trailVersion++;
-      this.tweens.killTweensOf(this.trail);
-      this.trail.clear().setAlpha(1);
+      this.clearAnimatedCues();
       this.drawField(); this.drawHeatmap(); this.drawPlayers(true); this.moveBallToRuntime(0);
     });
     this.onReady?.(this);
@@ -307,10 +312,16 @@ export class PitchScene extends Phaser.Scene {
     return { x: m + (x / 100) * (w - m * 2), y: m + (y / 100) * (h - m * 2) };
   }
   private setBall(x: number, y: number, z = 0) {
+    if (this.ballPlaced && !this.reduceMotion && !this.completed) {
+      this.ballRotation += Math.hypot(x - this.ballGround.x, y - this.ballGround.y) / 4;
+    } else if (this.reduceMotion) this.ballRotation = 0;
+    this.ballPlaced = true;
     this.ballGround = { x, y };
     const lift = Phaser.Math.Clamp(z, 0, 36);
+    const scale = 1 + lift / 100;
     this.shadow.setPosition(x, y).setScale(0.8 + lift / 45, 0.8 + lift / 80).setAlpha(Math.max(0.10, 0.38 - lift / 105));
-    this.ball.setPosition(x, y - lift).setScale(1 + lift / 100);
+    this.ball.setPosition(x, y - lift).setScale(scale);
+    this.ballDetail.setPosition(x, y - lift).setScale(scale).setRotation(this.ballRotation);
   }
   private moveBallToRuntime(duration = pitchTransitionMs(this.stepMs)) {
     if (!this.ball || !this.shadow) return;
@@ -345,6 +356,19 @@ export class PitchScene extends Phaser.Scene {
     }
     if (!reduceMotion) this.tweens.add({ targets: wall, alpha: 0, delay: 1200, duration: 450, onComplete: () => wall.destroy() });
     else this.time.delayedCall(1500, () => wall.destroy());
+  }
+
+  /** A brief net ripple on the goal actually scored, not a new match event. */
+  private drawGoalNet(side: 'home' | 'away') {
+    const { w, h, m } = this.dims();
+    const top = side === 'home';
+    const goalY = top ? m - 5 : h - m;
+    const left = w / 2 - w * 0.12, right = w / 2 + w * 0.12;
+    const net = this.trackCue(this.add.graphics().setDepth(3.2).setData('cueKind', 'goal-net').setData('goalSide', side).setData('goalY', goalY));
+    net.lineStyle(0.8, 0xfff1c7, 0.8);
+    for (let x = left + 6; x < right; x += 8) net.lineBetween(x, goalY, x, goalY + 5);
+    net.lineBetween(left, goalY + 2.5, right, goalY + 2.5);
+    this.tweens.add({ targets: net, y: top ? -2 : 2, alpha: 0, duration: Phaser.Math.Clamp(this.stepMs * 2.5, 500, 1000), ease: 'Sine.out', onComplete: () => net.destroy() });
   }
 
   private processEvent(ev: PitchEvent) {
@@ -420,6 +444,8 @@ export class PitchScene extends Phaser.Scene {
     const segmentMs = Phaser.Math.Clamp(budget / pts.length, 45, 300);
     const moveSegment = (index: number) => {
       if (index >= pts.length) {
+        // If a newer event or a motion preference interrupted the shot, its net never fires.
+        if (ev.kind === 'goal' && ev.side && !this.reduceMotion && !this.completed) this.drawGoalNet(ev.side);
         this.cinematic = false;
         this.activeBallTween = null;
         this.ballTargetKey = '';

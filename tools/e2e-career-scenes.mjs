@@ -39,6 +39,10 @@ const editSave = async (mode) => page.evaluate(async (mode) => {
     const t = makeTransfer('gercek-transfer', 2, 4, 'Gerçek Transfer');
     b.transferLog = [t, { ...t }, makeTransfer('gelecek-transfer', 2, 12, 'Gelecek Transfer')];
     b.career.trophyCabinet = [{ season: '2026–27', type: 'lig', title: 'Gerçek Lig Kupası' }, { season: 'eski kayıt', type: 'kupa', title: 'Tarihsiz Kupa' }];
+  } else if (mode === 'finale') {
+    // The field already exists in saves; use an isolated sample to exercise the real shell offline.
+    b.career.settings.reduceMotion = false;
+    b.seasonFinale = { season: '2026–27', clubId: b.career.clubId, leagueId: b.leagueOf[b.career.clubId], rank: 1, pts: 68, cup: 'Yarı final', championId: b.career.clubId, cupWinnerId: 'sakarya_vadi', promoted: false, relegated: false, champion: true, cupWon: false, awards: null };
   } else {
     const list = b.fixtures.filter((f) => f.comp === 'lig' && f.league === b.leagueOf[b.career.clubId] && (f.homeId === b.career.clubId || f.awayId === b.career.clubId));
     fixture = list.find((f) => f.awayId === b.career.clubId) ?? list[0];
@@ -226,6 +230,25 @@ try {
     check('İki Türkçe anons çevrimdışı önbellekten çözülür ve sessiz değildir', clips.every((clip) => clip.status === 200 && clip.size > 1000 && clip.duration > 1 && clip.rms > .001), JSON.stringify(clips));
     await context.setOffline(false);
   }
+  // Load an existing season-finale field through the real production shell and service worker.
+  await toStart(); await editSave('finale');
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await context.setOffline(true);
+  await page.reload({ waitUntil: 'load' });
+  await page.getByRole('button', { name: /Devam Et/ }).first().click();
+  const finale = page.getByTestId('season-finale');
+  await finale.waitFor();
+  await page.waitForFunction(() => document.querySelector('[data-testid="season-finale"]')?.getAttribute('data-phase') === '3');
+  const finaleText = await finale.innerText();
+  check('Kayıtlı sezon finali gerçek oyunda çevrimdışı açılır ve kulübün sonuçlarını gösterir', finaleText.includes('2026–27') && finaleText.includes('68 puan') && finaleText.includes('Denizli Yeşilova SK'));
+  check('Gerçek oyunda sistemin azaltılmış hareketi konfeti olmadan tüm sonucu gösterir', await finale.getAttribute('data-motion') === 'reduced' && await finale.locator('canvas').count() === 0 && finaleText.includes('ŞAMPİYON'));
+  check('Sezon finali kendiliğinden kapanmaz ve kayıtlı bekleyen durum korunur', await finale.isVisible() && !!(await readSave())?.seasonFinale);
+  await finale.getByRole('button', { name: 'Kariyere Dön' }).click();
+  const finaleSaved = await waitSave((b) => b?.seasonFinale === null);
+  check('Kullanıcı kariyere dönünce mevcut sezon finali durumu temizlenir', !(await finale.count()) && finaleSaved.version === 5);
+  await context.setOffline(false);
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+
   check('Kayıt sürümü 5; yeni sahneler için kalıcı alan eklenmedi', saved.version === 5 && !Object.keys(saved).some((key) => /^(careerTimeline|careerStory|arrivalScene|matchAward|trainingGround)$/i.test(key)));
   check('Tarayıcıda yakalanmamış uygulama hatası yok', errors.length === 0, errors.join(' | '));
 } catch (error) { failed++; console.error('❌ E2E akışı kesildi:', error?.stack ?? error); console.error('Sayfa durumu:', (await page.locator('body').innerText().catch(() => '')).slice(0, 2500)); }

@@ -40,6 +40,7 @@ try {
   const initial = await snapshot();
   check('Durdurulmuş başlangıçta 22 oyuncu köşeden gelmeden doğru yerde', initial.count === 22 && initial.paused && Object.values(initial.sprites).every((p) => p.x > 20 && p.y > 20 && samePoint(p, p.target)), `oyuncu=${initial.count} duraklatıldı=${initial.paused}`);
   check('İlk top ve gerçek sahibi başlangıçta sahada aynı bölgede', closeTo(initial.ball.x, initial.sprites['home-8'].x, 1) && Math.abs(initial.ball.y - initial.sprites['home-8'].y) < 15);
+  check('Top detayı başlangıçta topun gerçek konumunda', closeTo(initial.ballDetail.x, initial.ball.x, .01) && closeTo(initial.ballDetail.y, initial.ballY, .01));
 
   // The React wrapper must also receive that snapshot after asynchronous boot,
   // even though no match tick is allowed to happen while paused.
@@ -68,6 +69,7 @@ try {
   await page.waitForTimeout(190); const landed = await snapshot();
   const expectedX = 17.6 + 0.8 * (320 - 35.2), expectedY = 17.6 + 0.18 * (440 - 35.2);
   check('Top tek karede takılmadan birden çok karede ilerler', mid1.ball.x > start.ball.x + 2 && mid2.ball.x > mid1.ball.x + 2, `${start.ball.x.toFixed(1)} → ${mid1.ball.x.toFixed(1)} → ${mid2.ball.x.toFixed(1)}`);
+  check('Top deseni gerçek hareket ve havadaki yükseklikle birlikte döner', closeTo(mid2.ballDetail.x, mid2.ball.x, .01) && closeTo(mid2.ballDetail.y, mid2.ballY, .01) && Math.abs(mid2.ballDetail.rotation - start.ballDetail.rotation) > .1);
   check('Havalanan top hedefe ulaşıp tekrar yere iner', closeTo(landed.ball.x, expectedX, 2) && closeTo(landed.ball.y, expectedY, 2) && closeTo(landed.ballY, landed.ball.y, 1), JSON.stringify(landed.ball));
   check('Top sahibi ve hareket hedefi güncel motor verisinden çizilir', Math.abs(landed.sprites['home-10'].target.x - expectedX) < 1 && Math.abs(landed.sprites['home-10'].target.y - expectedY) < 15);
 
@@ -77,6 +79,7 @@ try {
   await page.waitForTimeout(70); const frozen1 = await snapshot();
   await page.waitForTimeout(260); const frozen2 = await snapshot();
   check('Maç duraklatılınca top ve oyuncu animasyonları gerçekten donar', frozen2.paused && samePoint(frozen1.ball, frozen2.ball) && samePoint(frozen1.sprites['home-8'], frozen2.sprites['home-8']));
+  check('Duraklatılmış maçta top deseninin dönüşü de donar', closeTo(frozen1.ballDetail.rotation, frozen2.ballDetail.rotation, .001));
   await update({ paused: false });
   await page.waitForTimeout(310); const resumed = await snapshot();
   check('Devam edilince donmuş hareket kaldığı yerden sürer', !resumed.paused && !samePoint(frozen2.ball, resumed.ball, 3));
@@ -104,13 +107,22 @@ try {
   await update({ paused: false, stepMs: 260, runtime: { x: 20, y: 82, z: 0, owner: 'home', ownerId: 'home-10', activeIds: ['home-10'] } });
   await page.waitForTimeout(70);
   await fire({ kind: 'goal', side: 'home', path: ['L-D', 'L-M', 'C-M', 'C-A'], actors: ['home-10'] });
+  const earlyGoal = await snapshot();
+  check('Kale ağı top ulaşmadan tepki vermez', earlyGoal.goalNets.length === 0);
   await page.waitForTimeout(65);
   await update({ runtime: { x: 80, y: 50, z: 0, owner: 'home', ownerId: 'home-6', activeIds: ['home-6'] } });
   await fire({ kind: 'info', side: 'home', path: [], actors: [] });
   const inFlight = await snapshot();
   check('Metin olayı devam eden top yolunu kesmez; replik motor verisini değiştirmez', inFlight.cinematic && JSON.stringify(inFlight.runtime.activeIds) === '["home-6"]');
+  await page.waitForFunction(() => window.__pitchFixture.snapshot().goalNets.some((net) => net.side === 'home'));
+  const homeGoal = await snapshot();
+  check('Top kaleye ulaşınca doğru ev sahibi kale ağında tepki oluşur', homeGoal.goalNets.some((net) => net.side === 'home' && net.y < homeGoal.height / 2));
   await page.waitForTimeout(900); const caughtUp = await snapshot();
   check('Olay bitince top arada güncellenen en son oyun konumuna yetişir', !caughtUp.cinematic && closeTo(caughtUp.ball.x, expectedX, 2) && closeTo(caughtUp.ball.y, 220, 2), JSON.stringify(caughtUp.ball));
+  await fire({ kind: 'goal', side: 'away', path: ['L-D', 'C-M', 'C-A'], actors: ['away-10'] });
+  await page.waitForFunction(() => window.__pitchFixture.snapshot().goalNets.some((net) => net.side === 'away'));
+  const awayGoal = await snapshot();
+  check('Deplasman golünde ağ efekti diğer kalede görünür', awayGoal.goalNets.some((net) => net.side === 'away' && net.y > awayGoal.height / 2));
   await fire({ kind: 'chance', side: 'home', path: ['L-M', 'C-M'] });
   await page.waitForTimeout(70); const nextTrail = await snapshot();
   check('Sonraki pozisyonda pas izi yeniden görünür', nextTrail.trailAlpha > 0.5, `opacity=${nextTrail.trailAlpha.toFixed(2)}`);
@@ -121,6 +133,7 @@ try {
   await page.waitForTimeout(80); const reduced1 = await snapshot();
   await page.waitForTimeout(240); const reduced2 = await snapshot();
   check('Azaltılmış hareket açılınca aktif kamera, efekt ve top hareketi durur', reduced1.reduced && !reduced1.cinematic && reduced1.cueCount === 0 && closeTo(reduced1.cameraZoom, 1, 0.001) && samePoint(reduced1.ball, reduced2.ball) && samePoint(reduced1.sprites['home-6'], reduced2.sprites['home-6']));
+  check('Azaltılmış harekette top deseni sabit, kale efekti temizdir', reduced1.goalNets.length === 0 && closeTo(reduced1.ballDetail.rotation, reduced2.ballDetail.rotation, .001) && closeTo(reduced1.ballDetail.y, reduced1.ballY, .01));
   await update({ paused: true, completed: true }); await page.waitForTimeout(70);
   const ended1 = await snapshot(); await page.waitForTimeout(200); const ended2 = await snapshot();
   check('Son düdük sonrası saha sabit kalır ve incelenebilir', ended2.paused && samePoint(ended1.ball, ended2.ball) && ended2.count === 22);

@@ -1,0 +1,15 @@
+/* A quiet club-coloured finale; all results still come from the season record. */
+.season-finale__emblem { position:relative; align-self:center; display:grid; place-items:center; width:76px; height:76px; margin:0 auto 10px; }
+.season-finale__emblem-ring { position:absolute; inset:1px; border:1px solid #d5ae62a6; border-radius:50%; background:radial-gradient(circle,#d5ae6222,transparent 72%); }
+.season-finale__emblem-ring::before,.season-finale__emblem-ring::after { content:''; position:absolute; inset:-4px 19px; border-inline:2px solid #d5ae6266; border-radius:50%; transform:rotate(48deg); }
+.season-finale__emblem-ring::after { transform:rotate(-48deg); }
+.season-finale__emblem-crest { position:relative; z-index:1; display:grid; place-items:center; animation:finale-crest 4.5s ease-in-out infinite; }
+.season-finale__emblem-mark { position:absolute; z-index:2; right:0; bottom:1px; display:grid; place-items:center; width:22px; height:22px; border-radius:50%; border:1px solid #fff0c1; background:#bc8c37; color:#fff9e9; font-size:14px; font-weight:900; animation:finale-mark 3s ease-in-out infinite; }
+.season-finale__emblem.is-celebration .season-finale__emblem-ring { animation:finale-ring 4s ease-in-out infinite; }
+@keyframes finale-crest { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-3px); } }
+@keyframes finale-mark { 0%,100% { transform:scale(1); } 50% { transform:scale(1.08); } }
+@keyframes finale-ring { 0%,100% { transform:rotate(-4deg); opacity:.65; } 50% { transform:rotate(4deg); opacity:1; } }
+.season-finale.is-reduced *,html.m26-rm .season-finale * { animation:none!important; }
+@media(prefers-reduced-motion:reduce) { .season-finale * { animation:none!important; } }
+.season-finale__scroll:focus-visible { outline:2px solid var(--c-accent); outline-offset:-3px; }
+.season-finale__scroll-hint { padding:3px 0 6px; text-align:center; color:var(--c-secondary); font-size:10px; font-weight:750; }

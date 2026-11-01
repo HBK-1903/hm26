@@ -95,7 +95,9 @@
     "qa:culture:wave14": "tsx tools/qa-culture-wave14.ts",
     "qa:international:wave15": "tsx tools/qa-international-wave15.ts",
     "qa:market-improvements": "tsx tools/qa-market-improvements.ts",
-    "qa:all": "node tools/qa-all.mjs"
+    "qa:all": "node tools/qa-all.mjs",
+    "qa:highlight-motion": "tsx tools/qa-highlight-motion.ts",
+    "qa:animation-scenes:browser": "node tools/e2e-animation-scenes.mjs"
   },
   "dependencies": {
     "phaser": "^3.90.0",

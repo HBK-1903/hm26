@@ -43,6 +43,8 @@ export const LiveAtmosphere: React.FC<{
       <div className="live-atmosphere__light" aria-hidden="true" />
       <div className="live-atmosphere__heading"><div><span>CANLI YAYIN</span><strong>KULÜBE & TRİBÜN</strong></div><Crest club={club} size={29} /></div>
       <div className="live-atmosphere__crowd" aria-hidden="true">{Array.from({ length: 20 }, (_, index) => <i key={index} style={{ '--fan-index': index } as React.CSSProperties}><b /></i>)}</div>
+      <div className="live-atmosphere__flags" aria-hidden="true"><i /><i /><i /></div>
+      {reaction?.event.kind === 'goal' && mood === 'celebrate' && <div className="live-atmosphere__goal-ribbons" data-testid="live-goal-celebration" aria-hidden="true">{Array.from({ length: 9 }, (_, index) => <i key={index} style={{ '--ribbon-index': index } as React.CSSProperties} />)}</div>}
       <div className="live-atmosphere__banner" aria-hidden="true"><span>{club.short}</span><i /> TARAFTAR BÖLÜMÜ</div>
       <Person face={manager.face ?? presetFace(manager.portrait)} name={manager.name || 'Menajer'} roleLabel={managerSuspended ? 'MENAJER · TRİBÜNDE' : 'MENAJER'} index={0} manager suspended={managerSuspended} />
       {visibleBench.map((player, index) => <Person key={player.id} face={playerFaceFromSeed(playerFaceSeed(player.id))} palette={teamPalette} name={player.name} roleLabel="YEDEK" index={index + 1} />)}

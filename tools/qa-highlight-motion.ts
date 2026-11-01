@@ -1,0 +1,30 @@
+// Presentation interpolation of recorded zones only; no new match facts or save fields.
+import { pointOnHighlightPath } from '../src/components/match/highlightMotion';
+import { makeHighlightReel, recordedPath } from '../src/engine/highlights';
+import type { DemoMatchEvent } from '../src/store/game';
+
+let passed = 0, failed = 0;
+const check = (name: string, condition: unknown) => { condition ? passed++ : failed++; console.log(`${condition ? '✅' : '❌'} ${name}`); };
+const same = (actual: { x: number; y: number } | null, expected: { x: number; y: number }) => !!actual && Math.abs(actual.x - expected.x) < 1e-9 && Math.abs(actual.y - expected.y) < 1e-9;
+const path = [{ x: 0, y: 0 }, { x: 3, y: 0 }, { x: 3, y: 4 }];
+const original = JSON.stringify(path);
+check('Konum kaydı yoksa top noktası üretilmez', pointOnHighlightPath(null, .5) === null && pointOnHighlightPath([], .5) === null);
+check('Tek kayıtlı bölge sabit kalır', same(pointOnHighlightPath([{ x: 12, y: 25 }], .5), { x: 12, y: 25 }));
+check('Başlangıç ve bitiş tam kaydedilen noktalardır', same(pointOnHighlightPath(path, 0), path[0]) && same(pointOnHighlightPath(path, 1), path[2]));
+check('Çizimin hızı parça uzunluklarını dikkate alır', same(pointOnHighlightPath(path, 3 / 7), path[1]) && same(pointOnHighlightPath(path, 5 / 7), { x: 3, y: 2 }));
+check('Eksi ve birden büyük ilerleme sınırlandırılır', same(pointOnHighlightPath(path, -10), path[0]) && same(pointOnHighlightPath(path, 10), path[2]));
+check('Geçersiz ilerleme güvenli başlangıca alınır', same(pointOnHighlightPath(path, Number.NaN), path[0]) && same(pointOnHighlightPath(path, Infinity), path[0]));
+check('Aynı bölgenin tekrarında sıfıra bölünmez', same(pointOnHighlightPath([{ x: 2, y: 3 }, { x: 2, y: 3 }, { x: 6, y: 3 }], .5), { x: 4, y: 3 }));
+check('Tüm noktalar aynıysa kayıtlı nokta korunur', same(pointOnHighlightPath([{ x: 2, y: 3 }, { x: 2, y: 3 }], .5), { x: 2, y: 3 }));
+check('Girdi dizisi veya noktalar değişmez', JSON.stringify(path) === original);
+const home: DemoMatchEvent = { minute: 10, kind: 'goal', side: 'home', path: ['L-D', 'C-M'], text: 'Gol' };
+const away: DemoMatchEvent = { ...home, side: 'away' };
+const homePath = recordedPath(home)!, awayPath = recordedPath(away)!;
+check('Ev ve deplasman yolları gerçek kayıt aynalamasına uyar', homePath.every((p, i) => p.x + awayPath[i].x === 100 && p.y + awayPath[i].y === 100));
+const homeMid = pointOnHighlightPath(homePath, .5)!, awayMid = pointOnHighlightPath(awayPath, .5)!;
+check('Hareketli top da gerçek deplasman yolunun aynasıdır', Math.abs(homeMid.x + awayMid.x - 100) < 1e-9 && Math.abs(homeMid.y + awayMid.y - 100) < 1e-9);
+check('Tarafı veya geçerli bölgesi bilinmeyen olayda rota oluşturulmaz', recordedPath({ ...home, side: undefined }) === null && recordedPath({ ...home, path: ['fake'] }) === null);
+const noLocation = makeHighlightReel([{ minute: 30, kind: 'card', side: 'home', text: 'Kart' }], 0, 0).moments[0];
+check('Eski/kayıtsız olay özetinde rota ve dolayısıyla top uydurulmaz', noLocation.path === null && pointOnHighlightPath(noLocation.path, .5) === null);
+console.log(`\nHIGHLIGHT-MOTION: ${passed}/${passed + failed}`);
+if (failed) process.exitCode = 1;
