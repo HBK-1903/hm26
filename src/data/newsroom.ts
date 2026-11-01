@@ -64,9 +64,10 @@ export interface TeamOfWeekMember {
 export function selectTeamOfWeek(
   reports: readonly MatchArchiveEntry[], fromDay: number, toDay: number,
   playerLookup: (playerId: string) => Player | null,
+  seasonNo?: number,
 ): TeamOfWeekMember[] {
   const evidence = new Map<string, { clubId: string; group: string; ratingMinutes: number; minutes: number; goals: number; assists: number }>();
-  reports.filter((report) => report.comp === 'lig' && report.day >= fromDay && report.day <= toDay).forEach((report) => {
+  reports.filter((report) => (seasonNo === undefined || report.seasonNo === seasonNo) && report.comp === 'lig' && report.day >= fromDay && report.day <= toDay).forEach((report) => {
     Object.entries(report.playerRows ?? {}).forEach(([playerId, row]) => {
       if (!Number.isFinite(row.rating) || row.min < 30) return;
       const player = playerLookup(playerId);
@@ -108,7 +109,7 @@ export function leaguePulse(table: readonly TableRow[], clubs: readonly Club[]) 
 
 export function refereeReportEntries(reports: readonly MatchArchiveEntry[]) {
   return reports.filter((report) => !!report.referee)
-    .sort((a, b) => b.day - a.day || b.id.localeCompare(a.id)).slice(0, 8);
+    .sort((a, b) => (b.seasonNo ?? 0) - (a.seasonNo ?? 0) || b.day - a.day || b.id.localeCompare(a.id)).slice(0, 8);
 }
 
 // ——— Maç raporlarından kanıta dayalı basın haberleri (sahte senaryo yok) ———
@@ -118,6 +119,8 @@ export type MatchNewsTag =
 
 export interface MatchNewsItem {
   id: string;
+  /** Derived from the archived report; older reports may not know their season. */
+  seasonNo?: number;
   day: number;
   comp: string;
   tag: MatchNewsTag;
@@ -159,7 +162,7 @@ export function buildMatchNews(
   limit = 6,
 ): MatchNewsItem[] {
   const items: MatchNewsItem[] = [];
-  for (const r of [...reports].sort((a, b) => b.day - a.day || b.seasonNo - a.seasonNo)) {
+  for (const r of [...reports].sort((a, b) => (b.seasonNo ?? 0) - (a.seasonNo ?? 0) || b.day - a.day)) {
     const isHome = r.homeId === myClubId;
     const mySide = isHome ? SIDE_HOME : SIDE_AWAY;
     const myName = clubName(myClubId);
@@ -225,7 +228,7 @@ export function buildMatchNews(
           : pick(['Puan hasadı boş geçti', 'Maçtan eli boş döndü', 'Haftayı kayıpla kapattı'], seed),
         detail: `${base} — sonuç puan tablosuna işlendi.` };
     }
-    if (item) items.push(item);
+    if (item) items.push({ ...item, seasonNo: r.seasonNo });
     if (items.length >= limit) break;
   }
   return items;

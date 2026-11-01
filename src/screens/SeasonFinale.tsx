@@ -9,6 +9,8 @@ import { Btn } from '../components/ui/kit';
 import { audio } from '../audio/engine';
 import { clubById, clubByIdSafe } from '../data/clubs';
 import { useGame } from '../store/game';
+import { useReducedMotion } from '../components/useReducedMotion';
+import './seasonFinale.css';
 
 interface ConfettiSpec { x: number; y: number; vy: number; vx: number; rot: number; vr: number; color: string; shape: number }
 
@@ -23,52 +25,85 @@ export const SeasonFinale: React.FC<{
 }> = ({ record, myClub, championId, cupWinnerId, promoted, relegated, champion, cupWon, awards, onDone }) => {
   const g = useGame();
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [phase, setPhase] = useState(0); // 0: intro, 1: tablo, 2: şampiyon/kupa, 3: ödül töreni, 4: sezon ana sonucu
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [moreResults, setMoreResults] = useState(false);
   const big = champion || cupWon || promoted;
   const maxPhase = awards ? 4 : 3;
+  const reduce = useReducedMotion(g.career.settings.reduceMotion);
+  const [phase, setPhase] = useState(() => reduce ? maxPhase : 0); // intro → table → champions → awards → summary
 
   useEffect(() => {
     audio.unlock();
     audio.play(big ? 'celebrate' : relegated ? 'heartbreak' : 'nudge');
-    const t = setInterval(() => setPhase((p) => Math.min(maxPhase, p + 1)), big ? 1400 : 1100);
-    return () => clearInterval(t);
   }, []);
-
-  // Konfeti döngüsü (canvas, hafif)
   useEffect(() => {
-    if (!big || g.career.settings.reduceMotion) return;
+    if (reduce) { setPhase(maxPhase); return; }
+    if (phase >= maxPhase) return;
+    const timer = window.setTimeout(() => setPhase((p) => Math.min(maxPhase, p + 1)), big ? 1400 : 1100);
+    return () => window.clearTimeout(timer);
+  }, [big, maxPhase, phase, reduce]);
+
+  // One scrollable region keeps long awards and the manual exit reachable on small phones.
+  useEffect(() => {
+    const scroll = scrollRef.current, content = contentRef.current;
+    if (!scroll || !content) return;
+    const update = () => setMoreResults(scroll.scrollTop + scroll.clientHeight < scroll.scrollHeight - 2);
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(update);
+    observer?.observe(scroll); observer?.observe(content);
+    scroll.addEventListener('scroll', update, { passive: true });
+    window.addEventListener('resize', update);
+    update();
+    return () => { observer?.disconnect(); scroll.removeEventListener('scroll', update); window.removeEventListener('resize', update); };
+  }, [phase, awards]);
+
+  // Decorative only: bounded particle count, CSS-pixel sizing and no work in a hidden tab.
+  useEffect(() => {
+    if (!big || reduce) return;
     const c = canvasRef.current; if (!c) return;
     const ctx = c.getContext('2d'); if (!ctx) return;
-    const w = c.width = c.clientWidth * devicePixelRatio;
-    const h = c.height = c.clientHeight * devicePixelRatio;
-    const colors = [myClub.color1, myClub.color2, '#f59e0b', '#f3f1ea', '#22c55e'];
-    const pieces: ConfettiSpec[] = Array.from({ length: 140 }, () => ({
-      x: Math.random() * w, y: -20 - Math.random() * (h * 0.4),
-      vy: 1.4 + Math.random() * 2.8, vx: (Math.random() - 0.5) * 1.4,
-      rot: Math.random() * Math.PI, vr: (Math.random() - 0.5) * 0.12,
+    const colors = [myClub.color1, myClub.color2, '#f0c976', '#f3f1ea'];
+    let w = 0, h = 0, raf = 0, last = 0;
+    const size = () => {
+      w = c.clientWidth; h = c.clientHeight;
+      const dpr = Math.min(2, Math.max(1, window.devicePixelRatio || 1));
+      c.width = Math.round(w * dpr); c.height = Math.round(h * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    };
+    size();
+    const pieces: ConfettiSpec[] = Array.from({ length: 80 }, () => ({
+      x: Math.random() * w, y: -20 + Math.random() * h * 0.4,
+      vy: 1.2 + Math.random() * 2.2, vx: (Math.random() - 0.5) * 1.2,
+      rot: Math.random() * Math.PI, vr: (Math.random() - 0.5) * 0.1,
       color: colors[Math.floor(Math.random() * colors.length)],
       shape: Math.floor(Math.random() * 3),
     }));
-    let raf = 0;
-    const step = () => {
+    const step = (now: number) => {
+      const delta = last ? Math.min(40, now - last) / (1000 / 60) : 1;
+      last = now;
       ctx.clearRect(0, 0, w, h);
       pieces.forEach((p) => {
-        p.y += (p.vy * devicePixelRatio);
-        p.x += (p.vx * devicePixelRatio);
-        p.rot += p.vr;
+        p.y += p.vy * delta; p.x += p.vx * delta; p.rot += p.vr * delta;
         if (p.y > h + 20) { p.y = -20; p.x = Math.random() * w; }
-        ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot);
-        ctx.fillStyle = p.color;
+        ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot); ctx.fillStyle = p.color;
         if (p.shape === 0) ctx.fillRect(-3, -2, 6, 4);
         else if (p.shape === 1) { ctx.beginPath(); ctx.arc(0, 0, 3, 0, Math.PI * 2); ctx.fill(); }
         else { ctx.beginPath(); ctx.moveTo(0, -4); ctx.lineTo(3, 3); ctx.lineTo(-3, 3); ctx.fill(); }
         ctx.restore();
       });
-      raf = requestAnimationFrame(step);
+      raf = window.requestAnimationFrame(step);
     };
-    step();
-    return () => cancelAnimationFrame(raf);
-  }, [big]);
+    const visibility = () => {
+      window.cancelAnimationFrame(raf); last = 0;
+      if (!document.hidden) raf = window.requestAnimationFrame(step);
+    };
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(size);
+    observer?.observe(c);
+    window.addEventListener('resize', size);
+    document.addEventListener('visibilitychange', visibility);
+    visibility();
+    return () => { window.cancelAnimationFrame(raf); observer?.disconnect(); window.removeEventListener('resize', size); document.removeEventListener('visibilitychange', visibility); };
+  }, [big, reduce, myClub.color1, myClub.color2]);
 
   const champ = clubById(championId);
   const cup = cupWinnerId ? clubById(cupWinnerId) : null;
@@ -91,9 +126,14 @@ export const SeasonFinale: React.FC<{
           : "Sezon kapanışı tamamlandı. Kamp ve transfer dönemi açıldı.";
 
   return (
-    <div className="h-full relative flex flex-col safe-t safe-b bg-base">
-      {big && <canvas ref={canvasRef} className="absolute inset-0 w-full h-full pointer-events-none" aria-hidden="true" />}
-      <div className="flex-1 flex flex-col justify-center px-5 text-center relative z-10">
+    <div className={`season-finale h-full relative flex flex-col safe-t safe-b bg-base${reduce ? ' is-reduced' : ''}`} data-testid="season-finale" data-motion={reduce ? 'reduced' : 'full'} data-phase={phase}>
+      {big && !reduce && <canvas ref={canvasRef} className="absolute inset-0 w-full h-full pointer-events-none" aria-hidden="true" />}
+      <div ref={scrollRef} className="season-finale__scroll flex-1 min-h-0 overflow-y-auto relative z-10" role="region" aria-label="Sezon sonuçları" tabIndex={0}>
+        <div ref={contentRef} className="season-finale__content min-h-full flex flex-col justify-center px-5 py-4 text-center">
+        <div className={`season-finale__emblem${big ? ' is-celebration' : ''}`} aria-hidden="true">
+          <span className="season-finale__emblem-ring" /><span className="season-finale__emblem-crest"><Crest club={myClub} size={46} /></span>
+          {big && <span className="season-finale__emblem-mark">{champion || cupWon ? '★' : '↑'}</span>}
+        </div>
         <div className="m26-in">
           <div className="text-[12px] uppercase tracking-[0.08em] tracking-widest text-muted">SEZON KAPANDI</div>
           <div className="font-display text-primary text-2xl mt-1">{record.season}</div>
@@ -129,7 +169,7 @@ export const SeasonFinale: React.FC<{
         )}
 
         {phase >= 3 && awards && (
-          <div className="mt-5 m26-in rounded-2xl border border-line bg-surface px-4 py-3 text-left max-h-64 overflow-y-auto no-scrollbar">
+          <div className="mt-5 m26-in rounded-2xl border border-line bg-surface px-4 py-3 text-left">
             <div className="flex items-center justify-center gap-2 m26-overline"><GameIcon id="comps" className="w-4 h-4 text-amber" />Sezon Ödülleri</div>
             {([
               { icon: 'ball', title: 'Gol Kralı', list: awards.scorer, accent: 'text-amber' },
@@ -176,9 +216,11 @@ export const SeasonFinale: React.FC<{
             <p className="text-secondary text-[12.5px] mt-3 leading-snug">{finaleText}</p>
           </div>
         )}
+        </div>
       </div>
 
-      <div className="px-5 pb-5">
+      <div className="shrink-0 px-5 pb-5">
+        {moreResults && <div className="season-finale__scroll-hint" aria-hidden="true">↓ Tüm sonuçlar için kaydır</div>}
         <Btn variant="amber" className="w-full !min-h-[48px]" onClick={onDone}>Kariyere Dön</Btn>
       </div>
     </div>

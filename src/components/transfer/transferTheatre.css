@@ -14,7 +14,7 @@
 .transfer-theatre__venue { font-size:12px; font-weight:750; line-height:1.2; margin-top:3px; text-shadow:0 2px 5px #000; }
 .transfer-theatre__crest { display:flex; align-items:center; justify-content:center; padding:4px; border-radius:50%; background:rgba(6,17,30,.82); border:1px solid rgba(255,255,255,.25); box-shadow:0 2px 10px #0007; }
 .transfer-theatre__actors { position:absolute; inset:33px 7% 36px; display:flex; justify-content:center; align-items:flex-end; gap:4%; z-index:1; }
-.transfer-theatre__actor { display:flex; flex-direction:column; align-items:center; justify-content:flex-end; width:32%; max-width:112px; height:100%; filter:drop-shadow(0 5px 6px rgba(0,0,0,.55)); }
+.transfer-theatre__actor { position:relative; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; width:32%; max-width:112px; height:100%; filter:drop-shadow(0 5px 6px rgba(0,0,0,.55)); }
 .transfer-theatre__actor > span { display:block; margin-top:-4px; padding:2px 7px; border:1px solid rgba(255,255,255,.2); border-radius:999px; background:rgba(7,16,28,.84); color:#f5ecd9; font-size:7px; font-weight:900; letter-spacing:.11em; z-index:2; }
 .transfer-theatre__actor.is-speaking > span { color:#fff8dc; border-color:#f3c875; background:rgba(70,44,18,.94); box-shadow:0 0 12px #f3c87555; }
 .transfer-puppet { width:100%; max-height:100%; transform-origin:50% 100%; animation:transfer-breathe 5.2s ease-in-out infinite; }
@@ -27,6 +27,7 @@
 .transfer-puppet__eyes { transform-origin:64px 54px; animation:transfer-blink 5.9s ease-in-out infinite; }
 .transfer-puppet--opponent .transfer-puppet__eyes { animation-duration:6.6s; animation-delay:-2.6s; }
 .transfer-puppet__open-mouth { opacity:0; transform-origin:64px 74px; }
+.transfer-puppet.is-talking .transfer-puppet__torso { animation:transfer-gesture 1.9s ease-in-out infinite; }
 .transfer-puppet.is-talking .transfer-puppet__expression { animation:transfer-talking 1.35s ease-in-out infinite; }
 .transfer-puppet.is-talking .transfer-puppet__closed-mouth { opacity:0; }
 .transfer-puppet.is-talking .transfer-puppet__open-mouth { opacity:1; animation:transfer-mouth .72s ease-in-out infinite; }
@@ -37,6 +38,17 @@
 .transfer-theatre__caption span { color:#f0c775; font-size:8px; font-weight:900; letter-spacing:.11em; }
 .transfer-theatre__caption strong { font-size:13px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
 .transfer-theatre__caption small { color:#e5e8e7; font-size:9px; font-weight:700; }
+/* Small, scene-specific details keep the existing illustrations and voice as the focus. */
+.transfer-theatre__desk { position:absolute; left:16%; right:16%; bottom:23%; height:8px; z-index:0; border-radius:50%; background:#231b18; box-shadow:0 4px 8px #0009; }
+.transfer-theatre__desk i { position:absolute; width:28px; height:12px; left:43%; bottom:4px; border:1px solid #bda879; background:#f1e6c9; transform:rotate(-5deg); }
+.transfer-theatre__desk b { position:absolute; width:18px; height:2px; left:52%; bottom:7px; border-radius:2px; background:#bd9658; transform:rotate(20deg); }
+.transfer-theatre__press-light { position:absolute; inset:0; z-index:0; pointer-events:none; background:linear-gradient(112deg,transparent 38%,#f7dfaa22 50%,transparent 62%); animation:transfer-press-light 7s ease-in-out infinite; }
+.transfer-theatre__flags { position:absolute; left:5%; right:5%; top:36%; height:14%; display:flex; justify-content:space-between; opacity:.8; pointer-events:none; }
+.transfer-theatre__flags i { width:8%; height:38%; background:var(--transfer-club); border:1px solid #eee6cc99; border-left:2px solid #f5ead0; transform-origin:left bottom; animation:transfer-flag 3.6s ease-in-out infinite alternate; }
+.transfer-theatre__flags i:nth-child(even) { background:var(--transfer-trim); animation-delay:-1.6s; }
+.transfer-theatre__voice-meter { position:absolute; right:0; top:29%; display:flex; align-items:center; gap:2px; height:16px; padding:3px 4px; border-radius:5px; background:#11241ddc; border:1px solid #f0c77588; }
+.transfer-theatre__voice-meter i { width:2px; height:7px; border-radius:2px; background:#f0c775; transform-origin:center; animation:transfer-voice .65s ease-in-out infinite alternate; }
+.transfer-theatre__voice-meter i:nth-child(2) { animation-delay:-.25s; }.transfer-theatre__voice-meter i:nth-child(3) { animation-delay:-.48s; }
 .transfer-theatre__stadium-lights { position:absolute; inset:0; z-index:0; pointer-events:none; background:radial-gradient(ellipse at 17% 3%,rgba(255,231,170,.25),transparent 29%),radial-gradient(ellipse at 83% 4%,rgba(255,231,170,.23),transparent 30%); animation:transfer-lights 4.5s ease-in-out infinite; }
 .transfer-theatre--star { border-color:rgba(251,211,116,.8); box-shadow:0 0 0 1px #d4aa4e55,0 9px 25px #8a601e55; }
 .transfer-theatre--star .transfer-theatre__stadium-lights { background:radial-gradient(ellipse at 17% 3%,rgba(255,231,170,.42),transparent 31%),radial-gradient(ellipse at 83% 4%,rgba(255,231,170,.38),transparent 32%); }
@@ -73,6 +85,10 @@
 .transfer-facts > div { background:var(--c-base); border:1px solid var(--c-line); border-radius:10px; padding:9px 10px; }
 .transfer-facts span { display:block; color:var(--c-muted); font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; }
 .transfer-facts strong { display:block; color:var(--c-primary); font-size:13px; margin-top:3px; overflow-wrap:anywhere; }
+@keyframes transfer-gesture { 0%,100% { transform:rotate(0); } 35% { transform:rotate(-1.1deg); } 70% { transform:rotate(.7deg); } }
+@keyframes transfer-voice { from { transform:scaleY(.35); } to { transform:scaleY(1.1); } }
+@keyframes transfer-flag { from { transform:rotate(-8deg) skewY(-4deg); } to { transform:rotate(9deg) skewY(5deg); } }
+@keyframes transfer-press-light { 0%,100% { opacity:.15; transform:translateX(-12%); } 50% { opacity:.7; transform:translateX(12%); } }
 @keyframes transfer-breathe { 0%,100% { transform:scaleY(1); } 50% { transform:scaleY(1.012) translateY(-.6px); } }
 @keyframes transfer-head { 0%,100% { transform:rotate(-.7deg); } 50% { transform:rotate(1deg); } }
 @keyframes transfer-blink { 0%,44%,48%,100% { transform:scaleY(1); } 46% { transform:scaleY(.08); } }

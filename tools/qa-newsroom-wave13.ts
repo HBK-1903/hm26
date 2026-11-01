@@ -2,7 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { CLUBS } from '../src/data/clubs';
 import { genSquad } from '../src/data/gen';
-import { buildHeadlines, leaguePulse, refereeReportEntries, selectTeamOfWeek } from '../src/data/newsroom';
+import { buildHeadlines, buildMatchNews, leaguePulse, refereeReportEntries, selectTeamOfWeek } from '../src/data/newsroom';
 import type { DemoFixture, MatchArchiveEntry, Player, TableRow } from '../src/types';
 
 const results: { name: string; pass: boolean; detail: string }[] = [];
@@ -56,6 +56,19 @@ const report: MatchArchiveEntry = {
     && pulse[0].gd === 3 && reports.length === 1 && reports[0].referee?.label === 'Hakem B'
     && reports[0].foulsHome + reports[0].foulsAway === 23,
     `leader=${pulse[0].name}; referee=${reports[0]?.referee?.label}; fouls=23`);
+}
+
+{
+  const player = homeSquad[0];
+  const earlyOld = { ...report, id: 'same', seasonNo: 1, day: 12, playerRows: { [player.id]: { ...playerRows[player.id], rating: 9.9 } } };
+  const lateOld = { ...earlyOld, id: 'old-finale', day: 300 };
+  const earlyNew = { ...report, id: 'same', seasonNo: 2, day: 12, playerRows: { [player.id]: { ...playerRows[player.id], rating: 6.1 } } };
+  const xi = selectTeamOfWeek([earlyOld, earlyNew], 6, 13, (id) => lookup.get(id) ?? null, 2);
+  const noEvidence = selectTeamOfWeek([earlyOld], 6, 13, (id) => lookup.get(id) ?? null, 2);
+  check('Team of the Week excludes an earlier season with the same day', xi.length === 1 && xi[0].rating === 6.1 && noEvidence.length === 0, `current=${xi[0]?.rating}; only-old=${noEvidence.length}`);
+  const reports = refereeReportEntries([lateOld, earlyNew]);
+  const news = buildMatchNews([lateOld, earlyNew], home.id, (id) => id, () => false);
+  check('Match news and referee reports sort by season before day', reports[0].seasonNo === 2 && news[0].seasonNo === 2 && news[1].seasonNo === 1, `referee=S${reports[0]?.seasonNo}; news=S${news[0]?.seasonNo}/S${news[1]?.seasonNo}`);
 }
 
 {

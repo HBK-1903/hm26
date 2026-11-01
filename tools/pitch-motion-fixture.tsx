@@ -59,6 +59,8 @@ const game = new Phaser.Game({
     for (const [id, sprite] of internal.spriteById) sprites[id] = { x: sprite.x, y: sprite.y, target: sprite.getData('target') };
     return {
       sprites, count: Object.keys(sprites).length, ball: { ...internal.ballGround }, ballY: internal.ball.y,
+      ballDetail: { x: internal.ballDetail.x, y: internal.ballDetail.y, rotation: internal.ballDetail.rotation },
+      goalNets: [...internal.cueObjects].filter((cue: any) => cue.getData('cueKind') === 'goal-net').map((cue: any) => ({ side: cue.getData('goalSide'), y: cue.getData('goalY') })),
       targetKey: internal.ballTargetKey, cinematic: internal.cinematic, paused: scene.sys.isPaused(),
       reduced: internal.reduceMotion, cueCount: internal.cueObjects.size, trailAlpha: internal.trail.alpha,
       cameraZoom: scene.cameras.main.zoom, width: scene.scale.width, height: scene.scale.height,

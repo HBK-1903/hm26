@@ -53,6 +53,16 @@ const report = (over: Partial<MatchArchiveEntry>): MatchArchiveEntry => ({
   check('90 dk altı sürede per90 hesaplanmaz (sahte oran yok)', shortMinutes.goalsPer90 === null);
 }
 
+// Calendar days restart at 1 each season; later seasons always come first.
+{
+  const older = report({ id: 'same-fixture', day: 300, seasonNo: 1, playerRows: { [P1]: row(90, 0, 0, 0, 0, 6.1) } });
+  const newer = report({ id: 'same-fixture', day: 6, seasonNo: 2, playerRows: { [P1]: row(90, 1, 0, 0, 0, 8.2) } });
+  const log = playerMatchLog(P1, [older, newer], MINE);
+  const meetings = headToHead([older, newer], MINE, OPP);
+  check('Oyuncu günlüğü ve form trendi önce yeni sezonu gösterir', log.length === 2 && log[0].seasonNo === 2 && log[0].rating === 8.2 && JSON.stringify(ratingTrend(log)) === JSON.stringify([6.1, 8.2]));
+  check('Rakiple son maçlar sezona göre doğru sıralanır, önceki sezon kaybolmaz', meetings.played === 2 && meetings.meetings[0].seasonNo === 2 && meetings.meetings[1].seasonNo === 1);
+}
+
 // ——— xgTrend + xgVerdict ———
 {
   const mm = (day: number, xgf: number, gf: number, xga: number, ga: number, opp = OPP): MyMatch => ({

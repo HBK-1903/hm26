@@ -1,33 +1,84 @@
 // HM26 — UI/UX §3.3 bileşen kiti (kart/rozet/buton/bottom-sheet/segment)
 import React from 'react';
 
-// v0.8.3 RISK-02: modal/bottom-sheet odak kapanı — Tab escape etmez, açılışta ilk kontrole odaklanır
-export function useFocusTrap<T extends HTMLElement>(active: boolean): React.RefObject<T> {
+// One stack covers sheets and full-screen profiles. A nested dialog alone owns
+// Escape, Tab and focus; closing it returns focus to its opener in the parent.
+interface FocusLayer { root: HTMLElement; previous: HTMLElement | null }
+const focusLayers: FocusLayer[] = [];
+let pendingFocus: HTMLElement | null = null;
+let bodyLocks = 0;
+let originalBodyOverflow = '';
+
+export function useFocusTrap<T extends HTMLElement>(active: boolean, options: { onEscape?: () => void; lockBody?: boolean } = {}): React.RefObject<T> {
   const ref = React.useRef<T>(null);
+  const optionsRef = React.useRef(options);
+  optionsRef.current = options;
   React.useEffect(() => {
     if (!active) return;
     const root = ref.current;
     if (!root) return;
+    const current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const layer: FocusLayer = { root, previous: current && current !== document.body && current.isConnected ? current : pendingFocus };
+    pendingFocus = null;
+    focusLayers.push(layer);
+    const locked = !!optionsRef.current.lockBody;
+    if (locked) {
+      if (bodyLocks++ === 0) { originalBodyOverflow = document.body.style.overflow; document.body.style.overflow = 'hidden'; }
+    }
+    const topmost = () => focusLayers[focusLayers.length - 1] === layer;
     const qs = 'button:not([disabled]),a[href],input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
-    const items = () => Array.from(root.querySelectorAll<HTMLElement>(qs)).filter((n) => n.offsetParent !== null || n === document.activeElement);
-    // Do not steal focus if the user has already reached a control in the sheet.
-    const t = window.setTimeout(() => {
-      if (!root.contains(document.activeElement)) (items()[0] ?? root).focus();
-    }, 70);
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Tab') return;
+    const items = () => Array.from(root.querySelectorAll<HTMLElement>(qs)).filter((node) => node.offsetParent !== null || node === document.activeElement);
+    const focusFirst = () => (items()[0] ?? root).focus();
+    const onKey = (event: KeyboardEvent) => {
+      if (!topmost()) return;
+      if (event.key === 'Escape') {
+        event.preventDefault(); event.stopImmediatePropagation();
+        optionsRef.current.onEscape?.();
+        return;
+      }
+      if (event.key !== 'Tab') return;
       const list = items();
-      if (!list.length) return;
+      if (!list.length) { event.preventDefault(); root.focus(); return; }
       const first = list[0], last = list[list.length - 1];
       const cur = document.activeElement as HTMLElement | null;
       const outside = !cur || !root.contains(cur);
-      if (e.shiftKey ? (outside || cur === first) : (outside || cur === last)) {
-        e.preventDefault();
-        (e.shiftKey ? last : first).focus();
+      if (event.shiftKey ? (outside || cur === first) : (outside || cur === last)) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
       }
     };
+    const onFocus = (event: FocusEvent) => {
+      if (topmost() && event.target && !root.contains(event.target as Node)) focusFirst();
+    };
     document.addEventListener('keydown', onKey);
-    return () => { window.clearTimeout(t); document.removeEventListener('keydown', onKey); };
+    document.addEventListener('focusin', onFocus);
+    // Focus the dialog immediately, then let React finish rendering its controls.
+    if (!root.contains(document.activeElement)) root.focus();
+    const timer = window.setTimeout(() => {
+      if (topmost() && (!root.contains(document.activeElement) || document.activeElement === root)) focusFirst();
+    }, 70);
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener('keydown', onKey);
+      document.removeEventListener('focusin', onFocus);
+      const index = focusLayers.indexOf(layer);
+      const wasTop = topmost();
+      const next = focusLayers[index + 1];
+      // If parent and child close together, preserve the parent's original opener.
+      if (next?.previous && root.contains(next.previous)) next.previous = layer.previous;
+      if (index !== -1) focusLayers.splice(index, 1);
+      if (locked && --bodyLocks === 0) document.body.style.overflow = originalBodyOverflow;
+      if (wasTop && layer.previous?.isConnected) {
+        const previous = layer.previous;
+        pendingFocus = previous;
+        window.setTimeout(() => {
+          if (pendingFocus === previous) pendingFocus = null;
+          const top = focusLayers[focusLayers.length - 1];
+          // A replacement dialog may have opened in the same React commit.
+          if (previous.isConnected && (!top || top.root.contains(previous))) previous.focus();
+        }, 0);
+      }
+    };
   }, [active]);
   return ref;
 }
@@ -85,25 +136,8 @@ export const Badge: React.FC<{ kind: 'ok' | 'warn' | 'danger' | 'info' | 'specia
 };
 
 export const Sheet: React.FC<{ open: boolean; onClose: () => void; title?: string; children: React.ReactNode; tall?: boolean; dismissible?: boolean }> = ({ open, onClose, title, children, tall = false, dismissible = true }) => {
-  const trapRef = useFocusTrap<HTMLDivElement>(open);
+  const trapRef = useFocusTrap<HTMLDivElement>(open, { lockBody: true, onEscape: dismissible ? onClose : undefined });
   const titleId = React.useId();
-  const closeRef = React.useRef(onClose);
-  closeRef.current = onClose;
-  React.useEffect(() => {
-    if (!open) return;
-    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && dismissible) { event.preventDefault(); closeRef.current(); }
-    };
-    document.addEventListener('keydown', onKeyDown);
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      document.removeEventListener('keydown', onKeyDown);
-      if (previous?.isConnected) window.setTimeout(() => previous.focus(), 0);
-    };
-  }, [open, dismissible]);
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50" role="dialog" aria-modal="true" aria-labelledby={title ? titleId : undefined} aria-label={title ? undefined : 'Açılır panel'}>

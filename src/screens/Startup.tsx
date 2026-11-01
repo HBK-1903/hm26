@@ -4,7 +4,7 @@ import { Btn, Card, Sheet, useToast } from '../components/ui/kit';
 import { Crest } from '../components/assets/Crest';
 import { clubById, clubByIdSafe } from '../data/clubs';
 import { ERAS } from '../data/meta';
-import { listSaves, readSave, deleteSave, exportSaveFile, parseImportFile, writeSave, exportFileName, SaveMeta } from '../store/persist';
+import { listSaves, readSave, deleteSave, exportSaveFile, parseImportFile, writeSave, exportFileName, SaveConflictError, SaveMeta } from '../store/persist';
 import { SaveBlob } from '../store/persist';
 import { APP_VERSION } from '../version';
 
@@ -40,6 +40,8 @@ export const CareerSlots: React.FC<{
 }> = ({ onNew, onContinue, onBack }) => {
   const [saves, setSaves] = useState<SaveMeta[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [menuSlot, setMenuSlot] = useState<SaveMeta | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<SaveMeta | null>(null);
   const { show, ToastView } = useToast();
@@ -48,27 +50,37 @@ export const CareerSlots: React.FC<{
 
   const refresh = useCallback(async () => {
     setLoading(true);
-    try { setSaves(await listSaves()); } finally { setLoading(false); }
+    try { setSaves(await listSaves()); setLoadError(false); }
+    catch { setLoadError(true); }
+    finally { setLoading(false); }
   }, []);
   useEffect(() => { void refresh(); }, [refresh]);
 
   const continueSlot = async (slot: number) => {
-    const r = await readSave(slot).catch((e: Error) => { show(e.message, 'warn'); return null; });
-    if (!r) { show('Bu yuvada kayıt bulunamadı.', 'warn'); return; }
-    onContinue(slot, r.blob, Number.isFinite(r.meta.updatedAt) ? r.meta.updatedAt : undefined);
+    try {
+      const r = await readSave(slot);
+      if (!r) { show('Bu yuvada kayıt bulunamadı. Listeyi yenileyebilirsin.', 'warn'); return; }
+      onContinue(slot, r.blob, Number.isFinite(r.meta.updatedAt) ? r.meta.updatedAt : undefined);
+    } catch (error) {
+      show(error instanceof Error && error.message ? `Kariyer açılamadı: ${error.message}` : 'Kariyer okunamadı. Lütfen tekrar dene.', 'warn');
+    }
   };
 
   const doExport = async (slot: number) => {
-    const r = await readSave(slot);
-    if (!r) return;
-    const blob = exportSaveFile(r.blob, r.meta);
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = exportFileName(r.meta.clubName || clubById(r.blob.career.clubId).name, r.blob.career.day);
-    a.click();
-    URL.revokeObjectURL(url);
-    show('Kariyer dosyası indirildi (tek dosya).', 'ok');
+    let url: string | undefined;
+    try {
+      const r = await readSave(slot);
+      if (!r) { show('Dışa aktarılacak kayıt bulunamadı.', 'warn'); return; }
+      const blob = exportSaveFile(r.blob, r.meta);
+      url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = exportFileName(r.meta.clubName || clubById(r.blob.career.clubId).name, r.blob.career.day);
+      a.click();
+      show('Kariyer dosyası indirildi (tek dosya).', 'ok');
+    } catch (error) {
+      show(error instanceof Error && error.message ? `Dışa aktarılamadı: ${error.message}` : 'Kariyer dışa aktarılamadı. Tekrar dene.', 'warn');
+    } finally { if (url) URL.revokeObjectURL(url); }
   };
 
   const doImport = async (file: File) => {
@@ -87,11 +99,18 @@ export const CareerSlots: React.FC<{
     }
   };
 
-  const doDelete = async (slot: number) => {
-    await deleteSave(slot);
-    setConfirmDelete(null);
-    show(`Yuva ${slot} kalıcı olarak silindi.`, 'ok');
-    await refresh();
+  const doDelete = async (meta: SaveMeta) => {
+    if (deleting) return;
+    setDeleting(true);
+    try {
+      await deleteSave(meta.slot, Number.isFinite(meta.updatedAt) ? meta.updatedAt : null);
+      setConfirmDelete(null);
+      show(`Yuva ${meta.slot} kalıcı olarak silindi.`, 'ok');
+      await refresh();
+    } catch (error) {
+      if (error instanceof SaveConflictError) { setConfirmDelete(null); await refresh(); }
+      show(error instanceof Error && error.message ? `Kariyer silinemedi: ${error.message}` : 'Kariyer silinemedi. Lütfen tekrar dene.', 'warn');
+    } finally { setDeleting(false); }
   };
 
   const meta = (slot: number) => saves.find((s) => s.slot === slot);
@@ -108,7 +127,14 @@ export const CareerSlots: React.FC<{
       </div>
       <div className="flex-1 overflow-y-auto no-scrollbar px-5 pb-6 space-y-3">
         {loading && <p className="text-muted text-sm text-center pt-8">Kayıtlar okunuyor…</p>}
-        {!loading && [1, 2, 3].map((slot) => {
+        {!loading && loadError && (
+          <div role="alert" className="rounded-card border border-danger/50 bg-surface p-4 text-center">
+            <p className="text-primary text-sm font-bold">Kayıtlar okunamadı.</p>
+            <p className="text-secondary text-xs mt-2">Yuvaların dolu olup olmadığı şu anda bilinmiyor. Tarayıcı depolama iznini kontrol edip tekrar dene; bu işlem kayıtları silmez.</p>
+            <Btn variant="secondary" className="w-full mt-3" onClick={() => void refresh()}>Tekrar Dene</Btn>
+          </div>
+        )}
+        {!loading && !loadError && [1, 2, 3].map((slot) => {
           const m = meta(slot);
           if (!m) {
             const empty = (
@@ -177,7 +203,7 @@ export const CareerSlots: React.FC<{
             <p className="text-secondary text-sm leading-relaxed">
               <b className="text-primary">{clubNameOf(confirmDelete)}</b> kariyeri kalıcı silinecek. Bu işlem geri alınamaz; ihtiyaç varsa önce dışa aktar.
             </p>
-            <Btn variant="danger" className="w-full" onClick={() => void doDelete(confirmDelete.slot)}>Evet, Kalıcı Olarak Sil</Btn>
+            <Btn variant="danger" className="w-full" disabled={deleting} onClick={() => void doDelete(confirmDelete)}>{deleting ? 'Siliniyor…' : 'Evet, Kalıcı Olarak Sil'}</Btn>
             <Btn variant="secondary" className="w-full" onClick={() => setConfirmDelete(null)}>Vazgeç</Btn>
           </div>
         )}

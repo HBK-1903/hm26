@@ -71,7 +71,9 @@ export const TransferTheatre: React.FC<{
   return (
     <div className={`transfer-theatre transfer-theatre--${scene}`} style={style} data-testid="transfer-theatre" data-scene={scene} data-speaking={speaking ?? 'none'} aria-label={`${title}: ${venue}`}>
       <div className="transfer-theatre__veil" aria-hidden="true" />
-      {(scene === 'stadium' || scene === 'star') && <div className="transfer-theatre__stadium-lights" aria-hidden="true" />}
+      {(scene === 'stadium' || scene === 'star') && <><div className="transfer-theatre__stadium-lights" aria-hidden="true" /><div className="transfer-theatre__flags" aria-hidden="true"><i /><i /><i /><i /></div></>}
+      {scene === 'press' && <div className="transfer-theatre__press-light" aria-hidden="true" />}
+      {scene === 'negotiation' && <div className="transfer-theatre__desk" aria-hidden="true"><i /><b /></div>}
       {scene === 'star' && <div className="transfer-theatre__confetti" aria-hidden="true">{Array.from({ length: 14 }, (_, i) => <i key={i} style={{ '--i': i } as React.CSSProperties} />)}</div>}
       <div className="transfer-theatre__heading">
         <div><div className="transfer-theatre__eyebrow">{title}</div><div className="transfer-theatre__venue">{venue}</div></div>
@@ -80,11 +82,13 @@ export const TransferTheatre: React.FC<{
       <div className="transfer-theatre__actors">
         <div className={`transfer-theatre__actor${speaking === 'manager' ? ' is-speaking' : ''}`}>
           <Puppet face={managerFace} talking={speaking === 'manager'} label={manager.name || 'Menajer'} side="manager" />
+          {speaking === 'manager' && <div className="transfer-theatre__voice-meter" aria-hidden="true"><i /><i /><i /></div>}
           <span>MENAJER</span>
         </div>
         {mode === 'reveal' && <Shirt club={club} player={player} />}
         <div className={`transfer-theatre__actor${speaking === opponentSpeaker ? ' is-speaking' : ''}`}>
           <Puppet face={opponentFace} palette={opponentPalette} talking={speaking === opponentSpeaker} label={isRepresentative ? 'Kulüp temsilcisi' : player.name} side="opponent" />
+          {speaking === opponentSpeaker && <div className="transfer-theatre__voice-meter" aria-hidden="true"><i /><i /><i /></div>}
           <span>{isRepresentative ? 'TEMSİLCİ' : 'OYUNCU'}</span>
         </div>
       </div>

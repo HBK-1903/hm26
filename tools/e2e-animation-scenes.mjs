@@ -1,0 +1,274 @@
+// Real Chromium: visual motion, controls, real-data boundaries and accessibility at phone widths.
+// Uses the actual components in a labelled, development-only fixture; production journeys are also covered by the existing E2Es.
+import { chromium } from 'playwright';
+import { createServer } from 'node:net';
+import { createServer as createViteServer } from 'vite';
+import { mkdirSync } from 'node:fs';
+
+async function freePort() {
+  const probe = createServer();
+  await new Promise((resolve, reject) => { probe.once('error', reject); probe.listen(0, '127.0.0.1', resolve); });
+  const port = probe.address().port;
+  await new Promise((resolve) => probe.close(resolve));
+  return port;
+}
+let server, browser, passed = 0, failed = 0;
+const errors = [];
+const check = (name, condition, detail = '') => { condition ? passed++ : failed++; console.log(`${condition ? '✅' : '❌'} ${name}${detail ? ` | ${detail}` : ''}`); };
+const out = process.env.HM26_SCREENSHOTS;
+if (out) mkdirSync(out, { recursive: true });
+try {
+  const port = await freePort();
+  server = await createViteServer({ server: { host: '127.0.0.1', port, strictPort: true }, logLevel: 'silent' });
+  await server.listen();
+  const executablePath = process.env.HM26_CHROMIUM;
+  browser = await chromium.launch(executablePath ? { executablePath, args: ['--no-sandbox', '--single-process', '--no-zygote', '--disable-gpu', '--disable-dev-shm-usage'] } : {});
+  const context = await browser.newContext({ viewport: { width: 320, height: 720 }, deviceScaleFactor: 2, locale: 'tr' });
+  const page = await context.newPage();
+  page.on('pageerror', (error) => errors.push(error.message));
+  await page.goto(`http://127.0.0.1:${port}/tools/animation-scenes-fixture.html`, { waitUntil: 'networkidle' });
+  const scene = (name) => page.getByTestId('fixture-scene').selectOption(name);
+  const screenshot = async (name) => { if (out) await page.screenshot({ path: `${out}/${name}.png`, fullPage: true }); };
+  const fits = async (locator) => locator.evaluate((element) => {
+    const box = element.getBoundingClientRect();
+    return document.documentElement.scrollWidth <= innerWidth + 1 && box.left >= -1 && box.right <= innerWidth + 1 && box.width >= 190;
+  });
+  const style = (locator, property) => locator.evaluate((element, key) => getComputedStyle(element)[key], property);
+  const contrast = async (text, background) => page.evaluate(({ text, background }) => {
+    const colors = [getComputedStyle(document.querySelector(text)).color, getComputedStyle(document.querySelector(background)).backgroundColor];
+    const luminance = (color) => {
+      const rgb = color.match(/[\d.]+/g).slice(0, 3).map((v) => Number(v) / 255).map((v) => v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4);
+      return .2126 * rgb[0] + .7152 * rgb[1] + .0722 * rgb[2];
+    };
+    const [a, b] = colors.map(luminance).sort((x, y) => y - x);
+    return (a + .05) / (b + .05);
+  }, { text, background });
+  const waitAttribute = (selector, attr, expected) => page.waitForFunction(({ selector, attr, expected }) => document.querySelector(selector)?.getAttribute(attr) === expected, { selector, attr, expected });
+
+  // Training: the tiny people are still the same available players, not extra actors.
+  const ground = page.getByTestId('training-ground');
+  await ground.waitFor();
+  const visualIds = await ground.locator('svg.training-ground__pitch > g[data-player-id]').evaluateAll((nodes) => nodes.map((node) => node.getAttribute('data-player-id')));
+  const rosterIds = await ground.getByTestId('training-player').evaluateAll((nodes) => nodes.map((node) => node.getAttribute('data-player-id')));
+  check('Antrenmandaki üç figür gerçek kadro listesindeki oyuncularla eşleşir', visualIds.length === 3 && JSON.stringify(visualIds) === JSON.stringify(rosterIds));
+  check('Bacaklar ve kollar ayrı hareket katmanlarına sahip', await ground.locator('.training-actor__leg').count() === 6 && await ground.locator('.training-actor__arm').count() === 6 && await style(ground.locator('.training-actor__leg').first(), 'animationName') === 'training-legs');
+  const actor = ground.locator('.training-actor--one');
+  const initialTransform = await style(actor, 'transform');
+  await page.waitForFunction((before) => getComputedStyle(document.querySelector('.training-actor--one')).transform !== before, initialTransform);
+  check('Antrenman figürü seçili çalışmada gerçekten hareket ediyor', await style(actor, 'transform') !== initialTransform);
+  await ground.getByRole('button', { name: 'Durdur' }).click();
+  const frozen = await style(actor, 'transform');
+  await page.waitForTimeout(250);
+  check('Durdur figürleri ve uzuv animasyonlarını dondurur', await style(actor, 'transform') === frozen && await style(ground.locator('.training-actor__leg').first(), 'animationPlayState') === 'paused');
+  await ground.getByRole('button', { name: 'Devam' }).click();
+  await page.waitForFunction((before) => getComputedStyle(document.querySelector('.training-actor--one')).transform !== before, frozen);
+  check('Antrenman duraklatıldığı yerden devam eder', await style(actor, 'transform') !== frozen);
+  const drillProps = { Teknik: 'cones', 'Hücum': 'attack', Defans: 'defence', Fizik: 'lanes', 'Zekâ': 'triangle' };
+  let propsCorrect = true;
+  for (const [area, prop] of Object.entries(drillProps)) {
+    await page.getByTestId('fixture-area').selectOption({ label: area });
+    propsCorrect &&= await style(ground.locator(`.training-props--${prop}`), 'display') !== 'none';
+  }
+  check('Beş gerçek antrenman odağı kendi ekipmanını gösterir', propsCorrect);
+  await page.getByTestId('fixture-players').selectOption('2');
+  check('İki oyunculuk pas çalışması olmayan üçüncü oyuncuya pas uydurmaz', await ground.locator('.training-actor').count() === 2 && await style(ground.locator('.training-ground__ball'), 'animationName') === 'training-pass-pair');
+  await page.getByTestId('fixture-players').selectOption('1');
+  check('Tek oyuncu topla eş zamanlı olarak tek başına çalışır', await ground.locator('.training-actor').count() === 1 && await style(ground.locator('.training-ground__ball'), 'animationName') === 'training-solo' && await style(actor, 'animationName') === 'training-solo-actor');
+  await page.getByTestId('fixture-players').selectOption('0');
+  check('Sağlıklı oyuncu yoksa figür veya hareketli top uydurulmaz', await ground.locator('.training-actor').count() === 0 && await ground.locator('.training-ground__ball').count() === 0 && (await ground.innerText()).includes('sağlıklı oyuncu yok'));
+  await page.getByTestId('fixture-area').selectOption({ label: 'Hücum' });
+  check('Boş sahada ağ kendiliğinden gol tepkisi vermez', await style(ground.locator('.training-goal__net'), 'animationName') === 'none');
+  await page.getByTestId('fixture-players').selectOption('3');
+  check('Şut çalışmasında kale ağı topun çalışmasına eşlik eder', await style(ground.locator('.training-goal__net'), 'animationName') === 'training-net');
+  await page.getByTestId('fixture-reduce').check();
+  check('Kariyer hareket tercihi antrenmanda tüm animasyonları kapatır', await ground.getAttribute('data-motion') === 'reduced' && await style(actor, 'animationName') === 'none' && await style(ground.locator('.training-goal__net'), 'animationName') === 'none' && await ground.getByRole('button', { name: 'Durdur' }).isDisabled());
+  await page.getByTestId('fixture-reduce').uncheck();
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await waitAttribute('[data-testid="training-ground"]', 'data-motion', 'reduced');
+  check('İşletim sistemi hareket tercihi de antrenmana uygulanır', await style(actor, 'animationName') === 'none');
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await page.getByTestId('fixture-dark').check();
+  check('320 px koyu temada antrenman yatay taşmaz', await fits(ground));
+  const trainingContrast = await contrast('.training-ground__note', '.training-ground');
+  check('Koyu tema antrenman notu okunaklı kontrasttadır', trainingContrast >= 4.5, trainingContrast.toFixed(2));
+  await screenshot('01-training-dark-320');
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByTestId('fixture-dark').uncheck();
+  check('390 px açık temada antrenman yatay taşmaz', await fits(ground));
+  await screenshot('02-training-light-390');
+
+  // Transfer presentation thresholds and actual speaking state stay intact.
+  await page.setViewportSize({ width: 320, height: 720 });
+  await scene('transfer');
+  const theatre = page.getByTestId('transfer-theatre');
+  await page.getByTestId('fixture-gen').selectOption('79');
+  check('79 GEN basın odasında gösterilir', await theatre.getAttribute('data-scene') === 'press' && await theatre.locator('.transfer-theatre__press-light').count() === 1);
+  await page.getByTestId('fixture-gen').selectOption('80');
+  check('80 GEN stadyuma geçer', await theatre.getAttribute('data-scene') === 'stadium' && await theatre.locator('.transfer-theatre__flags i').count() === 4);
+  await page.getByTestId('fixture-gen').selectOption('84');
+  check('84 GEN hâlâ normal stadyum tanıtımıdır', await theatre.getAttribute('data-scene') === 'stadium');
+  await page.getByTestId('fixture-gen').selectOption('85');
+  check('85 GEN özel yıldız sahnesi ve konfeti alır', await theatre.getAttribute('data-scene') === 'star' && await theatre.locator('.transfer-theatre__confetti i').count() === 14);
+  await page.getByTestId('fixture-speaker').selectOption('manager');
+  check('Konuşma göstergesi yalnız seçili gerçek konuşmacıda görünür', await theatre.getAttribute('data-speaking') === 'manager' && await theatre.locator('.is-speaking .transfer-theatre__voice-meter').count() === 1 && await theatre.locator('.transfer-theatre__voice-meter').count() === 1);
+  await page.getByTestId('fixture-speaker').selectOption('none');
+  check('Konuşma bitince gösterge kaybolur', await theatre.locator('.transfer-theatre__voice-meter').count() === 0);
+  await page.getByTestId('fixture-transfer-mode').selectOption('seller');
+  check('Görüşme masası ve sözleşme detayı yalnız pazarlık sahnesindedir', await theatre.getAttribute('data-scene') === 'negotiation' && await theatre.locator('.transfer-theatre__desk').count() === 1 && await theatre.locator('.transfer-theatre__flags').count() === 0);
+  await page.getByTestId('fixture-speaker').selectOption('representative');
+  check('Kulüp temsilcisi konuşurken doğru karakter hareketlenir', await theatre.locator('.transfer-theatre__actor.is-speaking').innerText() === 'TEMSİLCİ' && await style(theatre.locator('.transfer-puppet.is-talking .transfer-puppet__torso'), 'animationName') === 'transfer-gesture');
+  await page.getByTestId('fixture-reduce').check();
+  check('Azaltılmış harekette görüşme jestleri durur, karakter ve sahne kalır', await style(theatre.locator('.transfer-puppet.is-talking .transfer-puppet__torso'), 'animationName') === 'none' && await theatre.isVisible());
+  await page.getByTestId('fixture-reduce').uncheck();
+  await page.getByTestId('fixture-transfer-mode').selectOption('reveal');
+  await page.getByTestId('fixture-speaker').selectOption('none');
+  check('320 px transfer sahnesi yatay taşmaz', await fits(theatre));
+  await screenshot('03-transfer-star-320');
+
+  // Live reactions are visual only, and never celebrate a cancelled/opponent goal.
+  await scene('atmosphere');
+  const atmosphere = page.getByTestId('live-atmosphere');
+  check('Bekleyen tribünde takım renkli bayraklar var', await atmosphere.locator('.live-atmosphere__flags i').count() === 3 && await atmosphere.getAttribute('data-reaction') === 'idle');
+  await page.getByTestId('fixture-reaction').selectOption('ownGoal');
+  check('Yalnız takımın gerçek gol tepkisinde kutlama kurdeleleri görünür', await atmosphere.getAttribute('data-mood') === 'celebrate' && await atmosphere.getByTestId('live-goal-celebration').count() === 1);
+  await page.getByTestId('fixture-paused').check();
+  check('Maç duraklatılınca bayraklar ve gol tepkisi de durur', await atmosphere.getAttribute('data-motion') === 'paused' && await style(atmosphere.locator('.live-atmosphere__flags i').first(), 'animationPlayState') === 'paused' && await style(atmosphere.getByTestId('live-goal-celebration').locator('i').first(), 'animationPlayState') === 'paused');
+  await page.getByTestId('fixture-paused').uncheck();
+  await page.getByTestId('fixture-reaction').selectOption('awayGoal');
+  check('Rakip golünde yanlış kutlama gösterilmez', await atmosphere.getAttribute('data-mood') === 'concern' && await atmosphere.getByTestId('live-goal-celebration').count() === 0);
+  await page.getByTestId('fixture-reaction').selectOption('save');
+  check('Kurtarış tepkisi gol konfetisi üretmez', await atmosphere.getAttribute('data-reaction') === 'save' && await atmosphere.getByTestId('live-goal-celebration').count() === 0);
+  await page.getByTestId('fixture-reaction').selectOption('cancelled');
+  check('İptal edilen gol canlı kutlama üretmez', await atmosphere.getAttribute('data-reaction') === 'idle' && await atmosphere.getByTestId('live-goal-celebration').count() === 0);
+  await page.getByTestId('fixture-reaction').selectOption('card');
+  check('Kart tepkisi kutlama değil gerginliktir', await atmosphere.getAttribute('data-mood') === 'tense' && await atmosphere.getByTestId('live-goal-celebration').count() === 0);
+  await page.getByTestId('fixture-bench').selectOption('0');
+  await page.getByTestId('fixture-suspended').check();
+  check('Eksik yedek ve cezalı menajer doğru ve uydurma oyuncusuz gösterilir', await atmosphere.locator('[aria-label^="YEDEK:"]').count() === 0 && await atmosphere.locator('.live-atmosphere__person--stands').count() === 1 && (await atmosphere.innerText()).includes('Kayıtlı yedek yok'));
+  await page.getByTestId('fixture-done').check();
+  check('Son düdükte kulübe sahnesi de sabit kalır', await atmosphere.getAttribute('data-motion') === 'paused' && await style(atmosphere.locator('.live-atmosphere__flags i').first(), 'animationPlayState') === 'paused');
+  await page.getByTestId('fixture-reduce').check();
+  check('Azaltılmış harekette tribün bayrakları animasyonsuzdur', await atmosphere.getAttribute('data-motion') === 'reduced' && await style(atmosphere.locator('.live-atmosphere__flags i').first(), 'animationName') === 'none');
+  await page.getByTestId('fixture-reduce').uncheck();
+  check('320 px kulübe yatay taşmaz', await fits(atmosphere));
+  await screenshot('04-dugout-320');
+
+  // Award is selected from an actual demo match and retains its voice/caption controls.
+  await scene('award');
+  const award = page.getByTestId('match-award');
+  await award.waitFor();
+  const winner = await award.getAttribute('data-player-id');
+  check('Ödül sahnesinde gerçek rapordan seçilen oyuncu ve kişisel portre eşleşir', !!winner && await award.locator('.match-award__portrait').getAttribute('data-player-id') === winner && (await award.innerText()).includes('MAÇ PUANI'));
+  check('Oyuncunun selamı, kulüp arması, anons ve altyazı aynı sahnede', await style(award.locator('.match-award__arm--wave'), 'animationName') === 'award-wave' && await award.locator('.match-award__crest').count() === 1 && await award.getByRole('button', { name: /Tören Sesini/ }).isVisible() && (await award.innerText()).includes('STADYUM ANONSU'));
+  await page.getByTestId('fixture-reduce').check();
+  check('Ödül töreni azaltılmış harekette görünür ama animasyonsuzdur', await award.getAttribute('data-motion') === 'reduced' && await style(award.locator('.match-award__arm--wave'), 'animationName') === 'none' && await style(award.locator('.match-award__beams i').first(), 'animationName') === 'none');
+  check('320 px ödül töreni yatay taşmaz', await fits(award));
+  await page.getByTestId('fixture-dark').check();
+  const awardContrast = await contrast('.match-award__caption p', '.match-award__caption');
+  check('Koyu tema ödül altyazısı okunaklı kontrasttadır', awardContrast >= 4.5, awardContrast.toFixed(2));
+  await screenshot('05-award-reduced-dark-320');
+  await page.getByTestId('fixture-dark').uncheck();
+  await award.getByRole('button', { name: 'Töreni Kapat' }).click();
+  check('Tören sadece kullanıcı isteğiyle kapanır', await page.getByTestId('fixture-award-closed').isVisible());
+  await page.getByTestId('fixture-reduce').uncheck();
+
+  // The moving ball is a sample of the recorded zone polyline, not a new event.
+  await scene('highlights');
+  const highlights = page.getByTestId('match-highlights');
+  const route = page.getByTestId('highlights-route');
+  const marker = page.getByTestId('highlight-ball');
+  await route.waitFor();
+  check('Özet başlangıçta durur ve kayıtlı yolun tam hali görünür', await highlights.getAttribute('data-playing') === 'false' && await route.getAttribute('data-points') === '20,82 20,50 50,50 50,15' && await route.getAttribute('data-progress') === '1.000');
+  check('Özet rotanın temsili olduğunu açıklar', (await highlights.innerText()).includes('temsili rota'));
+  await page.getByTestId('highlight-play').click();
+  await page.waitForFunction(() => { const n = Number(document.querySelector('[data-testid="highlights-route"]')?.getAttribute('data-progress')); return n > .08 && n < .65; });
+  const p1 = Number(await route.getAttribute('data-progress'));
+  const point1 = [await marker.getAttribute('data-x'), await marker.getAttribute('data-y')];
+  await page.waitForFunction((previous) => Number(document.querySelector('[data-testid="highlights-route"]')?.getAttribute('data-progress')) > previous + .08, p1);
+  const point2 = [await marker.getAttribute('data-x'), await marker.getAttribute('data-y')];
+  check('Oynatılan gerçek bölge çiziminde top birden çok karede ilerler', JSON.stringify(point1) !== JSON.stringify(point2));
+  await page.getByTestId('highlight-play').click();
+  const frozenProgress = await route.getAttribute('data-progress'), frozenPoint = await marker.getAttribute('transform');
+  await page.waitForTimeout(250);
+  check('Özeti duraklatmak çizgiyi ve topu aynı karede dondurur', await highlights.getAttribute('data-playing') === 'false' && await route.getAttribute('data-progress') === frozenProgress && await marker.getAttribute('transform') === frozenPoint);
+  await page.getByTestId('highlight-play').click();
+  await page.waitForFunction((previous) => Number(document.querySelector('[data-testid="highlights-route"]')?.getAttribute('data-progress')) > Number(previous) + .05, frozenProgress);
+  check('Özet kaldığı noktadan sürer', Number(await route.getAttribute('data-progress')) > Number(frozenProgress));
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await waitAttribute('[data-testid="match-highlights"]', 'data-reduce-motion', 'true');
+  await waitAttribute('[data-testid="highlights-route"]', 'data-progress', '1.000');
+  const reducedPoint = await marker.getAttribute('transform');
+  await page.waitForTimeout(200);
+  check('Sistem hareket tercihi oynatma sırasında etkinleşince top son noktada sabitlenir', await marker.getAttribute('transform') === reducedPoint && await route.getAttribute('data-progress') === '1.000');
+  await page.getByTestId('highlight-play').click();
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await page.getByTestId('highlight-timeline-item').nth(2).click();
+  check('Konum kaydı olmayan olayda rota veya top uydurulmaz', await page.getByTestId('highlight-no-position').isVisible() && await route.count() === 0 && await marker.count() === 0);
+  await page.getByTestId('highlight-timeline-item').nth(3).click();
+  check('Deplasman olayı kaydedilen ters yöndeki yolu gösterir', await route.getAttribute('data-points') === '80,18 50,50 50,85' && await page.getByTestId('highlight-event').getAttribute('data-path-side') === 'away');
+  await page.getByTestId('fixture-short-highlights').check();
+  await page.getByTestId('highlight-play').click();
+  await page.waitForFunction(() => document.querySelectorAll('[data-testid="highlight-timeline-item"]')[1]?.getAttribute('aria-pressed') === 'true', null, { timeout: 6000 });
+  const lastDuring = await highlights.getAttribute('data-playing');
+  await page.waitForFunction(() => { const n = Number(document.querySelector('[data-testid="highlights-route"]')?.getAttribute('data-progress')); return n > .05 && n < .9; });
+  check('Son olayın rotası da oynar; ekran kendiliğinden kapanmaz', lastDuring === 'true' && await highlights.isVisible());
+  await waitAttribute('[data-testid="match-highlights"]', 'data-playing', 'false');
+  check('Son rota tamamlanınca oynatma durur ve özet incelemeye açık kalır', await route.getAttribute('data-progress') === '1.000' && await highlights.isVisible());
+  await page.getByTestId('highlight-play').click();
+  await page.evaluate(() => { Object.defineProperty(document, 'hidden', { configurable: true, value: true }); document.dispatchEvent(new Event('visibilitychange')); });
+  await waitAttribute('[data-testid="match-highlights"]', 'data-playing', 'false');
+  check('Arka sekmeye geçince özet bekler; kendiliğinden devam etmez', await highlights.getAttribute('data-playing') === 'false');
+  await page.evaluate(() => { delete document.hidden; document.dispatchEvent(new Event('visibilitychange')); });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByTestId('fixture-dark').check();
+  check('390 px koyu temada özet yatay taşmaz', await fits(highlights));
+  await screenshot('06-highlights-dark-390');
+  await page.getByTestId('fixture-dark').uncheck();
+
+  // Finale: system preference must stop an already-running canvas and expose results.
+  await page.setViewportSize({ width: 320, height: 720 });
+  await scene('finale');
+  const finale = page.getByTestId('season-finale');
+  await finale.waitFor();
+  await finale.locator('canvas').waitFor();
+  const dimensions = await finale.locator('canvas').evaluate((c) => ({ width: c.width, css: c.clientWidth, height: c.height, cssHeight: c.clientHeight }));
+  check('Şampiyonlukta konfeti yüksek DPI ölçüsüne uygun çizilir', dimensions.css > 0 && dimensions.width === dimensions.css * 2 && dimensions.height === dimensions.cssHeight * 2, JSON.stringify(dimensions));
+  check('Sezon finalinde gerçek kulüp arması ve başarı işareti var', await finale.locator('.season-finale__emblem-crest img, .season-finale__emblem-crest svg').count() === 1 && (await finale.locator('.season-finale__emblem-mark').innerText()) === '★');
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await waitAttribute('[data-testid="season-finale"]', 'data-motion', 'reduced');
+  await waitAttribute('[data-testid="season-finale"]', 'data-phase', '4');
+  const finaleText = await finale.innerText();
+  check('Sistem hareket tercihi değişince konfeti hemen durur ve tüm bilgiler açılır', await finale.locator('canvas').count() === 0 && finaleText.includes('ŞAMPİYON') && finaleText.toLocaleUpperCase('tr-TR').includes('SEZON ÖDÜLLERİ'));
+  check('Azaltılmış hareket finalde arma animasyonunu da kapatır', await style(finale.locator('.season-finale__emblem-crest'), 'animationName') === 'none');
+  const scrollArea = finale.getByRole('region', { name: 'Sezon sonuçları' });
+  const scrollInfo = await scrollArea.evaluate((el) => ({ client: el.clientHeight, full: el.scrollHeight }));
+  check('Uzun sezon sonuçlarında kaydırma ipucu gösterilir', await finale.locator('.season-finale__scroll-hint').isVisible());
+  await scrollArea.focus();
+  await page.keyboard.press('End');
+  await page.waitForFunction(() => !document.querySelector('.season-finale__scroll-hint'));
+  check('320 px sezon sonuçları tek alanda kaydırılır, kariyere dönüş düğmesi erişilebilir', scrollInfo.full > scrollInfo.client && await finale.getByRole('button', { name: 'Kariyere Dön' }).isVisible() && await fits(finale) && (await scrollArea.innerText()).includes('Şampiyonluk başarısı'), JSON.stringify(scrollInfo));
+  await screenshot('07-finale-reduced-320');
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await page.getByTestId('fixture-outcome').selectOption('relegated');
+  await page.getByTestId('fixture-reduce').check();
+  await waitAttribute('[data-testid="season-finale"]', 'data-phase', '4');
+  check('Düşüşte sahte kutlama veya kupa işareti gösterilmez', await finale.locator('canvas').count() === 0 && await finale.locator('.season-finale__emblem-mark').count() === 0 && (await finale.innerText()).includes('Düşüş'));
+  await page.getByTestId('fixture-outcome').selectOption('promoted');
+  await waitAttribute('[data-testid="season-finale"]', 'data-phase', '4');
+  check('Yükselmede doğru başarı işareti görünür, otomatik çıkış yoktur', await finale.locator('.season-finale__emblem-mark').innerText() === '↑' && await finale.isVisible() && (await finale.innerText()).includes('Yükselme'));
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByTestId('fixture-dark').check();
+  check('390 px koyu sezonda sonuç ve manuel düğme yatay taşmaz', await fits(finale) && await finale.getByRole('button', { name: 'Kariyere Dön' }).isVisible());
+  await screenshot('08-finale-dark-390');
+  await finale.getByRole('button', { name: 'Kariyere Dön' }).click();
+  check('Sezon finalinden yalnız kullanıcı düğmeyle çıkar', await page.getByTestId('fixture-finale-closed').isVisible());
+  check('Tarayıcıda yakalanmamış animasyon hatası yok', errors.length === 0, errors.join(' | '));
+  console.log(`\nANIMATION-SCENES-BROWSER: ${passed}/${passed + failed}`);
+  if (failed) process.exitCode = 1;
+} catch (error) {
+  console.error(error);
+  process.exitCode = 1;
+} finally {
+  await browser?.close();
+  await server?.close();
+}

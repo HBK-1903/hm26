@@ -12,8 +12,7 @@
 .highlights__score strong { display:block; margin-top:3px; font-size:20px; font-weight:900; font-variant-numeric:tabular-nums; }
 .highlights__pitch { position:absolute; left:27%; width:46%; top:36%; bottom:12%; overflow:hidden; border:2px solid #e4f2e26e; box-shadow:0 8px 22px #0009, 0 0 24px #b9efc52e; transform:perspective(600px) rotateX(12deg); }
 .highlights__pitch svg { display:block; width:100%; height:100%; }
-.highlights__route-line { stroke-dasharray:100; stroke-dashoffset:0; }
-.highlights[data-playing="true"][data-reduce-motion="false"] .highlights__route-line { animation:highlight-trace 1.5s ease-out both; }
+.highlights__route-ball { filter:drop-shadow(0 1px 1px #102719aa); }
 .highlights__stage-label { position:absolute; bottom:9px; left:12px; right:12px; display:flex; justify-content:space-between; align-items:center; gap:8px; font-size:9px; font-weight:900; letter-spacing:.08em; text-shadow:0 1px 4px #000; }
 .highlights__stage-label span { border-radius:4px; padding:3px 6px; background:#dfb456; color:#13221d; }
 .highlights__stage-label b { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -34,5 +33,4 @@
 .highlights__timeline button { display:flex; flex-direction:column; align-items:center; justify-content:center; flex:0 0 45px; min-height:46px; border:1px solid var(--c-line); border-radius:9px; background:var(--c-surface); color:var(--c-secondary); scroll-snap-align:start; }
 .highlights__timeline button[aria-pressed="true"] { border-color:#d6ab53; color:#f0c766; background:#664e1c40; }
 .highlights__timeline b { font-size:14px; line-height:1; }.highlights__timeline span { margin-top:3px; font-size:10px; font-weight:800; }
-@keyframes highlight-trace { from { stroke-dashoffset:100; } to { stroke-dashoffset:0; } }
-@media (prefers-reduced-motion:reduce) { .highlights[data-playing="true"][data-reduce-motion="false"] .highlights__route-line { animation:none; } .highlights__timeline { scroll-snap-type:none; } }
+@media (prefers-reduced-motion:reduce) { .highlights__timeline { scroll-snap-type:none; } }

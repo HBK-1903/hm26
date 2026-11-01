@@ -5,6 +5,7 @@ import { MatchInput, MatchResult, MatchStateEvent } from './engine';
 import { ZONE_XY } from './zones';
 import { DemoMatchEvent, DemoMatchResult, ShotDot } from '../store/game';
 import { isConfirmedGoal } from './matchPresentation';
+import { activeRiskPlayIds } from './medical';
 
 const KIND_MAP: Record<string, DemoMatchEvent['kind']> = {
   info: 'info', goal: 'goal', save: 'save', card: 'card', sub: 'sub',
@@ -61,6 +62,8 @@ export function matchEngineToDemo(res: MatchResult): DemoMatchResult & { engine:
     shotsLog,
     playerRows: JSON.parse(JSON.stringify(s.playerRows)),
     ...(res.referee ? { referee: { label: res.referee.label, strictness: res.referee.strictness } } : {}),
+    injuries: res.injuries.map((injury) => ({ ...injury })),
+    suspensions: res.suspensions.map((suspension) => ({ ...suspension })),
     engine: res,
   };
 }
@@ -75,6 +78,9 @@ export function buildEngineInput(props: {
   challengePoints?: number;
   riskIds?: string[];              // v0.9.9 iğneyle oynatma onaylı sakatlar
 }): MatchInput {
+  const riskSquad = props.challengeClubId === props.homeClub.id || props.userSide === 'home' ? props.homeSquad
+    : props.challengeClubId === props.awayClub.id || props.userSide === 'away' ? props.awaySquad
+    : [...props.homeSquad, ...props.awaySquad];
   return {
     homeClub: props.homeClub,
     awayClub: props.awayClub,
@@ -89,6 +95,7 @@ export function buildEngineInput(props: {
     userSide: props.userSide,
     challengeClubId: props.challengeClubId,
     challengePoints: props.challengePoints,
-    riskIds: props.riskIds,
+    // Filtering at this boundary keeps old checkpoint replay inputs unchanged.
+    riskIds: props.riskIds === undefined ? undefined : activeRiskPlayIds(props.riskIds, riskSquad),
   };
 }

@@ -193,7 +193,7 @@ export function headToHead(reports: readonly MatchArchiveEntry[], myClubId: stri
   const empty: HeadToHead = { played: 0, wins: 0, draws: 0, losses: 0, gf: 0, ga: 0, xgf: 0, xga: 0, meetings: [] };
   const pair = reports
     .filter((r) => (r.homeId === myClubId && r.awayId === oppClubId) || (r.homeId === oppClubId && r.awayId === myClubId))
-    .sort((a, b) => b.day - a.day || b.seasonNo - a.seasonNo);
+    .sort((a, b) => (b.seasonNo ?? 0) - (a.seasonNo ?? 0) || b.day - a.day);
   if (!pair.length) return empty;
   for (const r of pair) {
     const isHome = r.homeId === myClubId;

@@ -221,6 +221,9 @@ try {
   await subGroups.nth(0).getByRole('button').first().click();
   await subGroups.nth(1).getByRole('button').first().click();
   await subPanel.getByRole('button', { name: 'Onayla', exact: true }).click();
+  const resume = page.getByRole('button', { name: 'Maça devam et' });
+  check('Duraklatılmış maç, değişiklik onayından sonra kullanıcı kararını bekler', await resume.isVisible());
+  await resume.click(); // queued substitution executes on the next real match step
   await page.waitForFunction((name) => {
     const list = document.querySelector('[aria-label="Sahnede görünen yedekler"]');
     return !!list && !list.textContent.includes(name);

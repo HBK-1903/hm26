@@ -39,6 +39,8 @@ import { audio } from '../src/audio/engine';
 import { clubById } from '../src/data/clubs';
 import { MatchSession } from '../src/engine/session';
 import { buildEngineInput, matchEngineToDemo } from '../src/engine/adapter';
+import { autoLineup } from '../src/engine/profiles';
+import { boardToEngine } from '../src/engine/lineupOrder';
 import type { Career, DemoFixture, MatchArchiveEntry, TransferLogEntry } from '../src/types';
 
 const career = { slot: 3, manager: { name: 'Sahne Testi', portrait: 0, background: 'eskiFutbolcu', era: 'gecis', difficulty: 'dengeli', challengePoints: 0 }, clubId: 'denizli_yesilova', seed: 12345, day: 1, week: 1, settings: { goalPace: 'dengeli', randomness: 'normal', marketRefresh: 'dengeli', boardPressure: 'orta', injuryRate: 'normal', textSize: 'normal', highContrast: false, reduceMotion: true, matchSpeed: 'normal', suggestions: true }, pending: { marketShortlist: [], activeProject: null } } as Career;
@@ -141,6 +143,12 @@ check('Maç gününde geliş isteğe bağlıdır ve maç kendiliğinden başlama
 await click(byId('open-arrival'), 'Gelişi izle');
 check('Sahne gerçek ev sahibi stadyumu ve takım otobüsünü kullanır', !!q('[data-testid="arrival-scene"]') && body().includes(g.myClub.name) && body().includes(clubById(g.nextFixture!.homeId).stadium) && q('[data-testid="arrival-scene"]')?.getAttribute('data-motion') === 'reduced');
 check('Azaltılmış harekette son kare açıktır, otomatik ekran geçişi yoktur', q('[data-testid="arrival-scene"]')?.getAttribute('data-phase') === 'Takım stadyum girişinde' && !!q('[role="dialog"]') && navigated === 'careerProfile');
+const plan = g.tactics[0];
+const selected = plan.customLineup && boardToEngine(plan.formation, plan.customLineup);
+const expectedArrivalIds = autoLineup(g.mySquad, plan.formation, selected, new Set(g.riskPlayIds ?? []), plan.customBench).slots.slice(0, 6).map((slot) => slot.player.id);
+const arrivalIds = all('[data-testid="arrival-passenger"]').map((actor) => actor.getAttribute('data-player-id'));
+check('Geliş sahnesi rastgele kadro değil, maç motorunun seçili ilk 11’inden altı oyuncuyu gösterir', JSON.stringify(arrivalIds) === JSON.stringify(expectedArrivalIds) && arrivalIds.length === 6);
+check('Son karede hem otobüs hem stadyum kapısı açıktır', q('[data-testid="arrival-bus"]')?.getAttribute('data-door') === '1.00' && q('[data-testid="arrival-stadium-gate"]')?.getAttribute('data-open') === '1.00');
 const slider = q<HTMLInputElement>('[aria-label="Geliş sahnesi zamanı"]')!;
 const endX = Number(q('[data-testid="arrival-bus"]')?.getAttribute('data-x'));
 await act(async () => { slider.value = '0'; Simulate.change(slider); });

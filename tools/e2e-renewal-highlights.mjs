@@ -181,9 +181,13 @@ try {
   }
   const beforePlayback = await event.innerText();
   await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.waitForFunction(() => document.querySelector('[data-testid="match-highlights"]')?.getAttribute('data-reduce-motion') === 'true');
   await page.getByTestId('highlight-play').click();
-  const motionDisabled = hasAnimatedRoute && await page.locator('.highlights__route-line').evaluate((el) => getComputedStyle(el).animationName === 'none');
-  check('Azaltılmış hareket tercihi gerçek saha yolu animasyonunu kapatır', motionDisabled);
+  const motionDisabled = hasAnimatedRoute && await highlights.getAttribute('data-reduce-motion') === 'true'
+    && await page.getByTestId('highlights-route').getAttribute('data-progress') === '1.000';
+  const staticPoint = motionDisabled ? await page.getByTestId('highlight-ball').getAttribute('transform') : '';
+  await page.waitForTimeout(200);
+  check('Azaltılmış hareket tercihi gerçek saha yolu ve top animasyonunu kapatır', motionDisabled && staticPoint === await page.getByTestId('highlight-ball').getAttribute('transform'));
   await page.waitForTimeout(2900);
   check('Oynat kullanıcı eyleminden sonra sıradaki olaya ilerler', await event.innerText() !== beforePlayback && await highlights.getAttribute('data-playing') === 'true');
   await page.getByTestId('highlight-play').click();

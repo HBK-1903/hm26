@@ -52,6 +52,7 @@ try {
   run('PWA headers, manifest, icons and update lifecycle', 'npm', ['run', 'qa:pwa'], 120_000);
   run('Content-derived service-worker build identity', 'npm', ['run', 'qa:sw-manifest'], 60_000);
   run('Save integrity, legacy migration and transaction conflicts (jsdom)', 'npm', ['run', 'qa:save-integrity'], 120_000);
+  run('Career continuity, recovery, training and match health (jsdom)', 'npm', ['run', 'qa:career-continuity'], 180_000);
   run('Project-local security skill installation checks (not an audit)', 'npm', ['run', 'qa:security-skill'], 60_000);
   run('Agency development role installation checks (not independent agents)', 'npm', ['run', 'qa:agency-roles'], 60_000);
 
@@ -71,6 +72,8 @@ try {
     ['Live engine projection and speed parity', ['tsx', 'tools/qa-live-projection-wave10.ts']],
     ['Shared UI notification timing', ['tsx', 'tools/qa-ui-smoothness.tsx']],
     ['New career advanced world settings', ['tsx', 'tools/qa-career-world.tsx']],
+    ['Stadium arrival choreography and timeline', ['tsx', 'tools/qa-arrival-timeline.ts']],
+    ['Recorded highlight route interpolation', ['tsx', 'tools/qa-highlight-motion.ts']],
     ['Transfer presentation rules, voices and local artwork', ['tsx', 'tools/qa-transfer-scene.ts']],
     ['Newsroom saved-evidence regression', ['tsx', 'tools/qa-newsroom-wave13.ts']],
     ['Market refresh, shortlist and press-room links', ['tsx', 'tools/qa-market-improvements.ts']],
@@ -156,8 +159,12 @@ try {
       ['Full tactical roster, league names and ratings E2E (320px and 390px)', 'tools/e2e-roster-league.mjs'],
       ['Bench, global market and complete records E2E (320px and 390px)', 'tools/e2e-new-features.mjs'],
       ['Live-match resume, decisions, backup and failure E2E', 'tools/e2e-live-resume.mjs'],
+      ['Live-match recorded injuries and red-card health E2E', 'tools/e2e-live-health.mjs'],
+      ['Multi-season archive and newsroom E2E (320px and 390px)', 'tools/e2e-season-archive.mjs'],
+      ['Stacked dialogs, focus, pause and clinic E2E (320px and 390px)', 'tools/e2e-layered-dialogs.mjs'],
       ['Production service worker offline live-match resume E2E', 'tools/e2e-offline-live.mjs'],
       ['Save-slot delete flow E2E', 'tools/e2e-slots.mjs'],
+      ['Unreadable save slots, retry and stale-delete E2E (320px and 390px)', 'tools/e2e-slot-failures.mjs'],
       ['Backup, storage failure, legacy migration and stale-tab E2E (390px)', 'tools/e2e-save-integrity.mjs'],
       ['Backup, storage failure, legacy migration and stale-tab E2E (320px)', 'tools/e2e-save-integrity.mjs', { HM26_VIEWPORT_WIDTH: '320' }],
       ['Board budget approval and reload on migrated career E2E (390px)', 'tools/e2e-board-budget.mjs'],
@@ -173,6 +180,8 @@ try {
       ['Contract renewal and recorded match highlights E2E', 'tools/e2e-renewal-highlights.mjs'],
       ['Live reactions, player comparison and weekly paper E2E', 'tools/e2e-atmosphere-comparison-paper.mjs'],
       ['Match arrival, award, training and career story E2E', 'tools/e2e-career-scenes.mjs'],
+      ['Stadium arrival timeline, replay and motion controls E2E (320px and 390px)', 'tools/e2e-arrival-scene.mjs'],
+      ['Themed animations and motion accessibility E2E (320px and 390px)', 'tools/e2e-animation-scenes.mjs'],
       ['Market filters and live tactic flow E2E (390px)', 'tools/e2e-v099.mjs'],
       ['Market filters and live tactic flow E2E (320px)', 'tools/e2e-v099.mjs', { HM26_VIEWPORT_WIDTH: '320' }],
       ['Injury treatment and return E2E (320px home, 390px away)', 'tools/e2e-injury-decision.mjs'],

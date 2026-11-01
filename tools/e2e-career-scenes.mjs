@@ -39,6 +39,10 @@ const editSave = async (mode) => page.evaluate(async (mode) => {
     const t = makeTransfer('gercek-transfer', 2, 4, 'Gerçek Transfer');
     b.transferLog = [t, { ...t }, makeTransfer('gelecek-transfer', 2, 12, 'Gelecek Transfer')];
     b.career.trophyCabinet = [{ season: '2026–27', type: 'lig', title: 'Gerçek Lig Kupası' }, { season: 'eski kayıt', type: 'kupa', title: 'Tarihsiz Kupa' }];
+  } else if (mode === 'finale') {
+    // The field already exists in saves; use an isolated sample to exercise the real shell offline.
+    b.career.settings.reduceMotion = false;
+    b.seasonFinale = { season: '2026–27', clubId: b.career.clubId, leagueId: b.leagueOf[b.career.clubId], rank: 1, pts: 68, cup: 'Yarı final', championId: b.career.clubId, cupWinnerId: 'sakarya_vadi', promoted: false, relegated: false, champion: true, cupWon: false, awards: null };
   } else {
     const list = b.fixtures.filter((f) => f.comp === 'lig' && f.league === b.leagueOf[b.career.clubId] && (f.homeId === b.career.clubId || f.awayId === b.career.clubId));
     fixture = list.find((f) => f.awayId === b.career.clubId) ?? list[0];
@@ -147,7 +151,7 @@ try {
   check('Duraklatma otobüsü ve dekoru dondurur', x1 === x2 && await arrival.getAttribute('data-motion') === 'paused' && await arrival.locator('.arrival-fan').first().evaluate((el) => getComputedStyle(el).animationPlayState) === 'paused');
   const scrub = arrival.getByRole('slider', { name: 'Geliş sahnesi zamanı' });
   await scrub.focus(); await scrub.press('End');
-  check('Sürgü otobüsü park eder, kapıyı açar ve gerçek üç oyuncuyu gösterir', Number(await bus.getAttribute('data-x')) > 100 && Number(await bus.getAttribute('data-door')) === 1 && await arrival.getByTestId('arrival-passenger').count() === 3 && /SEÇİLİ İLK 11/.test(await arrival.innerText()));
+  check('Sürgü otobüsü park eder, iki kapıyı açar ve gerçek altı oyuncuyu gösterir', Number(await bus.getAttribute('data-x')) > 100 && Number(await bus.getAttribute('data-door')) === 1 && Number(await arrival.getByTestId('arrival-stadium-gate').getAttribute('data-open')) === 1 && await arrival.getByTestId('arrival-passenger').count() === 6 && /SEÇİLİ İLK 11/.test(await arrival.innerText()));
   await page.setViewportSize({ width: 320, height: 720 }); bounds = await box(arrival);
   check('320 px geliş sahnesi panele sığar', fits(bounds), JSON.stringify(bounds));
   await arrival.scrollIntoViewIfNeeded(); await screenshot('05-arrival-320');
@@ -161,6 +165,23 @@ try {
   await page.emulateMedia({ reducedMotion: 'no-preference' });
   await arrivedialog.getByRole('button', { name: 'Hazırlığa Dön' }).click();
   check('Gelişten dönünce hazırlık kapanmaz ve maç otomatik başlamaz', !(await arrival.count()) && await page.getByRole('button', { name: 'Maça Başla', exact: true }).isVisible());
+
+  // A previously installed production shell and its scene bundle must also work offline.
+  await page.evaluate(() => navigator.serviceWorker.ready);
+  if (!(await page.evaluate(() => !!navigator.serviceWorker.controller))) await page.reload({ waitUntil: 'load' });
+  await context.setOffline(true);
+  await page.reload({ waitUntil: 'load' });
+  await page.getByRole('button', { name: /Devam Et/ }).first().click();
+  await page.getByRole('button', { name: 'Anladım' }).first().click({ timeout: 2500 }).catch(() => {});
+  await page.waitForFunction(() => !!document.querySelector('[data-testid="open-arrival"]') || [...document.querySelectorAll('button')].some((button) => button.textContent?.includes('Maç Merkezine Git')));
+  if (!(await page.getByTestId('open-arrival').isVisible())) await page.getByRole('button', { name: /Maç Merkezine Git/ }).first().click();
+  await page.getByTestId('open-arrival').click();
+  const offlineArrival = page.getByTestId('arrival-scene');
+  await offlineArrival.getByRole('slider', { name: 'Geliş sahnesi zamanı' }).focus();
+  await page.keyboard.press('End');
+  check('Üretim paketi ve kayıtla geliş sahnesi çevrimdışı açılır ve son kareye gidilebilir', await offlineArrival.isVisible() && await offlineArrival.getByTestId('arrival-passenger').count() === 6 && Number(await offlineArrival.getByTestId('arrival-stadium-gate').getAttribute('data-open')) === 1);
+  await page.getByRole('dialog', { name: 'Stadyuma Geliş' }).getByRole('button', { name: 'Hazırlığa Dön' }).click();
+  await context.setOffline(false);
   await page.getByRole('button', { name: 'Simüle Et (hızlı sonuç)' }).click();
   const quick = page.getByRole('dialog', { name: 'Hızlı Simülasyon Sonucu' });
   check('Hızlı sonuç açık kalır; ödül isteğe bağlıdır', await quick.isVisible() && await quick.getByTestId('quick-open-award').isVisible() && !(await quick.getByTestId('match-award').count()));
@@ -209,9 +230,28 @@ try {
     check('İki Türkçe anons çevrimdışı önbellekten çözülür ve sessiz değildir', clips.every((clip) => clip.status === 200 && clip.size > 1000 && clip.duration > 1 && clip.rms > .001), JSON.stringify(clips));
     await context.setOffline(false);
   }
+  // Load an existing season-finale field through the real production shell and service worker.
+  await toStart(); await editSave('finale');
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await context.setOffline(true);
+  await page.reload({ waitUntil: 'load' });
+  await page.getByRole('button', { name: /Devam Et/ }).first().click();
+  const finale = page.getByTestId('season-finale');
+  await finale.waitFor();
+  await page.waitForFunction(() => document.querySelector('[data-testid="season-finale"]')?.getAttribute('data-phase') === '3');
+  const finaleText = await finale.innerText();
+  check('Kayıtlı sezon finali gerçek oyunda çevrimdışı açılır ve kulübün sonuçlarını gösterir', finaleText.includes('2026–27') && finaleText.includes('68 puan') && finaleText.includes('Denizli Yeşilova SK'));
+  check('Gerçek oyunda sistemin azaltılmış hareketi konfeti olmadan tüm sonucu gösterir', await finale.getAttribute('data-motion') === 'reduced' && await finale.locator('canvas').count() === 0 && finaleText.includes('ŞAMPİYON'));
+  check('Sezon finali kendiliğinden kapanmaz ve kayıtlı bekleyen durum korunur', await finale.isVisible() && !!(await readSave())?.seasonFinale);
+  await finale.getByRole('button', { name: 'Kariyere Dön' }).click();
+  const finaleSaved = await waitSave((b) => b?.seasonFinale === null);
+  check('Kullanıcı kariyere dönünce mevcut sezon finali durumu temizlenir', !(await finale.count()) && finaleSaved.version === 5);
+  await context.setOffline(false);
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+
   check('Kayıt sürümü 5; yeni sahneler için kalıcı alan eklenmedi', saved.version === 5 && !Object.keys(saved).some((key) => /^(careerTimeline|careerStory|arrivalScene|matchAward|trainingGround)$/i.test(key)));
   check('Tarayıcıda yakalanmamış uygulama hatası yok', errors.length === 0, errors.join(' | '));
-} catch (error) { failed++; console.error('❌ E2E akışı kesildi:', error?.stack ?? error); }
+} catch (error) { failed++; console.error('❌ E2E akışı kesildi:', error?.stack ?? error); console.error('Sayfa durumu:', (await page.locator('body').innerText().catch(() => '')).slice(0, 2500)); }
 finally { await context.setOffline(false).catch(() => {}); await browser.close(); }
 console.log(`\nKariyer sahneleri Chromium: ${passed}/${passed + failed} geçti.`);
 if (failed) process.exitCode = 1;
