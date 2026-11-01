@@ -73,11 +73,12 @@ try {
   await page.getByTestId('fixture-players').selectOption('2');
   check('İki oyunculuk pas çalışması olmayan üçüncü oyuncuya pas uydurmaz', await ground.locator('.training-actor').count() === 2 && await style(ground.locator('.training-ground__ball'), 'animationName') === 'training-pass-pair');
   await page.getByTestId('fixture-players').selectOption('1');
-  check('Tek oyuncu tek başına çalışır', await ground.locator('.training-actor').count() === 1 && await style(ground.locator('.training-ground__ball'), 'animationName') === 'training-solo');
+  check('Tek oyuncu topla eş zamanlı olarak tek başına çalışır', await ground.locator('.training-actor').count() === 1 && await style(ground.locator('.training-ground__ball'), 'animationName') === 'training-solo' && await style(actor, 'animationName') === 'training-solo-actor');
   await page.getByTestId('fixture-players').selectOption('0');
   check('Sağlıklı oyuncu yoksa figür veya hareketli top uydurulmaz', await ground.locator('.training-actor').count() === 0 && await ground.locator('.training-ground__ball').count() === 0 && (await ground.innerText()).includes('sağlıklı oyuncu yok'));
-  await page.getByTestId('fixture-players').selectOption('3');
   await page.getByTestId('fixture-area').selectOption({ label: 'Hücum' });
+  check('Boş sahada ağ kendiliğinden gol tepkisi vermez', await style(ground.locator('.training-goal__net'), 'animationName') === 'none');
+  await page.getByTestId('fixture-players').selectOption('3');
   check('Şut çalışmasında kale ağı topun çalışmasına eşlik eder', await style(ground.locator('.training-goal__net'), 'animationName') === 'training-net');
   await page.getByTestId('fixture-reduce').check();
   check('Kariyer hareket tercihi antrenmanda tüm animasyonları kapatır', await ground.getAttribute('data-motion') === 'reduced' && await style(actor, 'animationName') === 'none' && await style(ground.locator('.training-goal__net'), 'animationName') === 'none' && await ground.getByRole('button', { name: 'Durdur' }).isDisabled());

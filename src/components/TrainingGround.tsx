@@ -36,7 +36,7 @@ const Trainee: React.FC<{ x: number; y: number; number: number; className: strin
       <g className="training-actor__arm training-actor__arm--right"><path d="M13 -3l7 11" fill="none" stroke={club.color2} strokeWidth="4" strokeLinecap="round" /><circle cx="20" cy="9" r="2.5" fill={skin} /></g>
       <path d="M-12 -7Q0 -13 12 -7L15 17H-15Z" fill={club.color1} stroke="#24382d" strokeWidth="1.5" />
       <path d="M-5 -8q5 4 10 0" fill="none" stroke={club.color2} strokeWidth="2" />
-      <g className="training-actor__head"><circle cy="-17" r="10" fill={skin} stroke="#5b4538" strokeWidth="1" /><path d="M-9 -20q8-10 18 0" fill={hair} /></g>
+      <g className="training-actor__head"><circle cy="-17" r="10" fill={skin} stroke="#5b4538" strokeWidth="1" />{face.hairStyle !== 6 && <path d="M-9 -20q8-10 18 0" fill={hair} />}</g>
       <text x="0" y="10" fill={club.color2} textAnchor="middle" fontSize="11" fontWeight="900">{number}</text>
     </g>
   </g>;

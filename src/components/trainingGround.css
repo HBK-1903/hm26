@@ -16,7 +16,7 @@
 .training-actor__arm { transform-origin:top; animation:training-arms calc(var(--drill-time) / 4) ease-in-out infinite alternate; }
 .training-actor__arm--right { animation-direction:alternate-reverse; }
 .training-actor__head { transform-origin:bottom; animation:training-head calc(var(--drill-time) / 2) ease-in-out infinite; }
-.training-ground[data-area="Hücum"] .training-goal__net { transform-origin:right center; animation:training-net var(--drill-time) ease-in-out infinite; }
+.training-ground[data-area="Hücum"]:not([data-players="0"]) .training-goal__net { transform-origin:right center; animation:training-net var(--drill-time) ease-in-out infinite; }
 .training-ground[data-area="Teknik"] .training-actor--one { animation:training-slalom var(--drill-time) ease-in-out infinite; }
 .training-ground[data-area="Teknik"] .training-ground__ball { animation:training-slalom-ball var(--drill-time) ease-in-out infinite; }
 .training-ground[data-area="Hücum"] .training-actor--one { animation:training-attack var(--drill-time) ease-in-out infinite; }
@@ -30,6 +30,7 @@
 .training-ground[data-area="Zekâ"] .training-ground__ball { animation:training-pass var(--drill-time) ease-in-out infinite; }
 .training-ground[data-players="2"][data-area="Zekâ"] .training-ground__ball,.training-ground[data-players="2"][data-area="Defans"] .training-ground__ball { animation-name:training-pass-pair; }
 .training-ground[data-players="1"][data-area="Zekâ"] .training-ground__ball,.training-ground[data-players="1"][data-area="Defans"] .training-ground__ball { animation-name:training-solo; }
+.training-ground[data-players="1"][data-area="Zekâ"] .training-actor--one,.training-ground[data-players="1"][data-area="Defans"] .training-actor--one { animation:training-solo-actor var(--drill-time) ease-in-out infinite; }
 .training-ground[data-area="Zekâ"] .training-actor--two { animation:training-turn var(--drill-time) ease-in-out infinite; }
 .training-ground[data-area="Zekâ"] .training-actor--three { animation:training-turn var(--drill-time) ease-in-out infinite reverse; }
 @keyframes training-legs { from { transform:rotate(-14deg); } to { transform:rotate(14deg); } }
@@ -38,6 +39,7 @@
 @keyframes training-net { 0%,76%,100% { transform:scaleX(1); } 82% { transform:scaleX(.89); } 89% { transform:scaleX(1.03); } }
 @keyframes training-pass-pair { 0%,100% { transform:translate(0,0); } 48%,55% { transform:translate(140px,-85px) rotate(240deg); } }
 @keyframes training-solo { 0%,100% { transform:translate(0,0); } 50% { transform:translate(35px,0) rotate(90deg); } }
+@keyframes training-solo-actor { 0%,100% { transform:translate(0,0); } 50% { transform:translate(35px,0); } }
 @keyframes training-slalom { 0%,100%{transform:translate(0,0)}25%{transform:translate(65px,-25px)}50%{transform:translate(125px,22px)}75%{transform:translate(180px,-22px)} }
 @keyframes training-slalom-ball { 0%,100%{transform:translate(0,0)}25%{transform:translate(65px,-25px) rotate(140deg)}50%{transform:translate(125px,22px) rotate(260deg)}75%{transform:translate(180px,-22px) rotate(410deg)} }
 @keyframes training-attack { 0%,100%{transform:translate(0,0)}60%,80%{transform:translate(125px,0)} }
