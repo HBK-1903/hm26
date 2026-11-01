@@ -126,6 +126,8 @@ try {
   await page.setViewportSize({ width: 390, height: 844 });
   box = await layout('[data-testid="transfer-theatre"]');
   check('390 px sözleşme sahnesi panel dışına taşmaz', fits(box), JSON.stringify(box));
+  await page.getByTestId('renewal-sign').dispatchEvent('click', { detail: 2 });
+  check('Önceki çift tıklama yenileme imzası yerine geçmez', await flow.getAttribute('data-stage') === 'review');
   await page.getByTestId('renewal-sign').dblclick();
   check('Çift imza sonrası yenileme tamamlanır, tanıtım sahnesi açılmaz', await flow.getAttribute('data-stage') === 'signed' && await scene.getAttribute('data-scene') === 'negotiation');
   saved = await waitForSave((b) => b?.playerPatch?.[playerId]?.contractYears === 4);

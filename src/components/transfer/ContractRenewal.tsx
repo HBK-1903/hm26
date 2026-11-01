@@ -7,7 +7,7 @@ import { useGame, type RenewalQuote } from '../../store/game';
 import { PlayerPortrait } from '../assets/Portrait';
 import { Btn } from '../ui/kit';
 import { TransferSubtitle, TransferTheatre } from './TransferTheatre';
-import { CinematicLayout, resetCinematicScroll, type CameraCue } from '../cinematic/Cinematic';
+import { CinematicLayout, preventAccidentalDoubleClick, resetCinematicScroll, type CameraCue } from '../cinematic/Cinematic';
 import { transferVoiceVolume, useTransferSpeech } from './useTransferSpeech';
 
 type Stage = 'offer' | 'response' | 'review' | 'signed';
@@ -158,7 +158,7 @@ export const ContractRenewal: React.FC<{ player: Player; onClose: () => void }> 
         {facts(agreement.quote)}
         <p className="text-muted text-[11px]">Maaş aylık bordroya yansır. İmza bonusu bir kez bütçeden düşer; onaylamadan hiçbir şey değişmez.</p>
       </div>
-      <Btn variant="amber" testId="renewal-sign" className="w-full" onClick={sign}>Sözleşmeyi İmzala</Btn>
+      <div onClickCapture={preventAccidentalDoubleClick}><Btn variant="amber" testId="renewal-sign" className="w-full" onClick={sign}>Sözleşmeyi İmzala</Btn></div>
       <Btn variant="secondary" testId="renewal-review-edit" className="w-full" onClick={() => editOffer()}>Teklifi Düzenle</Btn>
       <Btn variant="secondary" className="w-full" onClick={onClose}>Vazgeç · Değişiklik Yapma</Btn>
     </div>}

@@ -130,6 +130,8 @@ try {
   check('Cevap değiştirilebilir ve önceki söz kaydedilmez', await interview.getAttribute('data-stage') === 'question' && await page.getByTestId('interview-option-2').isVisible() && await page.evaluate(() => window.__cinematicFixture.lastChoice() === undefined));
   await page.getByTestId('interview-option-2').click();
   const finalQuote = (await page.getByTestId('interview-subtitle').locator('p').innerText()).replace(/^“|”$/g, '');
+  await page.getByTestId('interview-continue').dispatchEvent('click', { detail: 2 });
+  check('Cevaptaki çift tıklama otomatik maç analizine geçirmez', await interview.getAttribute('data-stage') === 'answer' && await page.evaluate(() => window.__cinematicFixture.lastChoice() === undefined));
   await page.getByTestId('interview-continue').click();
   const chosen = await page.evaluate(() => window.__cinematicFixture.lastChoice());
   check('Yalnız devam düğmesi tam seçilen röportaj sözünü aktarır', chosen?.id === 'redcard-saygi' && chosen.quote === finalQuote && await overlay.count() === 0, JSON.stringify(chosen));

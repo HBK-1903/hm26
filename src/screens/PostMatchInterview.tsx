@@ -9,7 +9,7 @@ import { detectInterviewContext } from '../engine/interviewContext';
 import { compactMatchEvents } from '../engine/matchEvents';
 import { normalizeMyMatches } from '../engine/teamInsights';
 import { Btn } from '../components/ui/kit';
-import { CinematicLayout, resetCinematicScroll, type CameraCue } from '../components/cinematic/Cinematic';
+import { CinematicLayout, preventAccidentalDoubleClick, resetCinematicScroll, type CameraCue } from '../components/cinematic/Cinematic';
 import { InterviewTheatre } from '../components/cinematic/InterviewTheatre';
 import { useLocalTurkishSpeech } from '../components/cinematic/useLocalTurkishSpeech';
 import { transferVoiceVolume } from '../components/transfer/useTransferSpeech';
@@ -93,7 +93,7 @@ export const PostMatchInterview: React.FC<{
       <div className="interview-answer" data-testid="interview-answer">
         <span>SEÇTİĞİN CEVAP</span><h3>{selected.label}</h3><p>{selected.detail}</p>
       </div>
-      <Btn variant="amber" testId="interview-continue" className="w-full" onClick={() => { speech.stop(); onChoose(selected); }}>Maç Sonu Analizine Geç →</Btn>
+      <div onClickCapture={preventAccidentalDoubleClick}><Btn variant="amber" testId="interview-continue" className="w-full" onClick={() => { speech.stop(); onChoose(selected); }}>Maç Sonu Analizine Geç →</Btn></div>
       <Btn variant="secondary" testId="interview-change" className="w-full" onClick={() => { speech.stop(); setSelection(null); }}>Cevabı Değiştir</Btn>
     </>}
   </CinematicLayout>;

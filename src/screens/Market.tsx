@@ -708,7 +708,7 @@ export const OfferFlow: React.FC<{
       {quotaBreach && <p role="alert" className="text-danger text-[12px]">Yabancı kotası dolu ({foreignCount}/{quota}). Bir yabancıyla yolları ayır veya yabancı oyuncu takas et.</p>}
       {squadFull && <p role="alert" className="text-danger text-[12px]">Kadro üst sınırı 30. Önce satış yap veya takasla yer aç.</p>}
       {wageBreach && <p role="alert" className="text-danger text-[12px]">Maaş bütçesi aşılıyor.</p>}
-      <Btn variant="amber" testId="transfer-sign" className="w-full" disabled={quotaBreach || squadFull || wageBreach || agreedFee > tb || !inWindow} onClick={signDeal}>Sözleşmeyi İmzala</Btn>
+      <div onClickCapture={preventAccidentalDoubleClick}><Btn variant="amber" testId="transfer-sign" className="w-full" disabled={quotaBreach || squadFull || wageBreach || agreedFee > tb || !inWindow} onClick={signDeal}>Sözleşmeyi İmzala</Btn></div>
       <Btn variant="secondary" className="w-full" onClick={() => { clearPlayerResponse(); setStage('player'); }}>Oyuncu Şartlarını Düzenle</Btn>
       {seller && <Btn variant="secondary" className="w-full" onClick={goOffer}>Kulüp Şartlarını Düzenle</Btn>}
     </div>}

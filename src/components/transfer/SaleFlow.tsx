@@ -171,7 +171,7 @@ export const SaleFlow: React.FC<{ offer: IncomingOffer; player: Player; buyer: C
         {settlement.payouts.map((row, index) => <p key={`${row.clubId}-${index}`} className="text-secondary text-[11px]">{clubByIdSafe(row.clubId)?.name ?? row.clubId}: %{row.pct} · {money(row.amount)}</p>)}
         <p className="text-muted text-[11px]">Onaylamadan oyuncu kadrodan ayrılmaz ve bütçe değişmez.</p>
       </div>
-      <Btn variant="amber" testId="sale-confirm" className="w-full" onClick={confirmSale}>Satışı Onayla</Btn>
+      <div onClickCapture={preventAccidentalDoubleClick}><Btn variant="amber" testId="sale-confirm" className="w-full" onClick={confirmSale}>Satışı Onayla</Btn></div>
       <Btn variant="secondary" className="w-full" onClick={editOffer}>Koşulları Yeniden Düzenle</Btn>
       <Btn variant="secondary" className="w-full" onClick={onClose}>Vazgeç · Teklif Açık Kalsın</Btn>
     </div>}

@@ -152,6 +152,8 @@ try {
   await page.getByTestId('sale-counter').click(); // default 25% increase is accepted but not committed
   check('Karşı teklif kabulünde de son onay beklenir', await flow.getAttribute('data-stage') === 'response' && /henüz satılmadı/i.test(await flow.innerText()));
   await page.getByTestId('sale-review').click();
+  await page.getByTestId('sale-confirm').dispatchEvent('click', { detail: 2 });
+  check('Önceki çift tıklama satışın son onayı yerine geçmez', await flow.getAttribute('data-stage') === 'review' && await page.getByTestId('sale-signing').count() === 0);
   await page.getByTestId('sale-confirm').dblclick();
   await page.waitForFunction(() => { const flow = document.querySelector('[data-testid="sale-flow"]'); return !flow || flow.getAttribute('data-stage') === 'signed'; });
   check('Satış tamamlandıktan sonra imza sahnesi kullanıcıyı bekler', await page.getByTestId('sale-signing').isVisible() && await page.getByTestId('transfer-theatre').getAttribute('data-beat') === 'signed' && await page.getByTestId('sale-complete').count() === 0);

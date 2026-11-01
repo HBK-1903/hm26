@@ -86,6 +86,8 @@ try {
   await page.getByTestId('transfer-review').click();
   check('İmza öncesi şartlar ekranda ve onay kullanıcıda', await page.getByTestId('transfer-flow').getAttribute('data-stage') === 'review' && await page.getByTestId('transfer-sign').isEnabled());
   await screenshot('03-review');
+  await page.getByTestId('transfer-sign').dispatchEvent('click', { detail: 2 });
+  check('Önceki çift tıklama son imza yerine geçmez', await page.getByTestId('transfer-flow').getAttribute('data-stage') === 'review' && await page.getByTestId('transfer-signing').count() === 0);
   await page.getByTestId('transfer-sign').dblclick();
   await page.waitForFunction(() => { const flow = document.querySelector('[data-testid="transfer-flow"]'); return !flow || flow.getAttribute('data-stage') === 'signed'; });
   const signingState = await page.evaluate(() => ({
