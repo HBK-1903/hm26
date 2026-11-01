@@ -88,6 +88,8 @@
     "qa:atmosphere-paper:browser": "node tools/e2e-atmosphere-comparison-paper.mjs",
     "qa:career-scenes:ui": "node --import tsx --loader ./tools/qa-live-loader.mjs tools/qa-career-scenes.tsx",
     "qa:career-scenes:browser": "node tools/e2e-career-scenes.mjs",
+    "qa:arrival-timeline": "tsx tools/qa-arrival-timeline.ts",
+    "qa:arrival:browser": "node tools/e2e-arrival-scene.mjs",
     "qa:academy:wave12": "tsx tools/qa-academy-wave12.ts",
     "qa:newsroom:wave13": "tsx tools/qa-newsroom-wave13.ts",
     "qa:culture:wave14": "tsx tools/qa-culture-wave14.ts",

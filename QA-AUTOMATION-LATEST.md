@@ -1,7 +1,7 @@
 # HM26 — Sıralı Otomatik QA
 **Çalıştırma:** 2026-10-31T16:08:53.593Z
 **Sonuç:** 102/102 geçti · 0 başarısız
-**Kaynak ve ortam:** Bu PR çalışma ağacındaki uygulama/test dosyaları; Node 22 ve Chromium 153 ile yerel çalışma.
+**Kaynak ve ortam:** Önceki PR #27 çalışma ağacı (`e55891f`); Node 22 ve Chromium 153 ile yerel çalışma. Bu rapor daha sonraki sahne değişikliklerini kapsamaz.
 **Önceki deneme:** 99/102; eski güncelleme/maçtan çıkış test beklentileri ve yıldız tanıtım fixture maaş bütçesi güncellendi, ilgili testler tek başına ve bu tam koşuda geçti.
 | # | Aşama | Sonuç |
 |---:|---|---|
