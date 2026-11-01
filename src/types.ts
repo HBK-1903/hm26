@@ -63,10 +63,10 @@ export interface CareerSeasonRow {
 export interface PlayerBadges { /* rozet anahtarları string olarak tutulur */ }
 
 export interface PlayerInjury {
-  type: 'adale_gerilmesi' | 'ayak_bilegi_burkulmasi' | 'diz_meniskus' | 'kirik' | 'yorgunluk';
+  type: 'adale_gerilmesi' | 'ayak_bilegi_burkulmasi' | 'diz_meniskus' | 'kirik' | 'yorgunluk' | 'bilinmeyen';
   name: string;                          // örn "Diz Menisküs Yırtığı"
   daysRemaining: number;
-  severity: 'hafif' | 'orta' | 'ciddi';
+  severity: 'hafif' | 'orta' | 'ciddi' | 'bilinmiyor';
   canPlayWithRisk: boolean;              // iğneyle oynatma riski (%50 kondi)
   clinicUsed?: boolean;                  // v0.9.9: Avrupa Kliniği sevki aynı sakatlıkta 1 kez
 }

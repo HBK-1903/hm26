@@ -17,7 +17,8 @@ import { aiGoalScorers, aiStartingPlayers, recordAiMatch } from '../engine/aiMat
 import { seasonRatings } from '../engine/seasonRatings';
 import { compactMatchEvents } from '../engine/matchEvents';
 import { seasonSummary } from '../engine/teamInsights';
-import { CLINIC_COST_M, clinicRemainingDays, needleOutcome } from '../engine/medical';
+import { activeRiskPlayIds, CLINIC_COST_M, clinicRemainingDays, needleOutcome } from '../engine/medical';
+import { applyMatchHealthEvidence } from '../engine/postMatchHealth';
 import { Cup, CupTie, buildCup, buildFriendlies, buildLeagueFixtures, cupGroupTable, dayToDate, inWindow, weekdayOf, ACADEMY_INTAKE_DAY } from '../data/calendar';
 import { writeSave, writeSaveRetry, SaveBlob, SaveConflictError, SAVE_VERSION } from './persist';
 import { applyComfortSettings } from '../utils/comfort';
@@ -75,6 +76,9 @@ export interface DemoMatchResult {
   shotsLog: ShotDot[];
   playerRows: Record<string, EngineRow>;
   referee?: { label: string; strictness: 'lenient' | 'balanced' | 'strict' };
+  // Transient engine evidence; the existing player patch stores resulting status.
+  injuries?: { playerId: string; days: number }[];
+  suspensions?: { playerId: string; matches: number }[];
 }
 
 interface SeasonFinaleState {
@@ -130,7 +134,9 @@ interface PersistedState {
 
 function resolveNeedleRisk(cur: PersistedState, playedIds: string[], worldSeed: number, playerOf: (id: string) => Player | null): { state: PersistedState; aggravated: string[] } {
   const approved = cur.riskPlayIds ?? [];
-  const played = approved.filter((id) => playedIds.includes(id));
+  // A stale approval in an old save is not an injection for a healed player.
+  // playerOf reflects the squad at match start, before the post-match day update.
+  const played = approved.filter((id) => playedIds.includes(id) && (playerOf(id)?.injuredDays ?? 0) > 0);
   const aggravated: string[] = [];
   const patch = { ...cur.playerPatch };
   const newInbox = [...cur.inbox];
@@ -336,6 +342,7 @@ export function GameProvider({ career: initialCareer, snapshot, initialUpdatedAt
   });
 
   const stateRef = useRef(st);
+  const lastQuickResultRef = useRef<{ seasonNo: number; id: string; result: DemoMatchResult } | null>(null);
   const clinicInFlightRef = useRef(new Set<string>()); // klinik çift tıklama kilidi
   // Serialise writes within this session; an import locks and drains the queue before replacing a slot.
   const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
@@ -386,9 +393,15 @@ export function GameProvider({ career: initialCareer, snapshot, initialUpdatedAt
   // - playerPatch: form/kondisyon/gelişim gibi dinamik alanların son hâli
   const squads = useMemo(() => {
     const merged: Record<string, Player[]> = {};
+    const withPatch = (base: Player) => {
+      const patch = st.playerPatch[base.id];
+      const player = patch ? { ...base, ...patch } : base;
+      // JSON omits `injury: undefined`. If a transferred or legacy base player
+      // was injured, do not resurrect that old diagnosis after they have healed.
+      return player.injuredDays <= 0 && player.injury ? { ...player, injury: undefined } : player;
+    };
     const push = (p0: Player) => {
-      const patch = st.playerPatch[p0.id];
-      const p = patch ? { ...p0, ...patch } : p0;
+      const p = withPatch(p0);
       if (st.removedPlayers.includes(p.id)) return;
       const cid = st.playerClub[p.id] ?? p.clubId;
       (merged[cid] ??= []).push({ ...p, clubId: cid });
@@ -399,8 +412,7 @@ export function GameProvider({ career: initialCareer, snapshot, initialUpdatedAt
     Object.entries(st.extraSquads).forEach(([cid, arr]) => {
       arr.forEach((p0) => {
         if (st.removedPlayers.includes(p0.id)) return;
-        const patch = st.playerPatch[p0.id];
-        const p = patch ? { ...p0, ...patch } : p0;
+        const p = withPatch(p0);
         // Migrated / academy players must follow the same transfer override as base squads.
         const targetClub = st.playerClub[p.id] ?? cid;
         (merged[targetClub] ??= []).push({ ...p, clubId: targetClub });
@@ -749,14 +761,19 @@ export function GameProvider({ career: initialCareer, snapshot, initialUpdatedAt
     const patch = { ...s.playerPatch };
     const rng = mulberry32(worldSeed + newDay * 313);
     const squad = squads[s.career.clubId] ?? [];
-    const playedSet = new Set<string>(); // maç günü ilk 18 varsayımı: form+sharpness ≥65 sıralı (demo)
+    const playedSet = new Set<string>();
     if (playedToday) {
-      [...squad]
-        .filter((p) => (patch[p.id]?.injuredDays ?? p.injuredDays) <= 0 && (patch[p.id]?.suspendedMatches ?? p.suspendedMatches) <= 0)
-        .sort((a, b) => ((patch[b.id]?.form ?? b.form) + (patch[b.id]?.fitness ?? b.fitness)) - ((patch[a.id]?.form ?? a.form) + (patch[a.id]?.fitness ?? a.fitness)))
-        .slice(0, 18).forEach((p) => playedSet.add(p.id));
-      // Gerçek maç raporundan oyuncu dakikası (özellikle iğneyle oynayan sakat) da yorgunluğa dahil.
-      (actualPlayedIds ?? []).forEach((id) => playedSet.add(id));
+      if (actualPlayedIds !== undefined) {
+        // The real report, including injury-approved players and substitutes, is
+        // authoritative. An unused substitute must not tire as if they played.
+        actualPlayedIds.forEach((id) => playedSet.add(id));
+      } else {
+        // Legacy match results without a player report keep the old approximation.
+        [...squad]
+          .filter((p) => (patch[p.id]?.injuredDays ?? p.injuredDays) <= 0 && (patch[p.id]?.suspendedMatches ?? p.suspendedMatches) <= 0)
+          .sort((a, b) => ((patch[b.id]?.form ?? b.form) + (patch[b.id]?.fitness ?? b.fitness)) - ((patch[a.id]?.form ?? a.form) + (patch[a.id]?.fitness ?? a.fitness)))
+          .slice(0, 18).forEach((p) => playedSet.add(p.id));
+      }
     }
     const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
     squad.forEach((p) => {
@@ -764,22 +781,26 @@ export function GameProvider({ career: initialCareer, snapshot, initialUpdatedAt
       const cur = patch[p.id] ? { ...p, ...patch[p.id] } : p;
       let { form, fitness, sharpness, injuredDays, suspendedMatches, ratings } = cur;
       let injury = cur.injury;
-      injuredDays = Math.max(0, injuredDays - 1);
-      if (injury) {
-        injury = { ...injury, daysRemaining: injuredDays };
-        const healthLvl2 = (s.career.clubFacilities?.health ?? clubById(s.career.clubId).facilities.health) || 2;
-        if (injuredDays > 0 && healthLvl2 >= 3 && injuredDays % 7 === 0 && rng() < (healthLvl2 - 2) * 0.33) {
-          injuredDays = Math.max(0, injuredDays - 1);          // sağlık tesisi 3+: erken iyileşme şansı
+      // Recovery is a calendar-day operation, not a second post-match day.
+      if (!playedToday) {
+        injuredDays = Math.max(0, injuredDays - 1);
+        if (injury) {
           injury = { ...injury, daysRemaining: injuredDays };
+          const healthLvl2 = (s.career.clubFacilities?.health ?? clubById(s.career.clubId).facilities.health) || 2;
+          if (injuredDays > 0 && healthLvl2 >= 3 && injuredDays % 7 === 0 && rng() < (healthLvl2 - 2) * 0.33) {
+            injuredDays = Math.max(0, injuredDays - 1); // sağlık tesisi 3+: erken iyileşme şansı
+            injury = { ...injury, daysRemaining: injuredDays };
+          }
+          if (injuredDays === 0) injury = undefined;
         }
-        if (injuredDays === 0) injury = undefined;             // iyileşti
       }
       if (playedToday && playedSet.has(p.id)) {
         fitness = clamp(fitness - (7 + Math.floor(rng() * 7)), 25, 100);      // maç yorgunluğu
         sharpness = clamp(sharpness + 6, 0, 100);
         form = clamp(form + Math.floor(rng() * 7) - 2, 20, 99);              // forma hafif yükseliş eğilimi
-        // Sarı kart cezası birikimi yok (demo) — %6 tek maç ceza
-        if (rng() < 0.06 && suspendedMatches === 0) suspendedMatches = 1;
+        // Previously a demo roll created and immediately erased a fictitious ban.
+        // Consume the historical roll so unrelated injury randomness stays stable.
+        rng();
         // Sakatlık riski (§10.7 injuryRate ayarı + yorgunluk)
         const injMul = s.career.settings.injuryRate === 'dusuk' ? 0.4 : s.career.settings.injuryRate === 'yuksek' ? 2 : 1;
         const healthLvl = (s.career.clubFacilities?.health ?? clubById(s.career.clubId).facilities.health) || 2;
@@ -789,15 +810,18 @@ export function GameProvider({ career: initialCareer, snapshot, initialUpdatedAt
           injuredDays = it.days[0] + Math.floor(rng() * (it.days[1] - it.days[0]));
           injury = { type: it.type, name: it.name, daysRemaining: injuredDays, severity: it.sev, canPlayWithRisk: it.risk };
         }
-        if (suspendedMatches > 0) suspendedMatches = Math.max(0, suspendedMatches - 1 / 3) | 0; // basit: maç sayar
-      } else {
-        fitness = clamp(fitness + 6, 0, 100);                                 // dinlenme
+      } else if (!playedToday) {
+        fitness = clamp(fitness + 6, 0, 100);                                 // takvim günü dinlenme
         sharpness = clamp(sharpness - 1.5, 0, 100);
         form = clamp(form + Math.floor(rng() * 5) - 2, 20, 99);
-        if (suspendedMatches > 0) suspendedMatches = suspendedMatches - 1;    // maçsız gün ceza işlemez — yalnız pazartesi haftalık düşüm
+      } else {
+        // The day was already recovered on advanceDay. Unused players do not
+        // receive a second rest, but a pre-existing ban is served by this match.
+        rng(); // retain the historical form roll for subsequent match players
+        if (suspendedMatches > 0) suspendedMatches = Math.max(0, suspendedMatches - 1);
       }
-      // v0.9.9 Ağabeylik: 29+ mentor atanmış u23 oyuncu günlük ritim/form desteği + seyrek GEN sıçraması
-      if (cur.mentorId && cur.age <= 23) {
+      // Mentoring is a daily activity and must not run twice on match day.
+      if (!playedToday && cur.mentorId && cur.age <= 23) {
         const mentor = squad.find((m) => m.id === cur.mentorId);
         if (mentor && mentor.age >= 29) {
           sharpness = clamp(sharpness + 0.5, 0, 100);
@@ -807,7 +831,9 @@ export function GameProvider({ career: initialCareer, snapshot, initialUpdatedAt
           }
         }
       }
-      patch[p.id] = { form: Math.round(form), fitness: Math.round(fitness), sharpness: Math.round(sharpness), injuredDays, injury, suspendedMatches: Math.max(0, Math.round(suspendedMatches)), ratings };
+      // Evolving fitness must not erase unrelated saved fields (wage, contract,
+      // mentor, age and career history are also stored in the same patch).
+      patch[p.id] = { ...(patch[p.id] ?? {}), form: Math.round(form), fitness: Math.round(fitness), sharpness: Math.round(sharpness), injuredDays, injury, suspendedMatches: Math.max(0, Math.round(suspendedMatches)), ratings };
     });
     return patch;
   }, [worldSeed, squads]);
@@ -1197,7 +1223,10 @@ export function GameProvider({ career: initialCareer, snapshot, initialUpdatedAt
     });
 
     // Aşama 2: dinamik durum evrimi (yeni gün; bugün maç oynandıysa kondisyon düşümü)
-    next = { ...next, playerPatch: evolvePlayers(next, next.career.day, null) };
+    const dailyPatch = evolvePlayers(next, next.career.day, null);
+    const dailySquad = (squads[next.career.clubId] ?? []).map((player) => ({ ...player, ...(dailyPatch[player.id] ?? {}) }));
+    // An approval belongs to this injury only, not a later unrelated injury.
+    next = { ...next, playerPatch: dailyPatch, ...(next.riskPlayIds ? { riskPlayIds: activeRiskPlayIds(next.riskPlayIds, dailySquad) } : {}) };
 
     // Aşama 2: teklif yaşam döngüsü — süresi dolanlar 'expired'
     const expired = next.incomingOffers.filter((o) => o.state === 'open' && o.expiresDay < next.career.day);
@@ -1229,7 +1258,8 @@ export function GameProvider({ career: initialCareer, snapshot, initialUpdatedAt
     if (weekdayOf(next.career.day) === 'Pazartesi' && !next.career.jobSearch) {
       const focus: TrainingFocus = next.career.trainingFocus ?? { area: 'Teknik', intensity: 'normal', sinceDay: 1 };
       const facs = next.career.clubFacilities ?? clubById(next.career.clubId).facilities;
-      const myTeam = squads[next.career.clubId] ?? [];
+      // Training follows the day's recovery, not yesterday's stale snapshot.
+      const myTeam = (squads[next.career.clubId] ?? []).map((player) => ({ ...player, ...(next.playerPatch[player.id] ?? {}) }));
       const tr = applyTrainingWeek(myTeam, focus, facs.training ?? 2, next.career.seed, next.career.day);
       const patchAcc = { ...next.playerPatch };
       for (const [pid, pp] of Object.entries(tr.patches)) patchAcc[pid] = { ...(patchAcc[pid] ?? {}), ...pp };
@@ -1373,12 +1403,21 @@ export function GameProvider({ career: initialCareer, snapshot, initialUpdatedAt
 
   const playLeagueMatch = useCallback((fx: DemoFixture, overrideResult?: DemoMatchResult, tacticIdx = 0, interview?: InterviewOption, live?: { managerCards: number; managerSuspendedAtStart: boolean }): DemoMatchResult => {
     // P0 (SPEC Böl.I/1): canlı maçtan gelen sonuç varsa DIRECT kullan — aksi halde bağımsız re-simülasyon skoru çöpe atardı
-    const res = overrideResult ?? buildDemoMatch(fx.homeId, fx.awayId, stateRef.current.tactics[tacticIdx]?.name ?? stateRef.current.tactics[0]?.name ?? 'Ana Plan', tacticIdx);
     const s = stateRef.current;
-    if (live && (!s.liveMatchCheckpoint || s.liveMatchCheckpoint.fixture.day !== fx.day || s.liveMatchCheckpoint.fixture.homeId !== fx.homeId || s.liveMatchCheckpoint.fixture.awayId !== fx.awayId)) return res;
     if (!live && s.liveMatchCheckpoint) throw new Error('Devam eden canlı maç tamamlanmadan yeni maç başlatılamaz.');
+    const reportId = `report-${fx.comp}-${fx.day}-${fx.homeId}-${fx.awayId}`;
+    const alreadyCommitted = !live && (s.matchReports ?? []).some((report) => report.id === reportId && report.seasonNo === s.seasonNo);
+    // Double activation of the quick-result button must not add fatigue, stats or
+    // board effects twice. Prefer the exact result already displayed this session.
+    const last = lastQuickResultRef.current;
+    if (alreadyCommitted && last?.id === reportId && last.seasonNo === s.seasonNo) return last.result;
+    const res = overrideResult ?? buildDemoMatch(fx.homeId, fx.awayId, s.tactics[tacticIdx]?.name ?? s.tactics[0]?.name ?? 'Ana Plan', tacticIdx);
+    if (alreadyCommitted || (live && (!s.liveMatchCheckpoint || s.liveMatchCheckpoint.fixture.day !== fx.day || s.liveMatchCheckpoint.fixture.homeId !== fx.homeId || s.liveMatchCheckpoint.fixture.awayId !== fx.awayId))) return res;
     {
       let next = finishUserFixture(s, fx, res.hg, res.ag, res.xgHome, res.xgAway);
+      // Discard stale approvals at kickoff, before a new match injury could make
+      // an old approval seem applicable again. Replay input remains untouched.
+      if (s.riskPlayIds) next = { ...next, riskPlayIds: activeRiskPlayIds(s.riskPlayIds, squads[s.career.clubId] ?? []) };
       // Wave 13: exact engine/player-row evidence is now read from the adapter's public projection (legacy nested result remains supported).
       const engineRows = (res as unknown as { engine?: { playerRows: Record<string, { min: number; g: number; a: number; yellow: number; red: number; rating: number; conceded?: number; saves?: number; posGroup?: string }> } }).engine?.playerRows
         ?? res.playerRows;
@@ -1396,7 +1435,7 @@ export function GameProvider({ career: initialCareer, snapshot, initialUpdatedAt
         min: row.min, g: row.g, a: row.a, yellow: row.yellow, red: row.red, rating: row.rating, posGroup: row.posGroup ?? '',
       }]));
       const matchReport: MatchArchiveEntry = {
-        id: `report-${fx.comp}-${fx.day}-${fx.homeId}-${fx.awayId}`, day: s.career.day, seasonNo: s.seasonNo, comp: fx.comp,
+        id: reportId, day: s.career.day, seasonNo: s.seasonNo, comp: fx.comp,
         homeId: fx.homeId, awayId: fx.awayId, hg: res.hg, ag: res.ag, xgHome: res.xgHome, xgAway: res.xgAway,
         foulsHome: res.foulsH, foulsAway: res.foulsA, yellowsHome: res.yellowH, yellowsAway: res.yellowA, redsHome: res.redH, redsAway: res.redA,
         ...(res.referee ? { referee: res.referee } : {}), playerRows, playerClubIds,
@@ -1408,13 +1447,22 @@ export function GameProvider({ career: initialCareer, snapshot, initialUpdatedAt
         // C2: sıkıştırılmış dakikalı olaylar (gol/kart/değişiklik)
         events: compactMatchEvents(res.events ?? []),
       };
-      next = { ...next, matchReports: [matchReport, ...(next.matchReports ?? []).filter((report) => report.id !== matchReport.id)].slice(0, 256) };
+      // Fixture IDs repeat in later seasons. Keep older-season reports rather
+      // than deleting a real match that happened on the same calendar day.
+      next = { ...next, matchReports: [matchReport, ...(next.matchReports ?? []).filter((report) => report.id !== reportId || report.seasonNo !== s.seasonNo)].slice(0, 256) };
       // Dalga 2: maçta kullanılan planın taktiksel uyum sayacı (formasyon değiştiyse sayaç 1'e döner)
       const usedPlanIdx = Math.max(0, Math.min(tacticIdx ?? 0, next.tactics.length - 1));
       next = { ...next, tactics: next.tactics.map((t, i) => (i === usedPlanIdx ? { ...t, ...bumpFamiliarity(t) } : t)) };
       // Aşama 2: maç günü yorgunluk/sakatlık evrimi; gerçek dakikalar iğneyle oynayanları da kapsar.
       const actualPlayedIds = engineRows ? Object.entries(engineRows).filter(([, r]) => r.min > 0).map(([id]) => id) : undefined;
       next = { ...next, playerPatch: evolvePlayers(next, s.career.day, s.career.clubId, actualPlayedIds) };
+      // Older quick-result projections exposed these only in the nested engine.
+      const oldEngine = (res as unknown as { engine?: { injuries?: DemoMatchResult['injuries']; suspensions?: DemoMatchResult['suspensions'] } }).engine;
+      const health = applyMatchHealthEvidence(squads[s.career.clubId] ?? [], next.playerPatch, {
+        events: res.events, injuries: res.injuries ?? oldEngine?.injuries, suspensions: res.suspensions ?? oldEngine?.suspensions,
+      });
+      next = { ...next, playerPatch: health.patches };
+      if (health.notes.length) next = { ...next, inbox: [{ id: `health-${fx.comp}-${fx.day}-${fx.homeId}-${fx.awayId}`, kind: 'kadro', title: 'Maç sonrası sağlık ve ceza raporu', body: health.notes.join(' · '), day: s.career.day, read: false }, ...next.inbox] };
       // Maç sonu otomatik kayıt (§3.3)
       next = { ...next, inbox: [{ id: `ms-${fx.day}-${fx.homeId}`, kind: 'lig', title: `Maç sonucu: ${clubById(fx.homeId).short} ${res.hg}–${res.ag} ${clubById(fx.awayId).short}`, body: `xG ${res.xgHome.toFixed(2)}–${res.xgAway.toFixed(2)} · topa sahip olma ${res.posHome}% . ${res.insights[0]} Maç raporu arşive işlendi.`, day: s.career.day, read: false }, ...next.inbox] };
       // Sistem B — Yönetim Güveni (başl. 70): sonuca göre güncelle, ültimatom eşikleri
@@ -1520,6 +1568,7 @@ export function GameProvider({ career: initialCareer, snapshot, initialUpdatedAt
         delete next.liveMatchCheckpoint;
       }
       stateRef.current = next;
+      if (!live) lastQuickResultRef.current = { seasonNo: s.seasonNo, id: reportId, result: res };
       setSt(next);
     }
     setTimeout(() => { void saveNow(); }, 200);
@@ -1776,6 +1825,7 @@ export function GameProvider({ career: initialCareer, snapshot, initialUpdatedAt
     setSt((cur) => ({
       ...cur,
       playerPatch: { ...cur.playerPatch, [playerId]: { ...(cur.playerPatch[playerId] ?? {}), injuredDays: newDays, injury: newDays > 0 ? { ...(cur.playerPatch[playerId]?.injury ?? p.injury!), daysRemaining: newDays, clinicUsed: true } : undefined } },
+      ...(newDays === 0 && cur.riskPlayIds ? { riskPlayIds: cur.riskPlayIds.filter((id) => id !== playerId) } : {}),
       budget: { ...cur.budget, tb: Math.round((cur.budget.tb - CLINIC_COST_M) * 100) / 100 },
       inbox: [{ id: `clin-${playerId}-${cur.career.day}`, kind: 'kadro', title: `Avrupa Kliniği: ${p.name}`, body: `${p.name}, özel kliniğe sevk edildi — tedavi süresi 14 gün kısaldı (kalan ≈${newDays} gün). Maliyet kasadan karşılandı: ₺0,3M.`, day: cur.career.day, read: false }, ...cur.inbox],
     }));
@@ -1787,7 +1837,7 @@ export function GameProvider({ career: initialCareer, snapshot, initialUpdatedAt
   const setRiskPlay = useCallback((playerId: string, on: boolean) => {
     if (on) {
       const p = playerOf(playerId);
-      if (!p || p.clubId !== stateRef.current.career.clubId || !p.injury?.canPlayWithRisk) return;
+      if (!p || p.clubId !== stateRef.current.career.clubId || p.injuredDays <= 0 || !p.injury?.canPlayWithRisk) return;
     }
     setSt((cur) => {
       const cur0 = cur.riskPlayIds ?? [];
@@ -2048,6 +2098,9 @@ export function GameProvider({ career: initialCareer, snapshot, initialUpdatedAt
 
   const value: GameState & GameActions = {
     ...st,
+    // Presentation and lineup pickers must agree with the engine boundary even
+    // when opening an older save with stale injury approvals.
+    riskPlayIds: st.riskPlayIds ? activeRiskPlayIds(st.riskPlayIds, mySquad) : st.riskPlayIds,
     myClub, myLeague, mySquad, squads, nextFixture, unread,
     effectiveStrength, boardBudgetRequest, saveNow, saveError, snapshotForBackup, restoreBackup,
     advanceDay, buildDemoMatch, playLeagueMatch, saveLiveCheckpoint, discardLiveCheckpoint, updateTactic, setInbox, setCareer, updateMarketShortlist, recordManagerYellow, consumeManagerSuspension, setBudget, requestBoardBudget, addSquadPlayer, clearSeasonFinale,

@@ -64,6 +64,33 @@ function Shell() {
       }
       throw new Error(`No real ${kind} found`);
     },
+    // Search a completed, genuine match and open its normal report from a
+    // production checkpoint; used to test the actual live-result projection.
+    seedFinishedHealth: async (kind: 'injury' | 'card') => {
+      const fixture = g.nextFixture;
+      if (!fixture || fixture.day !== g.career.day) throw new Error('No match today');
+      const home = clubById(fixture.homeId), away = clubById(fixture.awayId);
+      const side = fixture.homeId === g.career.clubId ? 'home' : 'away';
+      const own = new Set(g.mySquad.map((player) => player.id));
+      for (let seed = 45500; seed < 49500; seed++) {
+        const session = new MatchSession(buildEngineInput({ homeClub: home, awayClub: away,
+          homeSquad: g.squads[home.id], awaySquad: g.squads[away.id],
+          homeTactic: side === 'home' ? g.tactics[0] : aiDefaultTactic(home, away), awayTactic: side === 'away' ? g.tactics[0] : undefined,
+          seed, settings: g.career.settings, userSide: side, challengeClubId: g.career.clubId, riskIds: g.riskPlayIds ?? [] }));
+        const result = session.finishNow();
+        const injuries = result.injuries.filter((row) => own.has(row.playerId));
+        const suspensions = result.suspensions.filter((row) => own.has(row.playerId));
+        if (kind === 'injury' ? !injuries.length : !suspensions.length) continue;
+        const view: LiveMatchViewState = { events: matchEventsToDemo(result.events), speed: 'x4', paused: true, activeTab: 'pitch', pitchView: 'pitch', heatEnabled: false, heatTeam: 'all', heatSamples: [],
+          showTouchline: false, showTeamTalk: false, teamTalkPromptShown: true, crowdShoutUsed: false,
+          decision: null, lastDecisionShown: '', showSubPicker: false, showTacticPicker: false,
+          coachFired: [], phase: 'report', interviewChoice: null, managerSuspendedAtStart: false, managerCards: 0 };
+        const cp = makeLiveCheckpoint(session, fixture, g.seasonNo, 0, view);
+        if (!await g.saveLiveCheckpoint(cp)) throw new Error('Could not save finished match');
+        return { seed, injuries, suspensions, matchId: cp.input.matchId };
+      }
+      throw new Error(`No real ${kind} found`);
+    },
     exportRoundTrip: async () => {
       const existing = await readSave(g.career.slot);
       if (!existing) throw new Error('No saved slot');

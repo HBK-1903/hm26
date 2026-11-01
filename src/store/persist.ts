@@ -165,14 +165,17 @@ export async function readSave(slot: number): Promise<{ meta: SaveMeta; blob: Sa
     const tx = (db as IDBDatabase).transaction('saves', 'readonly');
     const req = tx.objectStore('saves').get(slot);
     req.onsuccess = () => {
-      const r = req.result;
-      if (!r) return resolve(null);
-      // Sürüm kontrol (§3.3): bilinmeyen sürümü reddetmek yerine migrasyon denemesi
-      const blob = r.blob as SaveBlob;
-      if (typeof blob.version === 'number' && blob.version > SAVE_VERSION) return reject(new Error('Bu kayıt daha yeni bir sürümdeyken oluşturulmuş.'));
-      resolve({ meta: displayMeta(r.meta, blob), blob: migrateBlob(blob) });
+      try {
+        const r = req.result;
+        if (!r) return resolve(null);
+        // Sürüm kontrol (§3.3): bilinmeyen sürümü reddetmek yerine migrasyon denemesi
+        const blob = r.blob as SaveBlob | undefined;
+        if (typeof blob?.version === 'number' && blob.version > SAVE_VERSION) return reject(new Error('Bu kayıt daha yeni bir sürümdeyken oluşturulmuş.'));
+        if (!blob?.career || blob.career.slot !== slot || !r.meta || r.meta.slot !== slot) return reject(new Error('Kayıt verisi eksik veya bozuk; yuva değiştirilmedi.'));
+        resolve({ meta: displayMeta(r.meta, blob), blob: migrateBlob(blob) });
+      } catch (error) { reject(error); }
     };
-    req.onerror = () => reject(req.error);
+    req.onerror = () => reject(req.error ?? new Error('Kayıt okunamadı.'));
   });
 }
 
@@ -198,37 +201,61 @@ export async function listSaves(): Promise<SaveMeta[]> {
   return new Promise((resolve, reject) => {
     const tx = (db as IDBDatabase).transaction('saves', 'readonly');
     const req = tx.objectStore('saves').getAll();
-    req.onsuccess = () => resolve((req.result as { meta: SaveMeta; blob: SaveBlob }[])
-      .map(({ meta, blob }) => displayMeta(meta, blob))
-      .sort((a, b) => a.slot - b.slot));
-    req.onerror = () => reject(req.error);
+    req.onsuccess = () => {
+      try {
+        resolve((req.result as { slot: number; meta: SaveMeta; blob: SaveBlob }[])
+          .map(({ slot, meta, blob }) => {
+            if (!meta || !blob || !Number.isInteger(meta.slot) || meta.slot < 1 || meta.slot > 3 || slot !== meta.slot ||
+                (blob.career?.slot !== undefined && blob.career.slot !== slot) ||
+                ['clubId', 'clubName', 'managerName', 'eraName', 'season'].some((key) => {
+                  const value = (meta as unknown as Record<string, unknown>)[key];
+                  return value != null && typeof value !== 'string';
+                })) throw new Error('Kayıt listesi okunamadı.');
+            return displayMeta(meta, blob);
+          })
+          .sort((a, b) => a.slot - b.slot));
+      } catch (error) { reject(error); }
+    };
+    req.onerror = () => reject(req.error ?? new Error('Kayıtlar okunamadı.'));
   });
 }
 
-export async function deleteSave(slot: number): Promise<void> {
+export async function deleteSave(slot: number, expectedUpdatedAt?: number | null): Promise<void> {
   const db = await openDB();
   return new Promise((resolve, reject) => {
-    // v0.9.4: silinen yuva son aktif kayıttıysa lastActive meta'sı da temizlenir (splash "Devam Et" hayaleti kalmasın)
+    // Compare the displayed revision in the same transaction as deletion; a
+    // second tab may have replaced or updated this career since confirmation.
     const tx = (db as IDBDatabase).transaction(['saves', 'meta'], 'readwrite');
-    tx.objectStore('saves').delete(slot);
-    const la = tx.objectStore('meta').get('lastActive');
-    la.onsuccess = () => {
-      if ((la.result as { lastSlot?: number } | undefined)?.lastSlot === slot) {
-        tx.objectStore('meta').delete('lastActive');
+    const saves = tx.objectStore('saves');
+    let conflict: SaveConflictError | null = null;
+    const get = saves.get(slot);
+    get.onsuccess = () => {
+      const revision = get.result?.meta?.updatedAt;
+      const currentRevision = typeof revision === 'number' && Number.isFinite(revision) ? revision : null;
+      if (expectedUpdatedAt !== undefined && (!get.result || currentRevision !== expectedUpdatedAt)) {
+        conflict = new SaveConflictError();
+        tx.abort();
+        return;
       }
+      saves.delete(slot);
+      const la = tx.objectStore('meta').get('lastActive');
+      la.onsuccess = () => {
+        if ((la.result as { lastSlot?: number } | undefined)?.lastSlot === slot) tx.objectStore('meta').delete('lastActive');
+      };
     };
     tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
+    tx.onerror = () => reject(conflict ?? tx.error ?? new Error('Kayıt silinemedi.'));
+    tx.onabort = () => reject(conflict ?? tx.error ?? new Error('Silme işlemi iptal edildi.'));
   });
 }
 
 export async function lastActiveSlot(): Promise<number | null> {
   const db = await openDB();
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const tx = (db as IDBDatabase).transaction('meta', 'readonly');
     const req = tx.objectStore('meta').get('lastActive');
     req.onsuccess = () => resolve(req.result?.lastSlot ?? null);
-    req.onerror = () => resolve(null);
+    req.onerror = () => reject(req.error ?? new Error('Son kariyer okunamadı.'));
   });
 }
 

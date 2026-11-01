@@ -7,6 +7,7 @@ import { GameIcon, ICONS } from '../components/icons';
 import { PlayerPortrait } from '../components/assets/Portrait';
 import { ComparisonDesk } from '../components/players/ComparisonDesk';
 import { autoLineup, FORMATION_SLOTS } from '../engine/profiles';
+import { clinicRemainingDays } from '../engine/medical';
 import { boardToEngine, engineToBoard } from '../engine/lineupOrder';
 import { Crest } from '../components/assets/Crest';
 import { clubById } from '../data/clubs';
@@ -32,7 +33,7 @@ export const SquadScreen: React.FC<{ goXI: (p: Player) => void }> = ({ goXI }) =
   const [compare, setCompare] = useState<Player | 'empty' | null>(null);
   const [mentorSel, setMentorSel] = useState('');
   const [full, setFull] = useState<Player | null>(null);
-  const fullTrapRef = useFocusTrap<HTMLDivElement>(!!full);
+  const fullTrapRef = useFocusTrap<HTMLDivElement>(!!full, { lockBody: true, onEscape: () => setFull(null) });
   const { show, ToastView } = useToast();
   const ratings = useMemo(() => seasonRatings(g.playerStats ?? {}, g.matchReports ?? [], g.seasonNo), [g.playerStats, g.matchReports, g.seasonNo]);
   // Old saves can contain the same player ID in both the base and extra squad.
@@ -348,9 +349,9 @@ export const SquadScreen: React.FC<{ goXI: (p: Player) => void }> = ({ goXI }) =
                     onClick={() => {
                       const r = g.clinicTreat(full.id);
                       if (r.ok) {
-                        const nd = Math.max(1, full.injuredDays - 14);
-                        setFull({ ...full, injuredDays: nd, injury: { ...full.injury!, daysRemaining: nd, clinicUsed: true } });
-                        show(`🏥 ${full.name} Avrupa Kliniği'ne sevk edildi — süre 14 gün kısaldı (kalan ${nd}g)`, 'ok');
+                        const nd = clinicRemainingDays(full.injuredDays);
+                        setFull({ ...full, injuredDays: nd, injury: nd > 0 ? { ...full.injury!, daysRemaining: nd, clinicUsed: true } : undefined });
+                        show(nd > 0 ? `🏥 ${full.name} Avrupa Kliniği'ne sevk edildi — kalan ${nd} gün` : `🏥 ${full.name} tedaviyle iyileşti.`, 'ok');
                       } else show(r.reason ?? 'Sevk yapılamadı', 'warn');
                     }}>
                     🏥 Avrupa Kliniğine Sevk Et {full.injury.clinicUsed ? '— kullanıldı' : '— ₺300.000 · 14g kısaltır'}

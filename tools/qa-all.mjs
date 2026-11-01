@@ -52,6 +52,7 @@ try {
   run('PWA headers, manifest, icons and update lifecycle', 'npm', ['run', 'qa:pwa'], 120_000);
   run('Content-derived service-worker build identity', 'npm', ['run', 'qa:sw-manifest'], 60_000);
   run('Save integrity, legacy migration and transaction conflicts (jsdom)', 'npm', ['run', 'qa:save-integrity'], 120_000);
+  run('Career continuity, recovery, training and match health (jsdom)', 'npm', ['run', 'qa:career-continuity'], 180_000);
   run('Project-local security skill installation checks (not an audit)', 'npm', ['run', 'qa:security-skill'], 60_000);
   run('Agency development role installation checks (not independent agents)', 'npm', ['run', 'qa:agency-roles'], 60_000);
 
@@ -158,8 +159,12 @@ try {
       ['Full tactical roster, league names and ratings E2E (320px and 390px)', 'tools/e2e-roster-league.mjs'],
       ['Bench, global market and complete records E2E (320px and 390px)', 'tools/e2e-new-features.mjs'],
       ['Live-match resume, decisions, backup and failure E2E', 'tools/e2e-live-resume.mjs'],
+      ['Live-match recorded injuries and red-card health E2E', 'tools/e2e-live-health.mjs'],
+      ['Multi-season archive and newsroom E2E (320px and 390px)', 'tools/e2e-season-archive.mjs'],
+      ['Stacked dialogs, focus, pause and clinic E2E (320px and 390px)', 'tools/e2e-layered-dialogs.mjs'],
       ['Production service worker offline live-match resume E2E', 'tools/e2e-offline-live.mjs'],
       ['Save-slot delete flow E2E', 'tools/e2e-slots.mjs'],
+      ['Unreadable save slots, retry and stale-delete E2E (320px and 390px)', 'tools/e2e-slot-failures.mjs'],
       ['Backup, storage failure, legacy migration and stale-tab E2E (390px)', 'tools/e2e-save-integrity.mjs'],
       ['Backup, storage failure, legacy migration and stale-tab E2E (320px)', 'tools/e2e-save-integrity.mjs', { HM26_VIEWPORT_WIDTH: '320' }],
       ['Board budget approval and reload on migrated career E2E (390px)', 'tools/e2e-board-budget.mjs'],

@@ -56,6 +56,9 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; che
   const [tick, setTick] = useState(0);
   const [speed, setSpeed] = useState<PresentationSpeed>(savedView?.speed ?? 'x2');
   const [paused, setPaused] = useState(savedView?.paused ?? false);
+  // Picker-induced pauses must not undo an explicit pause. If a checkpoint
+  // reopens an already-visible picker, keep its saved paused state safely.
+  const pausedBeforePicker = useRef(savedView?.paused ?? false);
   const [activeTab, setActiveTab] = useState<ConsoleTab>(savedView?.activeTab ?? 'pitch');
   const [pitchView, setPitchView] = useState<'pitch' | 'atmosphere'>(savedView?.pitchView ?? 'pitch');
   const [reaction, setReaction] = useState<{ cue: LiveReaction; sequence: number } | null>(null);
@@ -256,6 +259,8 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; che
     pressWinsH: rr.stats.pressWinsH, pressWinsA: rr.stats.pressWinsA,
     shotsLog: rr.shotsLog.map((s) => { const z = ZONES[s.zone] ?? ZONES['C-M']; return s.side === 'home' ? { minute: s.minute, side: s.side, x: z.x, y: z.y, xg: s.xg, outcome: s.outcome } : { minute: s.minute, side: s.side, x: 100 - z.x, y: 96 - z.y, xg: s.xg, outcome: s.outcome }; }),
     playerRows: JSON.parse(JSON.stringify(rr.stats.playerRows)),
+    injuries: rr.injuries.map((injury) => ({ ...injury })),
+    suspensions: rr.suspensions.map((suspension) => ({ ...suspension })),
     ...(rr.referee ? { referee: { label: rr.referee.label, strictness: rr.referee.strictness } } : {}),
   });
   const finalizeFromSession = () => setFinResult(buildFinResult(session.toResult()));
@@ -500,10 +505,10 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; che
   const tiredAny = !done && clockMinute >= 60 && session.getSlots(mySide).some((s) => s.slotGroup !== 'GK' && s.liveFitness < 62);
   const Controls = (
     <div className="flex flex-col gap-1.5">
-      {tiredAny && session.subsLeft(mySide) > 0 && session.windowsLeft(mySide) > 0 && <button onClick={() => { setPaused(true); setShowSubPicker(true); }} className="w-full min-h-[44px] bg-[#523f1e] border border-[#d3a64b] text-[#f7d782] rounded-xl px-3 text-[11.5px] font-bold text-left">⚠ Kondisyon düşük (dk {clockMinute}) — akıllı değişiklik önerisi</button>}
+      {tiredAny && session.subsLeft(mySide) > 0 && session.windowsLeft(mySide) > 0 && <button onClick={() => { pausedBeforePicker.current = paused; setPaused(true); setShowSubPicker(true); }} className="w-full min-h-[44px] bg-[#523f1e] border border-[#d3a64b] text-[#f7d782] rounded-xl px-3 text-[11.5px] font-bold text-left">⚠ Kondisyon düşük (dk {clockMinute}) — akıllı değişiklik önerisi</button>}
       <div className="grid grid-cols-2 gap-1.5">
-        <Btn variant="secondary" className="!min-h-[44px] !px-2 !text-[11px]" onClick={() => { setPaused(true); setShowSubPicker(true); }} disabled={done || session.subsLeft(mySide) <= 0 || session.windowsLeft(mySide) <= 0} aria-label="Oyuncu değişikliği">⇄ Değişiklik · {session.subsLeft(mySide)} hak</Btn>
-        <Btn variant="secondary" className="!min-h-[44px] !px-2 !text-[11px]" onClick={() => { setPaused(true); setShowTacticPicker(true); }} disabled={done}>Plan değiştir</Btn>
+        <Btn variant="secondary" className="!min-h-[44px] !px-2 !text-[11px]" onClick={() => { pausedBeforePicker.current = paused; setPaused(true); setShowSubPicker(true); }} disabled={done || session.subsLeft(mySide) <= 0 || session.windowsLeft(mySide) <= 0} aria-label="Oyuncu değişikliği">⇄ Değişiklik · {session.subsLeft(mySide)} hak</Btn>
+        <Btn variant="secondary" className="!min-h-[44px] !px-2 !text-[11px]" onClick={() => { pausedBeforePicker.current = paused; setPaused(true); setShowTacticPicker(true); }} disabled={done}>Plan değiştir</Btn>
       </div>
       <div className="grid grid-cols-2 gap-1.5">
         <button onClick={() => triggerShout('pump')} disabled={done || managerSuspendedAtStart || touchline.pumpCooldown > 0} className="min-h-[44px] rounded-xl border border-[#9e6b2b] bg-[#463519] text-[#ffe09b] text-[10px] font-bold disabled:opacity-45" aria-label="Yüksek pres talimatı">⚡ {touchline.pumpActive ? `Yüksek pres ${touchline.pumpRemaining}′` : 'Yüklenin'}{touchline.pumpCooldown > 0 ? ` · ${touchline.pumpCooldown}′` : ' · 15′'}</button>
@@ -550,7 +555,8 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; che
     const accepted = session.queueSub(mySide, outId, inId);
     if (accepted) {
       setEventsShown((ev) => [...ev, { minute: session.getMinute(), side: mySide, kind: 'sub', text: 'Değişiklik sıraya alındı; motor uygun ilk durakta uygulayacak.' }]);
-      setActiveTab('pitch'); setPaused(false); setTick((v) => v + 1);
+      // Inline substitutions should not restart a match the user paused.
+      setActiveTab('pitch'); setTick((v) => v + 1);
     } else {
       setEventsShown((ev) => [...ev, { minute: session.getMinute(), side: mySide, kind: 'info', text: 'Değişiklik alınamadı: hak, durak veya oyuncu uygunluğunu kontrol et.' }]);
     }
@@ -739,21 +745,21 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; che
         </div>
       </Sheet>
       {/* Maç sonu: mevcut rapor ve sonuç akışı */}
-      <Sheet open={showTacticPicker} onClose={() => { setShowTacticPicker(false); setPaused(false); }} title="Plan Geçişi">
+      <Sheet open={showTacticPicker} onClose={() => { setShowTacticPicker(false); setPaused(pausedBeforePicker.current); }} title="Plan Geçişi">
         <div className="m26-in space-y-2">
-          {g.tactics.map((t) => <button key={t.id} onClick={() => { session.queueTactic(mySide, t); setShowTacticPicker(false); setShowTouchline(false); setPaused(false); setTick((v) => v + 1); }} className="w-full text-left rounded-xl bg-surface border border-line p-3 min-h-[48px] hover:border-amber/50 transition-colors"><div className="text-primary font-bold text-[13px]">{t.name}</div><div className="text-muted text-[11px] mt-0.5">{t.formation} · {t.plan} · Pres {t.press}</div></button>)}
-          <Btn variant="secondary" className="w-full" onClick={() => { setShowTacticPicker(false); setPaused(false); }}>Devam Et</Btn>
+          {g.tactics.map((t) => <button key={t.id} onClick={() => { session.queueTactic(mySide, t); setShowTacticPicker(false); setShowTouchline(false); setPaused(pausedBeforePicker.current); setTick((v) => v + 1); }} className="w-full text-left rounded-xl bg-surface border border-line p-3 min-h-[48px] hover:border-amber/50 transition-colors"><div className="text-primary font-bold text-[13px]">{t.name}</div><div className="text-muted text-[11px] mt-0.5">{t.formation} · {t.plan} · Pres {t.press}</div></button>)}
+          <Btn variant="secondary" className="w-full" onClick={() => { setShowTacticPicker(false); setPaused(pausedBeforePicker.current); }}>Devam Et</Btn>
         </div>
       </Sheet>
-      <Sheet open={showSubPicker} onClose={() => { setShowSubPicker(false); setPaused(false); }} title="Oyuncu Değişikliği">
+      <Sheet open={showSubPicker} onClose={() => { setShowSubPicker(false); setPaused(pausedBeforePicker.current); }} title="Oyuncu Değişikliği">
         <SubPickerFlow slots={session.getSlots(mySide)} bench={session.getBench(mySide)} subsLeft={session.subsLeft(mySide)} windowsLeft={session.windowsLeft(mySide)} playerRows={liveStats.playerRows} onConfirm={(outId, inId) => {
           const ok = session.queueSub(mySide, outId, inId);
           setShowSubPicker(false);
           if (!ok) {
             const notice: DemoMatchEvent = { minute: session.getMinute(), text: 'Değişiklik uygun değil (hak bitti veya maç sonu)', kind: 'info' };
             setEventsShown((events) => [...events, notice]); setDecision(notice); setPaused(true);
-          } else { setPaused(false); setTick((v) => v + 1); }
-        }} onCancel={() => { setShowSubPicker(false); setPaused(false); }} />
+          } else { setPaused(pausedBeforePicker.current); setTick((v) => v + 1); }
+        }} onCancel={() => { setShowSubPicker(false); setPaused(pausedBeforePicker.current); }} />
       </Sheet>
       <Sheet open={!!decision} onClose={() => { if (decision?.kind === 'injury') waitForInjuryReturn(); else { setDecision(null); setPaused(false); } }} title={decision?.kind === 'injury' ? 'Sakatlık Kararı' : decision?.kind === 'var' ? 'VAR İncelemesi' : 'Karar Anı'}>
         {decision && <div className={reducedMotion ? '' : 'm26-in'}>
@@ -763,9 +769,9 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; che
           </div>
           {decision.kind === 'injury' ? <div className="grid grid-cols-1 gap-2 mt-3">
             <Btn variant="amber" disabled={!decision.playerId} onClick={waitForInjuryReturn}>⏱ Dönüşünü bekle · 2′ 10 kişi</Btn>
-            <Btn variant="secondary" disabled={session.subsLeft(mySide) <= 0 || session.windowsLeft(mySide) <= 0} onClick={() => { setDecision(null); setShowSubPicker(true); }}>Oyuncuyu hemen değiştir · {session.subsLeft(mySide)} hak</Btn>
+            <Btn variant="secondary" disabled={session.subsLeft(mySide) <= 0 || session.windowsLeft(mySide) <= 0} onClick={() => { setDecision(null); pausedBeforePicker.current = false; setShowSubPicker(true); }}>Oyuncuyu hemen değiştir · {session.subsLeft(mySide)} hak</Btn>
           </div> : <div className="grid grid-cols-2 gap-2 mt-4">
-            <Btn variant="secondary" onClick={() => { setDecision(null); setShowSubPicker(true); }}>Oyuncu Değişikliği ({session.subsLeft(mySide)}/5)</Btn>
+            <Btn variant="secondary" onClick={() => { setDecision(null); pausedBeforePicker.current = false; setShowSubPicker(true); }}>Oyuncu Değişikliği ({session.subsLeft(mySide)}/5)</Btn>
             <Btn variant="amber" onClick={() => { setDecision(null); setPaused(false); }}>Devam Et</Btn>
           </div>}
         </div>}

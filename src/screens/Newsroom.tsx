@@ -70,7 +70,7 @@ export const NewsroomScreen: React.FC<{ initialTab?: 'headlines' | 'weekly' }> =
   const pressProfile = useMemo(() => buildPressProfile(g.inbox), [g.inbox]);
   const pulse = useMemo(() => leaguePulse(g.table[g.myLeague] ?? [], CLUBS), [g.table, g.myLeague]);
   const fromDay = Math.max(1, g.career.day - 6);
-  const teamOfWeek = useMemo(() => selectTeamOfWeek(g.matchReports ?? [], fromDay, g.career.day, (id) => g.playerOf(id)), [g.matchReports, fromDay, g.career.day, g.playerOf]);
+  const teamOfWeek = useMemo(() => selectTeamOfWeek(g.matchReports ?? [], fromDay, g.career.day, (id) => g.playerOf(id), g.seasonNo), [g.matchReports, fromDay, g.career.day, g.playerOf, g.seasonNo]);
   const refereeReports = useMemo(() => refereeReportEntries(g.matchReports ?? []), [g.matchReports]);
   // v4: xPTS–gerçek puan farkından lig şans/fırsat özeti
   const luckRows = useMemo(
@@ -114,10 +114,10 @@ export const NewsroomScreen: React.FC<{ initialTab?: 'headlines' | 'weekly' }> =
                   {matchNews.map((item) => {
                     const tag = NEWS_TAG_STYLE[item.tag];
                     return (
-                      <div key={item.id} data-testid="match-news-item" data-news-tag={item.tag} className="px-4 py-2.5 border-b border-line/40 last:border-0">
+                      <div key={`${item.seasonNo ?? 'unknown'}-${item.id}`} data-testid="match-news-item" data-news-tag={item.tag} className="px-4 py-2.5 border-b border-line/40 last:border-0">
                         <div className="flex items-center justify-between gap-2">
                           <span className={`text-[9.5px] font-black border rounded-md px-1.5 py-0.5 ${tag.cls}`}>{tag.label}</span>
-                          <span className="text-muted text-[11px] num">{item.comp} · Gün {item.day}</span>
+                          <span className="text-muted text-[11px] num">{item.comp} · {item.seasonNo ? `S${item.seasonNo} · ` : ''}Gün {item.day}</span>
                         </div>
                         <div className="font-display text-primary text-[15px] font-bold mt-1.5">{item.title}</div>
                         <div className="text-secondary text-[12px] mt-0.5 leading-snug">{item.detail}</div>
@@ -233,8 +233,8 @@ export const NewsroomScreen: React.FC<{ initialTab?: 'headlines' | 'weekly' }> =
         {tab === 'referees' && (
           <>
             {refereeReports.length === 0 ? <Card className="text-center py-8"><GameIcon id="whistle" className="w-8 h-8 mx-auto text-muted" /><p className="text-primary font-bold mt-3">Hakem raporu bekleniyor</p><p className="text-secondary text-[12px] mt-1">Raporlar yalnızca hakemi ve maç olayları kaydedilmiş ayrıntılı motor maçlarından yayımlanır.</p></Card> : refereeReports.map((report) => (
-              <Card key={report.id} className="!p-3.5">
-                <div className="flex items-center justify-between gap-2"><div className="flex items-center gap-2"><GameIcon id="whistle" className="w-5 h-5 text-warn" /><div><div className="text-primary font-bold">{report.referee?.label}</div><div className="text-secondary text-[11px]">{STRICTNESS[report.referee!.strictness]} · Gün {report.day}</div></div></div><Badge kind={report.referee?.strictness === 'strict' ? 'warn' : 'info'}>{report.foulsHome + report.foulsAway} faul</Badge></div>
+              <Card key={`${report.seasonNo ?? 'unknown'}-${report.id}`} className="!p-3.5">
+                <div className="flex items-center justify-between gap-2"><div className="flex items-center gap-2"><GameIcon id="whistle" className="w-5 h-5 text-warn" /><div><div className="text-primary font-bold">{report.referee?.label}</div><div className="text-secondary text-[11px]">{STRICTNESS[report.referee!.strictness]} · {report.seasonNo ? `S${report.seasonNo} · ` : ''}Gün {report.day}</div></div></div><Badge kind={report.referee?.strictness === 'strict' ? 'warn' : 'info'}>{report.foulsHome + report.foulsAway} faul</Badge></div>
                 <div className="text-primary text-[13px] mt-3">{CLUBS.find((club) => club.id === report.homeId)?.short ?? report.homeId} {report.hg}–{report.ag} {CLUBS.find((club) => club.id === report.awayId)?.short ?? report.awayId}</div>
                 <div className="text-secondary text-[12px] mt-1">Sarı {report.yellowsHome + report.yellowsAway} · Kırmızı {report.redsHome + report.redsAway} · xG {report.xgHome.toFixed(2)}–{report.xgAway.toFixed(2)}</div>
                 <p className="text-muted text-[11px] mt-2 leading-relaxed">Bu özet, maç kaydındaki hakem profili ve reducer istatistiklerinden derlenmiştir; kart/sonuç yeniden yorumlanmaz.</p>

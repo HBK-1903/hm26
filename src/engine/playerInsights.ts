@@ -28,7 +28,7 @@ export function playerMatchLog(
   limit = 5,
 ): PlayerMatchRow[] {
   const rows: PlayerMatchRow[] = [];
-  for (const report of [...reports].sort((a, b) => b.day - a.day || b.seasonNo - a.seasonNo)) {
+  for (const report of [...reports].sort((a, b) => (b.seasonNo ?? 0) - (a.seasonNo ?? 0) || b.day - a.day)) {
     const row = report.playerRows[playerId];
     if (!row || row.min <= 0) continue;
     const isHome = report.homeId === myClubId;

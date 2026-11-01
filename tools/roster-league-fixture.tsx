@@ -8,6 +8,7 @@ import { TacticsScreen } from '../src/screens/Tactics';
 import { CompsScreen } from '../src/screens/Comps';
 import { StatsHub } from '../src/screens/StatsHub';
 import { SquadScreen } from '../src/screens/Squad';
+import { NewsroomScreen } from '../src/screens/Newsroom';
 import { autoLineup } from '../src/engine/profiles';
 import { boardToEngine, engineToBoard } from '../src/engine/lineupOrder';
 import { clubById } from '../src/data/clubs';
@@ -61,6 +62,12 @@ function Seed({ ready }: { ready: (snapshot: any) => void }) {
       if (scenario === 'risk') snapshot.riskPlayIds = [reserves[0].id];
       (window as any).__injuredIds = [reserves[0].id, reserves[1].id];
     }
+    if (scenario === 'clinic-short') {
+      const player = squad.find((p) => p.group !== 'GK')!;
+      snapshot.playerPatch[player.id] = { ...snapshot.playerPatch[player.id], injuredDays: 5, injury: { type: 'adale_gerilmesi', name: 'Adale gerilmesi', daysRemaining: 5, severity: 'hafif', canPlayWithRisk: true } };
+      snapshot.riskPlayIds = [player.id];
+      (window as any).__clinicPlayerId = player.id;
+    }
     if (scenario === 'bench-risk') {
       const reserves = squad.filter((p) => !board.includes(p.id));
       snapshot.playerPatch[reserves[0].id] = { ...snapshot.playerPatch[reserves[0].id], injuredDays: 20, injury: { type: 'adale_gerilmesi', name: 'Adale gerilmesi', daysRemaining: 20, severity: 'orta', canPlayWithRisk: true } };
@@ -75,6 +82,18 @@ function Seed({ ready }: { ready: (snapshot: any) => void }) {
       snapshot.playerStats = { [player.id]: { playerId: player.id, clubId: g.career.clubId, apps: 12, goals: 1, assists: 1, yellows: 0, reds: 0, ratingSum: ratedGames * 7 } };
       snapshot.matchReports = Array.from({ length: ratedGames }, (_, i) => ({  id: `qa-rating-${i}`, day: 10 + i, seasonNo: 1, comp: 'lig', homeId: g.career.clubId, awayId: 'ist_halic', hg: 0, ag: 0, xgHome: 1, xgAway: 1, foulsHome: 0, foulsAway: 0, yellowsHome: 0, yellowsAway: 0, redsHome: 0, redsAway: 0, playerRows: { [player.id]: { min: 90, g: 0, a: 0, yellow: 0, red: 0, rating: 7, posGroup: player.group } }, playerClubIds: { [player.id]: g.career.clubId } }));
       (window as any).__ratingPlayer = player.id;
+    }
+    if (scenario === 'archive-seasons') {
+      const player = squad.find((p) => p.group !== 'GK')!;
+      const row = (rating: number) => ({ min: 90, g: 0, a: 0, yellow: 0, red: 0, rating, posGroup: player.group });
+      const common = { id: 'same-fixture', comp: 'lig', homeId: g.career.clubId, awayId: 'ist_halic', xgHome: 1, xgAway: 1, foulsHome: 1, foulsAway: 2, yellowsHome: 0, yellowsAway: 0, redsHome: 0, redsAway: 0, events: [], playerClubIds: { [player.id]: g.career.clubId } };
+      snapshot.career.day = 13; snapshot.career.week = 2; snapshot.seasonNo = 2;
+      snapshot.matchReports = [
+        { ...common, seasonNo: 2, day: 12, hg: 2, ag: 0, referee: { label: 'Yeni Hakem', strictness: 'balanced' }, playerRows: { [player.id]: row(6.1) } },
+        { ...common, id: 'old-final', seasonNo: 1, day: 300, hg: 0, ag: 1, referee: { label: 'Eski Final Hakemi', strictness: 'strict' }, playerRows: {} },
+        { ...common, seasonNo: 1, day: 12, hg: 0, ag: 2, referee: { label: 'Eski Hakem', strictness: 'balanced' }, playerRows: { [player.id]: row(9.9) } },
+      ];
+      (window as any).__archivePlayer = player.name;
     }
     if (scenario === 'history') {
       snapshot.matchReports = Array.from({ length: 25 }, (_, i) => ({
@@ -101,7 +120,7 @@ function Seed({ ready }: { ready: (snapshot: any) => void }) {
 }
 function Screens() {
   const g = useGame();
-  const [screen, setScreen] = React.useState<'tactics' | 'comps' | 'stats' | 'squad' | 'market'>('tactics');
+  const [screen, setScreen] = React.useState<'tactics' | 'comps' | 'stats' | 'squad' | 'market' | 'newsroom'>('tactics');
   (window as any).__rosterRead = () => readSave(g.career.slot);
   (window as any).__rosterModel = () => {
     const plan = g.tactics[0];
@@ -144,10 +163,10 @@ function Screens() {
   return <div style={{ height: '100dvh', maxWidth: 430, margin: 'auto', display: 'flex', flexDirection: 'column' }}>
     <nav style={{ display: 'flex', gap: 10, padding: '6px', overflowX: 'auto', background: 'var(--c-elevated)' }}>
       <button onClick={() => setScreen('tactics')}>Test: Taktik</button><button onClick={() => setScreen('comps')}>Test: Müsabaka</button>
-      <button onClick={() => setScreen('stats')}>Test: İstatistik</button><button onClick={() => setScreen('squad')}>Test: Kadro</button><button onClick={() => setScreen('market')}>Test: Piyasa</button>
+      <button onClick={() => setScreen('stats')}>Test: İstatistik</button><button onClick={() => setScreen('newsroom')}>Test: Basın</button><button onClick={() => setScreen('squad')}>Test: Kadro</button><button onClick={() => setScreen('market')}>Test: Piyasa</button>
     </nav>
     <div style={{ flex: 1, minHeight: 0 }}>
-      {screen === 'tactics' ? <TacticsScreen /> : screen === 'comps' ? <CompsScreen /> : screen === 'stats' ? <StatsHub /> : screen === 'market' ? <MarketScreen /> : <SquadScreen goXI={() => setScreen('tactics')} />}
+      {screen === 'tactics' ? <TacticsScreen /> : screen === 'comps' ? <CompsScreen /> : screen === 'stats' ? <StatsHub /> : screen === 'newsroom' ? <NewsroomScreen /> : screen === 'market' ? <MarketScreen /> : <SquadScreen goXI={() => setScreen('tactics')} />}
     </div>
   </div>;
 }

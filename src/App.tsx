@@ -1,5 +1,5 @@
 // HM26 — kök uygulama: açılış / kariyer yuvaları / sihirbaz / oyun kabuğu
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Career, Screen } from './types';
 import { GameProvider, useGame } from './store/game';
 import { AppShell } from './screens/Shell';
@@ -42,6 +42,28 @@ export default function App() {
   const [phase, setPhase] = useState<'splash' | 'slots' | 'wizard' | 'game'>('splash');
   const [quickContinue, setQuickContinue] = useState<{ slot: number; label: string } | null>(null);
   const [fatalError, setFatalError] = useState<string | null>(null);
+  const [startupError, setStartupError] = useState<string | null>(null);
+
+  const refreshQuickContinue = useCallback(async () => {
+    try {
+      const slot = await lastActiveSlot();
+      const record = slot ? await readSave(slot) : null;
+      setQuickContinue(record && slot ? { slot, label: quickContinueLabel(record.meta) } : null);
+      setStartupError(null);
+    } catch (error) {
+      setQuickContinue(null);
+      setStartupError(error instanceof Error && error.message ? `Son kariyer okunamadı: ${error.message}` : 'Son kariyer okunamadı. Kayıt yuvalarını açıp tekrar dene.');
+    }
+  }, []);
+  const quickOpen = async (slot: number) => {
+    try {
+      const record = await readSave(slot);
+      if (record) continueCareer(slot, record.blob, Number.isFinite(record.meta.updatedAt) ? record.meta.updatedAt : undefined);
+      else { setQuickContinue(null); setPhase('slots'); }
+    } catch (error) {
+      setStartupError(error instanceof Error && error.message ? `Kariyer açılamadı: ${error.message}` : 'Kariyer okunamadı. Tekrar dene.');
+    }
+  };
 
   // FIX P1/2: modül kurulumunda DB ısıtılıyor (kullanıcı "Başla" dediğinde hazır)
   // FIX P1/4: global unhandledrejection kalıcı görünür şerit
@@ -54,15 +76,9 @@ export default function App() {
     };
     window.addEventListener('unhandledrejection', onRej);
     // Son aktif yuvayı splash'te çek (hızlı devam için)
-    void lastActiveSlot().then(async (slot) => {
-      if (!slot) return;
-      const r = await readSave(slot).catch(() => null);
-      if (r) {
-        setQuickContinue({ slot, label: quickContinueLabel(r.meta) });
-      }
-    });
+    void refreshQuickContinue();
     return () => window.removeEventListener('unhandledrejection', onRej);
-  }, []);
+  }, [refreshQuickContinue]);
   const [career, setCareer] = useState<Career | null>(null);
   const [snapshot, setSnapshot] = useState<SaveBlob | null>(null);
   const [snapshotUpdatedAt, setSnapshotUpdatedAt] = useState<number | undefined>(undefined);
@@ -93,11 +109,17 @@ export default function App() {
             <button onClick={() => setFatalError(null)} className="ml-2 underline">Kapat</button>
           </div>
         )}
+        {startupError && phase === 'splash' && (
+          <div role="alert" className="absolute top-0 inset-x-0 z-[90] bg-amber text-base text-[12.5px] font-bold px-3 py-2 flex items-center justify-between" style={{ color: '#0B0B0E' }}>
+            <span>{startupError}</span>
+            <button onClick={() => { void refreshQuickContinue(); }} className="ml-2 underline">Tekrar Dene</button>
+          </div>
+        )}
         {updateReady && phase !== 'game' && <UpdateNotice onApply={applyUpdate} onDismiss={dismissUpdate} />}
         {phase === 'splash' && (
           <Splash
             quick={quickContinue}
-            onQuickContinue={(slot) => { void readSave(slot).then((r) => { if (r) continueCareer(slot, r.blob, Number.isFinite(r.meta.updatedAt) ? r.meta.updatedAt : undefined); else setPhase('slots'); }); }}
+            onQuickContinue={(slot) => { void quickOpen(slot); }}
             onContinue={() => { setPhase('slots'); }}
           />
         )}
@@ -105,7 +127,7 @@ export default function App() {
           <CareerSlots
             onNew={(slot) => { setWizardSlot(slot); setPhase('wizard'); }}
             onContinue={continueCareer}
-            onBack={() => setPhase('splash')}
+            onBack={() => { setPhase('splash'); void refreshQuickContinue(); }}
           />
         )}
         {phase === 'wizard' && (

@@ -181,7 +181,7 @@ export const StatsHub: React.FC = () => {
             <Card className="!p-0 overflow-hidden" >
               <div className="px-4 py-2.5 border-b border-line font-display font-bold text-[13px]">🎬 Kayıtlı Maç Özetleri</div>
               {recentReports.length === 0 ? <div className="px-4 py-3 text-muted text-[12px]">Arşivde henüz maçın yok. Oynanan maçlar burada görünür.</div>
-                : <ExpandableRecords items={recentReports} preview={10} label="Maç özetleri" testId="archive-highlights-list" rowKey={(report) => report.id} render={(report) => {
+                : <ExpandableRecords items={recentReports} preview={10} label="Maç özetleri" testId="archive-highlights-list" rowKey={(report) => `${report.seasonNo ?? 'unknown'}-${report.id}`} render={(report) => {
                   const home = clubByIdSafe(report.homeId);
                   const away = clubByIdSafe(report.awayId);
                   return <button type="button" data-testid="archive-highlight-open" onClick={() => setArchiveMatch(report)}
