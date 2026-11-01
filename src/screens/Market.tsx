@@ -17,7 +17,7 @@ import { counterCashAsk, sellOnCredit, transferLeakRisk, transferOfferLeaks } fr
 import { playerToneHints, respondToPlayerWithTone, respondToSellerWithTone, sellerToneHints, transferRevealForGen, type PlayerToneResult, type TransferTone } from '../data/transferPresentation';
 import { managerTransferLine, playerTransferLine, sellerTransferLine, signedTransferLine, signingReadyLine, transferAnnouncement, transferLeakLine } from '../data/transferVoices';
 import { TransferSubtitle, TransferTheatre } from '../components/transfer/TransferTheatre';
-import { CinematicLayout, CinematicOverlay, preventAccidentalDoubleClick, resetCinematicScroll, type CameraCue } from '../components/cinematic/Cinematic';
+import { CinematicLayout, CinematicOverlay, CinematicActionGuard, resetCinematicScroll, type CameraCue } from '../components/cinematic/Cinematic';
 import { SaleFlow } from '../components/transfer/SaleFlow';
 import { ContractRenewal } from '../components/transfer/ContractRenewal';
 import { transferVoiceVolume, useTransferSpeech } from '../components/transfer/useTransferSpeech';
@@ -708,7 +708,7 @@ export const OfferFlow: React.FC<{
       {quotaBreach && <p role="alert" className="text-danger text-[12px]">Yabancı kotası dolu ({foreignCount}/{quota}). Bir yabancıyla yolları ayır veya yabancı oyuncu takas et.</p>}
       {squadFull && <p role="alert" className="text-danger text-[12px]">Kadro üst sınırı 30. Önce satış yap veya takasla yer aç.</p>}
       {wageBreach && <p role="alert" className="text-danger text-[12px]">Maaş bütçesi aşılıyor.</p>}
-      <div onClickCapture={preventAccidentalDoubleClick}><Btn variant="amber" testId="transfer-sign" className="w-full" disabled={quotaBreach || squadFull || wageBreach || agreedFee > tb || !inWindow} onClick={signDeal}>Sözleşmeyi İmzala</Btn></div>
+      <CinematicActionGuard><Btn variant="amber" testId="transfer-sign" className="w-full" disabled={quotaBreach || squadFull || wageBreach || agreedFee > tb || !inWindow} onClick={signDeal}>Sözleşmeyi İmzala</Btn></CinematicActionGuard>
       <Btn variant="secondary" className="w-full" onClick={() => { clearPlayerResponse(); setStage('player'); }}>Oyuncu Şartlarını Düzenle</Btn>
       {seller && <Btn variant="secondary" className="w-full" onClick={goOffer}>Kulüp Şartlarını Düzenle</Btn>}
     </div>}
@@ -721,7 +721,7 @@ export const OfferFlow: React.FC<{
         <div className="transfer-facts"><div><span>Kalan transfer bütçesi</span><strong>₺{signedBudget.toFixed(1)}M</strong></div><div><span>Kalan maaş alanı</span><strong>₺{signedWageRoom}B / ay</strong></div></div>
         {signedSwap && <p className="text-secondary text-[12px]">Takas: {signedSwap.name} → {seller?.short ?? 'satıcı kulüp'}.</p>}
       </div>
-      <div onClickCapture={preventAccidentalDoubleClick}><Btn variant="amber" testId="transfer-open-reveal" className="w-full" onClick={openReveal}>Tanıtıma Geç →</Btn></div>
+      <CinematicActionGuard><Btn variant="amber" testId="transfer-open-reveal" className="w-full" onClick={openReveal}>Tanıtıma Geç →</Btn></CinematicActionGuard>
     </div>}
     {stage === 'signed' && showReveal && <div className="space-y-4" data-testid="transfer-complete" data-reveal-tier={reveal}>
       <div className="rounded-2xl border border-ok/40 bg-ok/10 p-4 space-y-3">

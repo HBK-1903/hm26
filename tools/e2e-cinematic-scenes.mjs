@@ -128,11 +128,17 @@ try {
   await screenshot('03-answer-320');
   await page.getByTestId('interview-change').click();
   check('Cevap değiştirilebilir ve önceki söz kaydedilmez', await interview.getAttribute('data-stage') === 'question' && await page.getByTestId('interview-option-2').isVisible() && await page.evaluate(() => window.__cinematicFixture.lastChoice() === undefined));
-  await page.getByTestId('interview-option-2').click();
+  await page.getByTestId('interview-option-2').focus();
+  await page.keyboard.down('Enter'); // select, but leave the key held as focus moves to continue
+  await page.waitForFunction(() => document.activeElement?.getAttribute('data-testid') === 'interview-continue');
   const finalQuote = (await page.getByTestId('interview-subtitle').locator('p').innerText()).replace(/^“|”$/g, '');
+  await page.keyboard.down('Enter'); // repeated keydown, as produced by a held key
+  await page.keyboard.up('Enter');
+  check('Basılı tutulan Enter cevabı seçer ama analizi otomatik açmaz', await interview.getAttribute('data-stage') === 'answer' && await page.evaluate(() => window.__cinematicFixture.lastChoice() === undefined));
   await page.getByTestId('interview-continue').dispatchEvent('click', { detail: 2 });
   check('Cevaptaki çift tıklama otomatik maç analizine geçirmez', await interview.getAttribute('data-stage') === 'answer' && await page.evaluate(() => window.__cinematicFixture.lastChoice() === undefined));
-  await page.getByTestId('interview-continue').click();
+  await page.getByTestId('interview-continue').focus();
+  await page.keyboard.press('Enter'); // a separate, intentional key press
   const chosen = await page.evaluate(() => window.__cinematicFixture.lastChoice());
   check('Yalnız devam düğmesi tam seçilen röportaj sözünü aktarır', chosen?.id === 'redcard-saygi' && chosen.quote === finalQuote && await overlay.count() === 0, JSON.stringify(chosen));
 

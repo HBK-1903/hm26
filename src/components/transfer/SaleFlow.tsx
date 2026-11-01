@@ -11,7 +11,7 @@ import { audio } from '../../audio/engine';
 import { PlayerPortrait } from '../assets/Portrait';
 import { Btn } from '../ui/kit';
 import { TransferSubtitle, TransferTheatre } from './TransferTheatre';
-import { CinematicLayout, preventAccidentalDoubleClick, resetCinematicScroll, type CameraCue } from '../cinematic/Cinematic';
+import { CinematicLayout, CinematicActionGuard, resetCinematicScroll, type CameraCue } from '../cinematic/Cinematic';
 import { transferVoiceVolume, useTransferSpeech } from './useTransferSpeech';
 
 type SaleStage = 'offer' | 'response' | 'review' | 'signed' | 'declined';
@@ -171,7 +171,7 @@ export const SaleFlow: React.FC<{ offer: IncomingOffer; player: Player; buyer: C
         {settlement.payouts.map((row, index) => <p key={`${row.clubId}-${index}`} className="text-secondary text-[11px]">{clubByIdSafe(row.clubId)?.name ?? row.clubId}: %{row.pct} · {money(row.amount)}</p>)}
         <p className="text-muted text-[11px]">Onaylamadan oyuncu kadrodan ayrılmaz ve bütçe değişmez.</p>
       </div>
-      <div onClickCapture={preventAccidentalDoubleClick}><Btn variant="amber" testId="sale-confirm" className="w-full" onClick={confirmSale}>Satışı Onayla</Btn></div>
+      <CinematicActionGuard><Btn variant="amber" testId="sale-confirm" className="w-full" onClick={confirmSale}>Satışı Onayla</Btn></CinematicActionGuard>
       <Btn variant="secondary" className="w-full" onClick={editOffer}>Koşulları Yeniden Düzenle</Btn>
       <Btn variant="secondary" className="w-full" onClick={onClose}>Vazgeç · Teklif Açık Kalsın</Btn>
     </div>}
@@ -187,7 +187,7 @@ export const SaleFlow: React.FC<{ offer: IncomingOffer; player: Player; buyer: C
         <p className="text-secondary text-[12px]">Satış tamamlandı; alıcı kulübün tanıtımına sen hazır olduğunda geç.</p>
         {breakdown(signed.fee, signed.settlement.totalPaid, signed.settlement.retainedFee, signed.budgetAfter, true)}
       </div>
-      <div onClickCapture={preventAccidentalDoubleClick}><Btn variant="amber" testId="sale-open-reveal" className="w-full" onClick={openReveal}>Tanıtıma Geç →</Btn></div>
+      <CinematicActionGuard><Btn variant="amber" testId="sale-open-reveal" className="w-full" onClick={openReveal}>Tanıtıma Geç →</Btn></CinematicActionGuard>
     </div>}
     {stage === 'signed' && showReveal && signed?.settlement && signed.fee !== undefined && signed.budgetAfter !== undefined && <div className="space-y-3" data-testid="sale-complete" data-reveal-tier={reveal}>
       <div className="rounded-xl border border-ok/40 bg-ok/10 p-3 space-y-3">

@@ -80,11 +80,13 @@ export const CinematicLayout = React.forwardRef<HTMLDivElement, {
   </div>;
 });
 
-/** A second click from a previous decision must not activate a newly mounted
- * confirmation beneath the pointer. Keyboard and fresh single clicks still work. */
-export function preventAccidentalDoubleClick(event: React.MouseEvent<HTMLElement>) {
-  if (event.detail > 1) { event.preventDefault(); event.stopPropagation(); }
-}
+/** A repeated gesture from a previous decision must not activate the new
+ * confirmation. A fresh click or key press remains immediately available. */
+export const CinematicActionGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => <div
+  onClickCapture={(event) => { if (event.detail > 1) { event.preventDefault(); event.stopPropagation(); } }}
+  onKeyDownCapture={(event) => { if (event.repeat && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); event.stopPropagation(); } }}>
+  {children}
+</div>;
 
 export function resetCinematicScroll(root: HTMLElement | null) {
   const content = root?.querySelector<HTMLElement>('[data-testid="cinematic-decisions"]');
