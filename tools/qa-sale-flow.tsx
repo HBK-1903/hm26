@@ -142,6 +142,8 @@ const closed = g.incomingOffers.find((item) => item.id === offer.id);
 check('Çift son onay tek satış ve tek bütçe hareketi yapar', g.transferLog.length === startingLog + 1 && g.budget.tb === Math.round((startingBudget + 1.6) * 100) / 100 && closed?.state === 'accepted');
 check('Oyuncu alıcı kadrosuna geçer, diğer açık teklif geçersizleşir', !g.mySquad.some((p) => p.id === originalPlayer.id) && g.squads[buyer.id].some((p) => p.id === originalPlayer.id) && g.incomingOffers.find((item) => item.id === 'qa-second')?.state === 'expired');
 check('Önceki satış payı yalnız bir kez ödenir ve transfer geçmişine yazılır', g.transferLog[0]?.sellOnPaid === 0.4 && !g.sellOnClauses?.[originalPlayer.id]);
+check('Satış imza masasında kalır ve tanıtımı kullanıcı açar', stage() === 'signed' && !!button('sale-open-reveal') && q('[data-testid="transfer-theatre"]')?.getAttribute('data-beat') === 'signed' && !q('[data-testid="sale-complete"]'));
+await clickId('sale-open-reveal');
 check('79 GEN satış alıcı kulübün basın odasında tanıtılır', stage() === 'signed' && q('[data-testid="sale-complete"]')?.getAttribute('data-reveal-tier') === 'press' && body().includes(buyer.name));
 await clickId('sale-announcement');
 check('Satış tanıtım anonsu ses ve altyazıyla oynar', plays.at(-1)?.includes('/announcer-') && /Sunucu/.test(q('[data-testid="transfer-subtitle"]')?.textContent ?? ''));
@@ -162,6 +164,7 @@ await openSale(); await setCounter(2.4); await selectTone('firm'); await clickId
 check('Kabul edilen karşı teklif yalnız ön anlaşmadır', stage() === 'response' && g.budget.tb === beforeCounter && g.incomingOffers[0].state === 'open' && g.mySquad.some((p) => p.id === originalPlayer.id));
 await clickId('sale-review'); await clickId('sale-confirm');
 check('Onaylanan karşı teklifte pay gerçek bedelden düşülür ve bütçeye net tutar eklenir', g.transferLog[0]?.fee === 2.4 && g.transferLog[0]?.sellOnPaid === 0.48 && g.budget.tb === Math.round((beforeCounter + 1.92) * 100) / 100 && !g.sellOnClauses?.[originalPlayer.id]);
+await clickId('sale-open-reveal');
 check('80 GEN alıcı kulübün stadyumunda tanıtılır', q('[data-testid="sale-complete"]')?.getAttribute('data-reveal-tier') === 'stadium' && body().includes(buyer.stadium));
 
 // A real counter rejection closes the offer without a transfer.
@@ -173,7 +176,7 @@ await clickText('Piyasaya Dön');
 check('Reddedilen teklif yeniden satış masasına açılamaz', !button('sale-open-qa-sale'));
 
 // Star threshold and failed audio still permit a confirmed sale.
-await mount(snapshot(85, false)); await openSale(); await toReview(); await clickId('sale-confirm');
+await mount(snapshot(85, false)); await openSale(); await toReview(); await clickId('sale-confirm'); await clickId('sale-open-reveal');
 check('85 GEN için alıcı kulüpte özel yıldız/stadyum tanıtımı var', q('[data-testid="sale-complete"]')?.getAttribute('data-reveal-tier') === 'star' && q('[data-testid="transfer-theatre"]')?.getAttribute('data-scene') === 'star' && body().includes(buyer.stadium));
 await clickId('sale-announcement');
 check('Yıldız tanıtımında yıldız anonsu kullanılıyor', plays.at(-1)?.endsWith('/announcer-3.mp3'));

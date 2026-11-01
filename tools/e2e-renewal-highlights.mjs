@@ -94,7 +94,7 @@ try {
   await row.getByRole('button', { name: 'Yenile' }).click();
   const flow = page.getByTestId('renewal-flow');
   const scene = page.getByTestId('transfer-theatre');
-  check('320 px yenileme kendi oyuncusuyla hareketli masada açılır', await flow.getAttribute('data-stage') === 'offer' && /SÖZLEŞME YENİLEME/.test(await scene.getAttribute('aria-label')));
+  check('320 px yenileme kendi oyuncusu ve özgün çizimli odasıyla açılır', await flow.getAttribute('data-stage') === 'offer' && /SÖZLEŞME YENİLEME/.test(await scene.getAttribute('aria-label')) && await scene.getByTestId('scene-backdrop').getAttribute('data-atmosphere') === 'renewal');
   let box = await layout('[data-testid="transfer-theatre"]');
   check('320 px sözleşme sahnesi panel dışına taşmaz', fits(box), JSON.stringify(box));
   await screenshot('01-renewal-offer-320');
@@ -126,8 +126,10 @@ try {
   await page.setViewportSize({ width: 390, height: 844 });
   box = await layout('[data-testid="transfer-theatre"]');
   check('390 px sözleşme sahnesi panel dışına taşmaz', fits(box), JSON.stringify(box));
+  await page.getByTestId('renewal-sign').dispatchEvent('click', { detail: 2 });
+  check('Önceki çift tıklama yenileme imzası yerine geçmez', await flow.getAttribute('data-stage') === 'review');
   await page.getByTestId('renewal-sign').dblclick();
-  check('Çift imza sonrası yenileme tamamlanır, tanıtım sahnesi açılmaz', await flow.getAttribute('data-stage') === 'signed' && await scene.getAttribute('data-scene') === 'negotiation');
+  check('Çift imza sonrası yenilemenin kendi imza sahnesi açılır, tanıtım açılmaz', await flow.getAttribute('data-stage') === 'signed' && await scene.getAttribute('data-scene') === 'negotiation' && await scene.getByTestId('scene-backdrop').getAttribute('data-atmosphere') === 'sign-renewal');
   saved = await waitForSave((b) => b?.playerPatch?.[playerId]?.contractYears === 4);
   check('Gerçek kayıt: yeni ücret ve tek bonus ödemesi', saved.version === 5 && saved.playerPatch[playerId].wage === 173 && saved.budget.tb === 9.1 && saved.inbox.filter((m) => m.title === 'Sözleşme yenilendi').length === 1);
   await screenshot('03-renewal-signed-390');

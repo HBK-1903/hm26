@@ -68,7 +68,7 @@ const ids = new Set(ALL_TRANSFER_VOICES.map((line) => line.id));
 const filesExist = ALL_TRANSFER_VOICES.every((line) => existsSync(resolve('public', `.${line.src}`)) && statSync(resolve('public', `.${line.src}`)).size > 1000 && line.text.length > 10);
 check('40 özgün repliğin altyazı ve çevrimdışı ses dosyası var', ids.size === 40 && ALL_TRANSFER_VOICES.length === 40 && filesExist, `${ids.size} ayrı klip`);
 const images = ['negotiation-room.webp', 'press-room.webp', 'stadium.webp'];
-check('Üç sahnenin yerel arka planı var', images.every((image) => existsSync(resolve('public/assets/transfer', image)) && statSync(resolve('public/assets/transfer', image)).size > 1000));
+check('Önceki sürüm istemcileri için eski yerel görseller korunuyor', images.every((image) => existsSync(resolve('public/assets/transfer', image)) && statSync(resolve('public/assets/transfer', image)).size > 1000));
 let contexts = true;
 for (let i = 0; i < 250; i++) {
   const key = String(i);

@@ -10,7 +10,8 @@ import { useGame, type IncomingOfferResponse } from '../../store/game';
 import { audio } from '../../audio/engine';
 import { PlayerPortrait } from '../assets/Portrait';
 import { Btn } from '../ui/kit';
-import { TransferSpeechCue, TransferSubtitle, TransferTheatre } from './TransferTheatre';
+import { TransferSubtitle, TransferTheatre } from './TransferTheatre';
+import { CinematicLayout, CinematicActionGuard, resetCinematicScroll, type CameraCue } from '../cinematic/Cinematic';
 import { transferVoiceVolume, useTransferSpeech } from './useTransferSpeech';
 
 type SaleStage = 'offer' | 'response' | 'review' | 'signed' | 'declined';
@@ -20,7 +21,7 @@ const TONES: { value: TransferTone; label: string }[] = [
 ];
 const money = (value: number) => `₺${value.toFixed(2)}M`;
 
-/** The conversation lives only while the sheet is open; the sale has a separate final authorization. */
+/** The conversation lives only while the scene is open; the sale has a separate final authorization. */
 export const SaleFlow: React.FC<{ offer: IncomingOffer; player: Player; buyer: Club; onClose: () => void }> = ({ offer, player, buyer, onClose }) => {
   const g = useGame();
   const voice = useTransferSpeech();
@@ -29,12 +30,12 @@ export const SaleFlow: React.FC<{ offer: IncomingOffer; player: Player; buyer: C
   const [tone, setTone] = useState<TransferTone | null>(null);
   const [agreement, setAgreement] = useState<Agreement | null>(null);
   const [signed, setSigned] = useState<IncomingOfferResponse | null>(null);
+  const [showReveal, setShowReveal] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const sent = useRef(false);
   const signedOnce = useRef(false);
   const stageRef = useRef<HTMLDivElement>(null);
   const crowdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [sceneVisible, setSceneVisible] = useState(true);
   const reveal = transferRevealForGen(player.ratings.gen);
   const key = `${g.career.seed}|${offer.id}|${player.id}`;
   const marketValue = playerValue(player, g.myLeague);
@@ -42,21 +43,11 @@ export const SaleFlow: React.FC<{ offer: IncomingOffer; player: Player; buyer: C
   const settlement = agreement ? calculateSellOnSettlement(agreement.fee, normalizeSellOnClauses(g.sellOnClauses)[player.id] ?? []) : null;
   const previewBudget = settlement ? Math.round((g.budget.tb + settlement.retainedFee) * 100) / 100 : g.budget.tb;
 
-  useEffect(() => { stageRef.current?.scrollIntoView?.({ block: 'start', behavior: 'auto' }); }, [stage]);
-  useEffect(() => {
-    const root = stageRef.current;
-    const scene = root?.querySelector('[data-testid="transfer-theatre"]');
-    if (!root || !scene || typeof IntersectionObserver === 'undefined') { setSceneVisible(true); return; }
-    const observer = new IntersectionObserver(([entry]) => setSceneVisible(entry.isIntersecting && entry.intersectionRatio >= 0.55), {
-      root: root.closest('.overflow-y-auto'), threshold: [0, 0.55, 1],
-    });
-    observer.observe(scene);
-    return () => observer.disconnect();
-  }, [stage]);
+  useEffect(() => { resetCinematicScroll(stageRef.current); }, [stage, showReveal]);
   useEffect(() => () => { if (crowdTimer.current) clearTimeout(crowdTimer.current); audio.stopCrowd(); }, []);
 
-  const theatreMode = stage === 'signed' ? 'reveal' : 'buyer';
-  const sceneClub = stage === 'signed' ? buyer : g.myClub;
+  const theatreMode = stage === 'signed' ? (showReveal ? 'reveal' : 'player') : 'buyer';
+  const sceneClub = stage === 'signed' && showReveal ? buyer : g.myClub;
   const subtitle = <TransferSubtitle line={voice.lastLine} muted={voice.muted} systemMuted={transferVoiceVolume() <= 0}
     onReplay={() => { if (voice.lastLine) voice.play(voice.lastLine); }} onSkip={voice.stop}
     onToggle={() => { if (!voice.muted) { if (crowdTimer.current) clearTimeout(crowdTimer.current); audio.stopCrowd(); } voice.toggle(); }} />;
@@ -99,8 +90,15 @@ export const SaleFlow: React.FC<{ offer: IncomingOffer; player: Player; buyer: C
       signedOnce.current = false; setError('Satış sonucu doğrulanamadı.'); return;
     }
     setSigned(result);
+    setShowReveal(false);
     setStage('signed');
     voice.play(signedTransferLine(key));
+    if (!voice.muted) { audio.unlock(); audio.play('click'); }
+  };
+  const openReveal = () => {
+    if (showReveal) return;
+    voice.stop();
+    setShowReveal(true);
     if (!voice.muted) {
       audio.unlock(); audio.play('celebrate');
       if (reveal !== 'press') { audio.startCrowd(); crowdTimer.current = setTimeout(() => audio.stopCrowd(), 6000); }
@@ -114,18 +112,18 @@ export const SaleFlow: React.FC<{ offer: IncomingOffer; player: Player; buyer: C
     <div><span>Satış sonrası bütçe</span><strong>{money(budget)}</strong></div>
   </div>;
 
-  return <div ref={stageRef} className="m26-in space-y-4" data-testid="sale-flow" data-stage={stage}>
-    <div className="transfer-floating-cue">
-      {!sceneVisible && <TransferSpeechCue player={player} club={sceneClub} seller={buyer} manager={g.career.manager}
-        mode={theatreMode} speaking={voice.speaking} line={voice.lastLine} onSkip={voice.stop} />}
-    </div>
+  const significantResponse = (stage === 'response' || stage === 'declined') && voice.lastLine?.speaker === 'representative';
+  const firmReply = stage === 'offer' && tone === 'firm' && voice.lastLine?.speaker === 'manager';
+  const cameraCue: CameraCue = significantResponse || firmReply
+    ? { key: `${stage}:${voice.lastLine!.id}`, target: firmReply ? 'manager' : 'opponent' } : null;
+  const scene = <TransferTheatre mode={theatreMode} player={player} club={sceneClub} seller={buyer} manager={g.career.manager}
+    speaking={voice.speaking} cinematic cameraCue={cameraCue} beat={stage} signingContext="sale" />;
+  return <CinematicLayout ref={stageRef} testId="sale-flow" stage={stage} scene={scene} subtitle={subtitle}>
     <div className="flex flex-wrap items-center gap-1 text-[10px] font-bold tracking-wide text-secondary" aria-label="Satış görüşmesi adımları">
       <span className={stage === 'offer' ? 'text-amber' : ''}>01 GÖRÜŞME</span><span>—</span>
       <span className={stage === 'response' || stage === 'declined' ? 'text-amber' : ''}>02 ALICI YANITI</span><span>—</span>
       <span className={stage === 'review' || stage === 'signed' ? 'text-amber' : ''}>03 SATIŞ ONAYI</span>
     </div>
-    <TransferTheatre mode={theatreMode} player={player} club={sceneClub} seller={buyer} manager={g.career.manager} speaking={voice.speaking} />
-    {subtitle}
     {error && <p role="alert" className="rounded-lg border border-danger/40 bg-danger/10 p-3 text-danger text-[12px]">{error}</p>}
 
     {stage === 'offer' && <div className="space-y-4">
@@ -173,7 +171,7 @@ export const SaleFlow: React.FC<{ offer: IncomingOffer; player: Player; buyer: C
         {settlement.payouts.map((row, index) => <p key={`${row.clubId}-${index}`} className="text-secondary text-[11px]">{clubByIdSafe(row.clubId)?.name ?? row.clubId}: %{row.pct} · {money(row.amount)}</p>)}
         <p className="text-muted text-[11px]">Onaylamadan oyuncu kadrodan ayrılmaz ve bütçe değişmez.</p>
       </div>
-      <Btn variant="amber" testId="sale-confirm" className="w-full" onClick={confirmSale}>Satışı Onayla</Btn>
+      <CinematicActionGuard><Btn variant="amber" testId="sale-confirm" className="w-full" onClick={confirmSale}>Satışı Onayla</Btn></CinematicActionGuard>
       <Btn variant="secondary" className="w-full" onClick={editOffer}>Koşulları Yeniden Düzenle</Btn>
       <Btn variant="secondary" className="w-full" onClick={onClose}>Vazgeç · Teklif Açık Kalsın</Btn>
     </div>}
@@ -183,7 +181,15 @@ export const SaleFlow: React.FC<{ offer: IncomingOffer; player: Player; buyer: C
       <Btn variant="amber" className="w-full" onClick={onClose}>Piyasaya Dön</Btn>
     </div>}
 
-    {stage === 'signed' && signed?.settlement && signed.fee !== undefined && signed.budgetAfter !== undefined && <div className="space-y-3" data-testid="sale-complete" data-reveal-tier={reveal}>
+    {stage === 'signed' && !showReveal && signed?.settlement && signed.fee !== undefined && signed.budgetAfter !== undefined && <div className="space-y-3" data-testid="sale-signing">
+      <div className="rounded-xl border border-ok/40 bg-ok/10 p-3 space-y-3">
+        <div className="text-ok font-display text-[18px] font-bold">{player.name} · satış imzalandı</div>
+        <p className="text-secondary text-[12px]">Satış tamamlandı; alıcı kulübün tanıtımına sen hazır olduğunda geç.</p>
+        {breakdown(signed.fee, signed.settlement.totalPaid, signed.settlement.retainedFee, signed.budgetAfter, true)}
+      </div>
+      <CinematicActionGuard><Btn variant="amber" testId="sale-open-reveal" className="w-full" onClick={openReveal}>Tanıtıma Geç →</Btn></CinematicActionGuard>
+    </div>}
+    {stage === 'signed' && showReveal && signed?.settlement && signed.fee !== undefined && signed.budgetAfter !== undefined && <div className="space-y-3" data-testid="sale-complete" data-reveal-tier={reveal}>
       <div className="rounded-xl border border-ok/40 bg-ok/10 p-3 space-y-3">
         <div className="text-ok font-display text-[18px] font-bold">{player.name} · satış tamamlandı</div>
         <p className="text-secondary text-[12px]">{g.myClub.name} → {buyer.name} · tanıtım {buyer.name} tarafından yapılıyor.</p>
@@ -193,5 +199,5 @@ export const SaleFlow: React.FC<{ offer: IncomingOffer; player: Player; buyer: C
       <Btn variant="secondary" testId="sale-announcement" className="w-full" onClick={() => voice.play(transferAnnouncement(reveal, key))}>🎙 Tanıtım Anonsunu Dinle</Btn>
       <Btn variant="amber" className="w-full" onClick={onClose}>Piyasaya Dön</Btn>
     </div>}
-  </div>;
+  </CinematicLayout>;
 };

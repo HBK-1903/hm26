@@ -6,7 +6,8 @@ import { managerRenewalLine, playerRenewalLine, renewalSignedLine, signingReadyL
 import { useGame, type RenewalQuote } from '../../store/game';
 import { PlayerPortrait } from '../assets/Portrait';
 import { Btn } from '../ui/kit';
-import { TransferSpeechCue, TransferSubtitle, TransferTheatre } from './TransferTheatre';
+import { TransferSubtitle, TransferTheatre } from './TransferTheatre';
+import { CinematicLayout, CinematicActionGuard, resetCinematicScroll, type CameraCue } from '../cinematic/Cinematic';
 import { transferVoiceVolume, useTransferSpeech } from './useTransferSpeech';
 
 type Stage = 'offer' | 'response' | 'review' | 'signed';
@@ -16,7 +17,7 @@ const TONES: { value: TransferTone; label: string }[] = [
 ];
 const money = (n: number) => `₺${n.toFixed(3)}M`;
 
-/** All negotiation state stays in the sheet. Only a separate final signature changes the career. */
+/** Negotiation state stays in the scene. Only a separate final signature changes the career. */
 export const ContractRenewal: React.FC<{ player: Player; onClose: () => void }> = ({ player, onClose }) => {
   const g = useGame();
   const voice = useTransferSpeech();
@@ -30,24 +31,13 @@ export const ContractRenewal: React.FC<{ player: Player; onClose: () => void }> 
   const sent = useRef(false);
   const signedOnce = useRef(false);
   const stageRef = useRef<HTMLDivElement>(null);
-  const [sceneVisible, setSceneVisible] = useState(true);
   const key = `${g.career.seed}|${g.career.day}|${player.id}`;
   const minimum = Math.max(0, Math.floor(player.wage * 0.75));
   const maximum = Math.max(minimum + 1, renewalDemand(player.wage), Math.ceil(renewalDemand(player.wage) * 1.6));
   const bonus = renewalBonus(player.wage);
   const canAfford = g.budget.tb >= bonus;
 
-  useEffect(() => { stageRef.current?.scrollIntoView?.({ block: 'start', behavior: 'auto' }); }, [stage]);
-  useEffect(() => {
-    const root = stageRef.current;
-    const scene = root?.querySelector('[data-testid="transfer-theatre"]');
-    if (!root || !scene || typeof IntersectionObserver === 'undefined') { setSceneVisible(true); return; }
-    const observer = new IntersectionObserver(([entry]) => setSceneVisible(entry.isIntersecting && entry.intersectionRatio >= 0.55), {
-      root: root.closest('.overflow-y-auto'), threshold: [0, 0.55, 1],
-    });
-    observer.observe(scene);
-    return () => observer.disconnect();
-  }, [stage]);
+  useEffect(() => { resetCinematicScroll(stageRef.current); }, [stage]);
 
   const editOffer = (useDemand = false) => {
     if (useDemand && agreement?.quote.demand !== undefined) setWage(agreement.quote.demand);
@@ -97,19 +87,20 @@ export const ContractRenewal: React.FC<{ player: Player; onClose: () => void }> 
     <div><span>{completed ? 'Kalan bütçe' : 'İmza sonrası bütçe'}</span><strong>{money(quote.budgetAfter ?? 0)}</strong></div>
   </div>;
 
-  return <div ref={stageRef} className="m26-in space-y-4" data-testid="renewal-flow" data-stage={stage}>
-    <div className="transfer-floating-cue">
-      {!sceneVisible && <TransferSpeechCue player={player} club={g.myClub} seller={g.myClub} manager={g.career.manager}
-        mode="renewal" speaking={voice.speaking} line={voice.lastLine} onSkip={voice.stop} />}
-    </div>
+  const significantResponse = (stage === 'response' || stage === 'review' || stage === 'signed') && voice.lastLine?.speaker === 'player';
+  const firmReply = stage === 'offer' && tone === 'firm' && voice.lastLine?.speaker === 'manager';
+  const cameraCue: CameraCue = significantResponse || firmReply
+    ? { key: `${stage}:${voice.lastLine!.id}`, target: firmReply ? 'manager' : 'opponent' } : null;
+  const scene = <TransferTheatre mode="renewal" player={player} club={g.myClub} seller={g.myClub} manager={g.career.manager}
+    speaking={voice.speaking} cinematic cameraCue={cameraCue} beat={stage} />;
+  const subtitle = <TransferSubtitle line={voice.lastLine} muted={voice.muted} systemMuted={transferVoiceVolume() <= 0}
+    onReplay={() => { if (voice.lastLine) voice.play(voice.lastLine); }} onSkip={voice.stop} onToggle={voice.toggle} />;
+  return <CinematicLayout ref={stageRef} testId="renewal-flow" stage={stage} scene={scene} subtitle={subtitle}>
     <div className="flex flex-wrap items-center gap-1 text-[10px] font-bold tracking-wide text-secondary" aria-label="Sözleşme görüşmesi adımları">
       <span className={stage === 'offer' ? 'text-amber' : ''}>01 TEKLİF</span><span>—</span>
       <span className={stage === 'response' ? 'text-amber' : ''}>02 OYUNCU YANITI</span><span>—</span>
       <span className={stage === 'review' || stage === 'signed' ? 'text-amber' : ''}>03 İMZA</span>
     </div>
-    <TransferTheatre mode="renewal" player={player} club={g.myClub} seller={g.myClub} manager={g.career.manager} speaking={voice.speaking} />
-    <TransferSubtitle line={voice.lastLine} muted={voice.muted} systemMuted={transferVoiceVolume() <= 0}
-      onReplay={() => { if (voice.lastLine) voice.play(voice.lastLine); }} onSkip={voice.stop} onToggle={voice.toggle} />
     {error && <p role="alert" className="rounded-lg border border-danger/40 bg-danger/10 p-3 text-danger text-[12px]">{error}</p>}
 
     {stage === 'offer' && <div className="space-y-4">
@@ -167,7 +158,7 @@ export const ContractRenewal: React.FC<{ player: Player; onClose: () => void }> 
         {facts(agreement.quote)}
         <p className="text-muted text-[11px]">Maaş aylık bordroya yansır. İmza bonusu bir kez bütçeden düşer; onaylamadan hiçbir şey değişmez.</p>
       </div>
-      <Btn variant="amber" testId="renewal-sign" className="w-full" onClick={sign}>Sözleşmeyi İmzala</Btn>
+      <CinematicActionGuard><Btn variant="amber" testId="renewal-sign" className="w-full" onClick={sign}>Sözleşmeyi İmzala</Btn></CinematicActionGuard>
       <Btn variant="secondary" testId="renewal-review-edit" className="w-full" onClick={() => editOffer()}>Teklifi Düzenle</Btn>
       <Btn variant="secondary" className="w-full" onClick={onClose}>Vazgeç · Değişiklik Yapma</Btn>
     </div>}
@@ -180,5 +171,5 @@ export const ContractRenewal: React.FC<{ player: Player; onClose: () => void }> 
       </div>
       <Btn variant="amber" className="w-full" onClick={onClose}>Sözleşmelere Dön</Btn>
     </div>}
-  </div>;
+  </CinematicLayout>;
 };

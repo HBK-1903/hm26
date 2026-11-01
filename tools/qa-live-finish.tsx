@@ -326,10 +326,14 @@ function Harness({ done }: { done: (report: string[]) => void }) {
         const interviewOpen = /Flash Röportaj/.test(dom.window.document.body.textContent ?? '');
         log.push(interviewOpen ? '✅ Buton sonrası maç sonu röportajı açıldı' : '❌ Röportaj ekranı açılmadı');
 
-        // Röportaj ekranı: ilk seçeneği işaretle, ardından maç sonu analizi açılmalı
+        // Röportajda önce cevap sahnede kalır; analiz yalnız devam düğmesiyle açılır.
         const interviewOption = dom.window.document.querySelector('[data-testid="interview-option-0"]') as HTMLButtonElement | null;
         log.push(interviewOption ? '✅ Maç sonu röportaj seçenekleri render oldu' : '❌ Röportaj seçeneği bulunamadı');
         if (interviewOption) { await act(async () => interviewOption.click()); await tick(150); }
+        const answerVisible = !!dom.window.document.querySelector('[data-testid="interview-answer"]') && !/Sonucu Kaydet — Ana Merkez/.test(dom.window.document.body.textContent ?? '');
+        log.push(answerVisible ? '✅ Röportaj cevabı sahnede bekler, analiz otomatik açılmaz' : '❌ Röportaj cevabı beklemedi');
+        const continueInterview = dom.window.document.querySelector('[data-testid="interview-continue"]') as HTMLButtonElement | null;
+        if (continueInterview) { await act(async () => continueInterview.click()); await tick(150); }
         const reportOpen = /Sonucu Kaydet — Ana Merkez/.test(dom.window.document.body.textContent ?? '');
         log.push(reportOpen ? '✅ Röportaj sonrası maç raporu açıldı' : '❌ Rapor açılmadı');
         const engineResult = finalEngineResult as MatchResult | null;
