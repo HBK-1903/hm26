@@ -13,7 +13,7 @@ async function freePort() {
   return port;
 }
 let server, browser, passed = 0, failed = 0;
-const errors = [], remoteRequests = [];
+const errors = [], remoteRequests = [], photoRequests = [];
 const check = (name, condition, detail = '') => { condition ? passed++ : failed++; console.log(`${condition ? '✅' : '❌'} ${name}${detail ? ` | ${detail}` : ''}`); };
 const screenshots = process.env.HM26_SCREENSHOTS;
 if (screenshots) mkdirSync(screenshots, { recursive: true });
@@ -47,7 +47,7 @@ try {
   });
   const page = await context.newPage();
   page.on('pageerror', (error) => errors.push(error.message));
-  page.on('request', (request) => { const url = new URL(request.url()); if (url.protocol.startsWith('http') && url.hostname !== '127.0.0.1' && url.hostname !== 'localhost') remoteRequests.push(request.url()); });
+  page.on('request', (request) => { const url = new URL(request.url()); if (url.protocol.startsWith('http') && url.hostname !== '127.0.0.1' && url.hostname !== 'localhost') remoteRequests.push(request.url()); if (/negotiation-room|press-room|stadium\.webp|interview-tunnel/.test(url.pathname)) photoRequests.push(url.pathname); });
   const url = `http://127.0.0.1:${port}/tools/cinematic-scenes-fixture.html`;
   await page.goto(url, { waitUntil: 'networkidle' });
   const screenshot = async (name) => { if (screenshots) await page.screenshot({ path: `${screenshots}/${name}.png` }); };
@@ -65,7 +65,7 @@ try {
   const overlay = page.getByTestId('cinematic-overlay'), theatre = page.getByTestId('transfer-theatre');
   let b = await bounds();
   check('320 px transfer pazarlığı tam ekran ve erişilebilir diyalogdur', fits(b) && await page.getByRole('dialog', { name: 'Transfer Görüşmesi' }).getAttribute('aria-modal') === 'true', JSON.stringify(b));
-  check('Masa ve gerçek iki karakter geniş açıda birlikte görünür', await theatre.getAttribute('data-shot') === 'wide' && await theatre.locator('.transfer-theatre__desk').count() === 1 && await theatre.locator('.transfer-theatre__actor').count() === 2 && await theatre.getAttribute('data-scene') === 'negotiation');
+  check('Masa ve gerçek iki karakter kendine özgü kulüp odasında geniş açıda birlikte görünür', await theatre.getAttribute('data-shot') === 'wide' && await theatre.locator('.transfer-theatre__desk').count() === 1 && await theatre.locator('.transfer-theatre__actor').count() === 2 && await theatre.getAttribute('data-scene') === 'negotiation' && await theatre.getByTestId('scene-backdrop').getAttribute('data-atmosphere') === 'club');
   const playerName = await theatre.locator('.transfer-theatre__caption strong').innerText();
   check('Sahne gerçek oyuncuyu ve rakip kulübü kullanır', playerName.length > 1 && /Sakarya Vadi/i.test(await theatre.getAttribute('aria-label')));
   await screenshot('01-negotiation-320');
@@ -104,6 +104,8 @@ try {
   await page.getByTestId('fixture-open-interview').click();
   const interview = page.getByTestId('post-match-interview'), interviewScene = page.getByTestId('interview-theatre');
   check('Röportaj ayrı tam ekran sahne ve gerçek skorla açılır', await page.getByRole('dialog', { name: 'Maç Sonu Röportajı' }).getAttribute('aria-modal') === 'true' && await interviewScene.getAttribute('aria-label') === 'Maç sonu tüneli: Denizli Yeşilova SK 2–1 Sakarya Vadi SK' && /2–1/.test(await interviewScene.innerText()));
+  const interviewArt = await interviewScene.getByTestId('scene-backdrop').evaluate((node) => ({ atmosphere:node.getAttribute('data-atmosphere'), tag:node.tagName.toLowerCase(), hidden:node.getAttribute('aria-hidden'), images:node.querySelectorAll('image').length, background:getComputedStyle(node.parentElement).backgroundImage }));
+  check('Röportajın kendine özgü tüneli fotoğraf değil dekoratif çizimdir', interviewArt.atmosphere === 'interview' && interviewArt.tag === 'svg' && interviewArt.hidden === 'true' && interviewArt.images === 0 && interviewArt.background === 'none', JSON.stringify(interviewArt));
   check('Kırmızı kart sorusu uydurma değil, gerçek maç bağlamından gelir', /eksik kaldı/.test(await page.getByTestId('interview-subtitle').innerText()) && await page.getByTestId('interview-option-0').isVisible());
   await page.keyboard.press('Escape');
   await page.keyboard.press('Shift+Tab');
@@ -185,7 +187,7 @@ try {
   check('Masaüstünde büyük sahne ve karar paneli yan yana yerleşir', fits(b) && Math.abs(b.scene.top - b.panel.top) < 2 && b.scene.right <= b.panel.left + 2 && b.scene.width > b.panel.width, JSON.stringify(b));
   await screenshot('05-interview-desktop');
   await page.getByTestId('decline').click();
-  check('Sahneler ek uzak istek yapmaz ve yakalanmamış uygulama hatası üretmez', remoteRequests.length === 0 && errors.length === 0, JSON.stringify({ remoteRequests, errors }));
+  check('Sahneler fotoğraf veya uzak kaynak istemez ve uygulama hatası üretmez', photoRequests.length === 0 && remoteRequests.length === 0 && errors.length === 0, JSON.stringify({ photoRequests, remoteRequests, errors }));
 } catch (error) {
   failed++; console.error('❌ Sinematik sahne tarayıcı testi kesildi:', error);
 } finally {

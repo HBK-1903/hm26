@@ -50,6 +50,7 @@ try {
   const selectedRow = await chosen.innerText();
   await chosen.getByRole('button', { name: 'Teklif', exact: true }).click();
   check('Piyasa kartından hareketli transfer masası açıldı', await page.getByTestId('transfer-flow').getAttribute('data-stage') === 'offer' && await page.getByTestId('transfer-theatre').getAttribute('data-scene') === 'negotiation');
+  check('Serbest oyuncu görüşmesi kendi çizimli ortamıyla açılır', await page.getByTestId('transfer-theatre').getAttribute('data-atmosphere') === 'player' && await page.getByTestId('scene-backdrop').getAttribute('aria-hidden') === 'true');
   await screenshot('01-offer');
   const metrics = await page.evaluate(() => ({ width: innerWidth, scrollWidth: document.documentElement.scrollWidth, stage: document.querySelector('[data-testid="transfer-theatre"]')?.getBoundingClientRect().width }));
   check('390 px mobil ekranda yatay taşma yok ve sahne görünür', metrics.scrollWidth <= metrics.width && metrics.stage > 250, JSON.stringify(metrics));
@@ -99,6 +100,7 @@ try {
     message: document.body.innerText.slice(-500),
   }));
   check('İmza sonrası masa sahnesi kullanıcı kararına kadar kalır', signingState.signing && signingState.beat === 'signed' && signingState.scene === 'negotiation' && !signingState.reveal, JSON.stringify(signingState));
+  check('Transfer imzasında görüşmeden farklı, sözleşmeli ortam açılır', await page.getByTestId('transfer-theatre').getAttribute('data-atmosphere') === 'sign-transfer');
   if (!signingState.signing) throw new Error(`İmza sahnesi açılamadı: ${JSON.stringify(signingState)}`);
   await page.getByTestId('transfer-open-reveal').dispatchEvent('click', { detail: 2 });
   check('İmzadaki çift tıklama tanıtıma yanlışlıkla geçirmez', await page.getByTestId('transfer-signing').isVisible() && await page.getByTestId('transfer-complete').count() === 0);
@@ -110,7 +112,7 @@ try {
   await page.getByTestId('transfer-complete').waitFor();
   await page.waitForFunction(() => document.querySelector('[data-testid="cinematic-decisions"]')?.scrollTop === 0);
   check('Tanıtım karar alanının başından açılır', await page.getByTestId('cinematic-decisions').evaluate((el) => el.scrollTop) === 0);
-  check('Tekrarlı tıklama sonrası imza ve basın tanıtımı', await page.getByTestId('transfer-theatre').getAttribute('data-scene') === 'press' && (await page.getByTestId('transfer-complete').innerText()).includes('imza atıldı'));
+  check('Tekrarlı tıklama sonrası imza ve çizimli basın tanıtımı', await page.getByTestId('transfer-theatre').getAttribute('data-scene') === 'press' && await page.getByTestId('scene-backdrop').getAttribute('data-atmosphere') === 'press' && (await page.getByTestId('transfer-complete').innerText()).includes('imza atıldı'));
   await screenshot('04-press');
   await page.getByTestId('transfer-announcement').click();
   check('Tanıtım anonsu kullanıcı tıklamasıyla metinli oynatılır', /sunucu/i.test(await page.getByTestId('transfer-subtitle').innerText()));
@@ -165,7 +167,7 @@ try {
   await page.getByTestId('transfer-sign').click();
   await page.getByTestId('transfer-open-reveal').click();
   await page.getByTestId('transfer-complete').waitFor();
-  check('85 GEN bedelsiz oyuncu gerçek tarayıcıda özel yıldız stadyumuna çıkar', await page.getByTestId('transfer-theatre').getAttribute('data-scene') === 'star' && (await page.getByTestId('transfer-complete').innerText()).includes('Bedelsiz'));
+  check('85 GEN bedelsiz oyuncu gerçek tarayıcıda özel yıldız stadyumuna çıkar', await page.getByTestId('transfer-theatre').getAttribute('data-scene') === 'star' && await page.getByTestId('scene-backdrop').getAttribute('data-atmosphere') === 'star' && (await page.getByTestId('transfer-complete').innerText()).includes('Bedelsiz'));
   await screenshot('05-star');
   await page.setViewportSize({ width: 320, height: 700 });
   const narrow = await page.evaluate(() => {
@@ -188,12 +190,14 @@ try {
   });
   check('Üretim servis çalışanı etkin', !!workerReady?.active, JSON.stringify(workerReady));
   await context.setOffline(true);
-  const offlinePaths = ['/assets/cinematic/interview-tunnel.webp', '/assets/transfer/negotiation-room.webp', '/assets/transfer/press-room.webp', '/assets/transfer/stadium.webp',
+  // Previous-release media remain available for old installed clients. New
+  // scenes are inline drawings in the cached application bundle, tested below.
+  const offlinePaths = ['/assets/transfer/negotiation-room.webp', '/assets/transfer/press-room.webp', '/assets/transfer/stadium.webp',
     ...readdirSync('public/assets/transfer/voice').filter((file) => file.endsWith('.mp3')).map((file) => `/assets/transfer/voice/${file}`)];
   const offline = await page.evaluate(async (paths) => Promise.all(paths.map(async (path) => {
     try { const response = await fetch(path); return response.ok && (await response.arrayBuffer()).byteLength > 1000; } catch { return false; }
   })), offlinePaths);
-  check('Dört sahne ve 40 ses çevrimdışı önbellekten açılıyor', offline.every(Boolean) && offline.length === 44, `${offline.filter(Boolean).length}/${offline.length}`);
+  check('Eski sürüm medyası ve 40 ses çevrimdışı önbellekten açılıyor', offline.every(Boolean) && offline.length === 43, `${offline.filter(Boolean).length}/${offline.length}`);
   const decoded = await page.evaluate(async (paths) => {
     const audio = new AudioContext(); let valid = 0;
     try {
@@ -208,6 +212,15 @@ try {
   check('40 MP3 çevrimdışıyken tarayıcı tarafından çözümleniyor', decoded === 40, `${decoded}/40`);
   await page.getByTestId('transfer-announcement').click();
   check('Yıldız anonsu çevrimdışıyken altyazıyla çalışıyor', /yıldız transferimizi/i.test(await page.getByTestId('transfer-subtitle').innerText()));
+  await page.getByRole('button', { name: 'Piyasada Kal' }).click();
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: /Devam Et/ }).first().click();
+  await page.locator('nav[aria-label="Ana gezinme"] button', { hasText: 'Piyasa' }).click();
+  await page.getByRole('button', { name: 'Oyuncu Ara' }).click();
+  await page.locator('button[data-filter="free"]').click();
+  await page.locator('article').filter({ hasText: 'Bedelsiz' }).getByRole('button', { name: 'Teklif', exact: true }).first().click();
+  const offlineArt = page.getByTestId('scene-backdrop');
+  check('Çevrimdışı yeniden açılan kariyerde oyuncu görüşmesinin çizimi ve seçenekleri çalışır', await page.evaluate(() => !navigator.onLine && !!navigator.serviceWorker.controller) && await offlineArt.getAttribute('data-atmosphere') === 'player' && await page.getByTestId('transfer-send-seller').isVisible());
   await context.setOffline(false);
   check('Tarayıcıda yakalanmamış uygulama hatası yok', errors.length === 0, errors.join(' | '));
 } catch (error) {

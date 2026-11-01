@@ -125,7 +125,7 @@ try {
   check('Gelen teklif kartında da oyuncunun GEN ve POT değerleri görünür', /85 GEN/.test(incomingText) && /POT 88/.test(incomingText));
   await page.getByTestId(`sale-open-${fixture.offerId}`).click();
   const flow = page.getByTestId('sale-flow');
-  check('Gelen satış teklifi hareketli alıcı görüşmesini açar', await flow.getAttribute('data-stage') === 'offer' && await page.getByTestId('transfer-theatre').getAttribute('data-scene') === 'negotiation');
+  check('Gelen satış teklifi kendine özgü çizimli alıcı görüşmesini açar', await flow.getAttribute('data-stage') === 'offer' && await page.getByTestId('transfer-theatre').getAttribute('data-scene') === 'negotiation' && await page.getByTestId('scene-backdrop').getAttribute('data-atmosphere') === 'sale');
   const sceneLayout = await page.getByTestId('transfer-theatre').evaluate((element) => {
     const box = element.getBoundingClientRect(), parent = element.closest('[role="dialog"]').getBoundingClientRect();
     return { width: innerWidth, scrollWidth: document.documentElement.scrollWidth, sceneLeft: box.left, sceneRight: box.right, sceneWidth: box.width, dialogLeft: parent.left, dialogRight: parent.right };
@@ -156,7 +156,7 @@ try {
   check('Önceki çift tıklama satışın son onayı yerine geçmez', await flow.getAttribute('data-stage') === 'review' && await page.getByTestId('sale-signing').count() === 0);
   await page.getByTestId('sale-confirm').dblclick();
   await page.waitForFunction(() => { const flow = document.querySelector('[data-testid="sale-flow"]'); return !flow || flow.getAttribute('data-stage') === 'signed'; });
-  check('Satış tamamlandıktan sonra imza sahnesi kullanıcıyı bekler', await page.getByTestId('sale-signing').isVisible() && await page.getByTestId('transfer-theatre').getAttribute('data-beat') === 'signed' && await page.getByTestId('sale-complete').count() === 0);
+  check('Satış tamamlandıktan sonra kendine özgü imza sahnesi kullanıcıyı bekler', await page.getByTestId('sale-signing').isVisible() && await page.getByTestId('transfer-theatre').getAttribute('data-beat') === 'signed' && await page.getByTestId('scene-backdrop').getAttribute('data-atmosphere') === 'sign-sale' && await page.getByTestId('sale-complete').count() === 0);
   await page.getByTestId('sale-open-reveal').dispatchEvent('click', { detail: 2 });
   check('Satış onayındaki çift tıklama tanıtıma yanlışlıkla geçirmez', await page.getByTestId('sale-signing').isVisible() && await page.getByTestId('sale-complete').count() === 0);
   await screenshot('04a-sale-signing');
@@ -226,6 +226,7 @@ try {
   }
   check('Maç bittiğinde ekran otomatik geçmez, kullanıcıyı bekler', await endButton.isVisible() && await page.getByRole('tab', { name: 'Spiker ve Maç Günlüğü' }).getAttribute('aria-selected') === 'true');
   await endButton.click();
+  check('Gerçek maç sonunda röportajın kendi çizimli tüneli açılır', await page.getByTestId('interview-theatre').getByTestId('scene-backdrop').getAttribute('data-atmosphere') === 'interview');
   await page.getByRole('button', { name: /Röportaj vermeden geç/ }).click();
   check('Canlı maç raporunda özet kullanıcı açana kadar başlamaz', await page.getByTestId('open-highlights').isVisible() && await page.getByTestId('match-highlights').count() === 0);
   await page.getByTestId('open-highlights').click();

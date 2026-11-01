@@ -116,6 +116,34 @@ try {
   check('Konuşma bitince gösterge kaybolur', await theatre.locator('.transfer-theatre__voice-meter').count() === 0);
   await page.getByTestId('fixture-transfer-mode').selectOption('seller');
   check('Görüşme masası ve sözleşme detayı yalnız pazarlık sahnesindedir', await theatre.getAttribute('data-scene') === 'negotiation' && await theatre.locator('.transfer-theatre__desk').count() === 1 && await theatre.locator('.transfer-theatre__flags').count() === 0);
+
+  // Each occasion is a different, inline drawing, not just a label or a photo.
+  const settings = [
+    ['club', 'seller', 'offer', 'transfer', 79], ['player', 'player', 'offer', 'transfer', 79],
+    ['sale', 'buyer', 'offer', 'sale', 79], ['renewal', 'renewal', 'offer', 'transfer', 79],
+    ['sign-transfer', 'player', 'signed', 'transfer', 79], ['sign-sale', 'player', 'signed', 'sale', 79],
+    ['sign-renewal', 'renewal', 'signed', 'transfer', 79], ['press', 'reveal', 'offer', 'transfer', 79],
+    ['stadium', 'reveal', 'offer', 'transfer', 80], ['star', 'reveal', 'offer', 'transfer', 85],
+  ];
+  const illustrations = new Set(); let appropriate = true, vectorOnly = true;
+  for (const [expected, mode, beat, context, gen] of settings) {
+    await page.getByTestId('fixture-transfer-mode').selectOption(mode);
+    await page.getByTestId('fixture-transfer-beat').selectOption(beat);
+    await page.getByTestId('fixture-signing-context').selectOption(context);
+    await page.getByTestId('fixture-gen').selectOption(String(gen));
+    const backdrop = theatre.getByTestId('scene-backdrop');
+    const rendered = await backdrop.evaluate((node) => ({ tag:node.tagName.toLowerCase(), atmosphere:node.getAttribute('data-atmosphere'),
+      hidden:node.getAttribute('aria-hidden'), images:node.querySelectorAll('image').length, shapes:node.querySelectorAll('rect,path,circle').length,
+      artwork:node.innerHTML, background:getComputedStyle(node.parentElement).backgroundImage }));
+    appropriate &&= rendered.atmosphere === expected && await theatre.getAttribute('data-atmosphere') === expected;
+    vectorOnly &&= rendered.tag === 'svg' && rendered.hidden === 'true' && rendered.images === 0 && rendered.shapes > 10 && rendered.background === 'none';
+    illustrations.add(rendered.artwork);
+    if (out) await theatre.screenshot({ path: `${out}/atmosphere-${expected}-320.png`, animations: 'disabled' });
+  }
+  check('Kulüp, oyuncu, satış, yenileme, üç imza ve üç tanıtımın ortamı doğru eşleşir', appropriate);
+  check('On ortamın çizimleri birbirinden farklı ve fotoğraf yerine yerel vektördür', vectorOnly && illustrations.size === settings.length, `${illustrations.size}/${settings.length}`);
+  await page.getByTestId('fixture-transfer-mode').selectOption('seller');
+  await page.getByTestId('fixture-transfer-beat').selectOption('offer');
   await page.getByTestId('fixture-speaker').selectOption('representative');
   check('Kulüp temsilcisi konuşurken doğru karakter hareketlenir', await theatre.locator('.transfer-theatre__actor.is-speaking').innerText() === 'TEMSİLCİ' && await style(theatre.locator('.transfer-puppet.is-talking .transfer-puppet__torso'), 'animationName') === 'transfer-gesture');
   await page.getByTestId('fixture-reduce').check();

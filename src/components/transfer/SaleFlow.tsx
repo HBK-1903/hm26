@@ -117,7 +117,7 @@ export const SaleFlow: React.FC<{ offer: IncomingOffer; player: Player; buyer: C
   const cameraCue: CameraCue = significantResponse || firmReply
     ? { key: `${stage}:${voice.lastLine!.id}`, target: firmReply ? 'manager' : 'opponent' } : null;
   const scene = <TransferTheatre mode={theatreMode} player={player} club={sceneClub} seller={buyer} manager={g.career.manager}
-    speaking={voice.speaking} cinematic cameraCue={cameraCue} beat={stage} />;
+    speaking={voice.speaking} cinematic cameraCue={cameraCue} beat={stage} signingContext="sale" />;
   return <CinematicLayout ref={stageRef} testId="sale-flow" stage={stage} scene={scene} subtitle={subtitle}>
     <div className="flex flex-wrap items-center gap-1 text-[10px] font-bold tracking-wide text-secondary" aria-label="Satış görüşmesi adımları">
       <span className={stage === 'offer' ? 'text-amber' : ''}>01 GÖRÜŞME</span><span>—</span>

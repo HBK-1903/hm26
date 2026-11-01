@@ -3,6 +3,7 @@ import type { Club, ManagerFace, Player } from '../../types';
 import { Crest } from '../assets/Crest';
 import { avatarParts, BASE_PALETTES, extendPalettes, normalizeFace, playerFaceFromSeed, playerFaceSeed, presetFace, type FaceLike, type KitPalettes } from '../assets/kit';
 import { useCinematicShot, type CameraCue } from '../cinematic/Cinematic';
+import { SceneBackdrop, type SceneAtmosphere } from '../cinematic/SceneBackdrop';
 import { transferDialogueHash, transferRevealForGen, type TransferReveal } from '../../data/transferPresentation';
 import type { TransferSpeaker, TransferVoiceLine } from '../../data/transferVoices';
 import './transferTheatre.css';
@@ -63,10 +64,15 @@ export const TransferTheatre: React.FC<{
   cinematic?: boolean;
   cameraCue?: CameraCue;
   beat?: string;
-}> = ({ mode, player, club, seller, manager, speaking, cinematic = false, cameraCue = null, beat }) => {
+  /** Sale and transfer both sign with the player, but have different surroundings. */
+  signingContext?: 'transfer' | 'sale';
+}> = ({ mode, player, club, seller, manager, speaking, cinematic = false, cameraCue = null, beat, signingContext = 'transfer' }) => {
   const shot = useCinematicShot(cinematic ? cameraCue : null);
   const reveal: TransferReveal = transferRevealForGen(player.ratings.gen);
   const scene = mode === 'reveal' ? reveal : 'negotiation';
+  const atmosphere: SceneAtmosphere = mode === 'reveal' ? reveal
+    : beat === 'signed' ? (mode === 'renewal' ? 'sign-renewal' : signingContext === 'sale' ? 'sign-sale' : 'sign-transfer')
+    : mode === 'seller' ? 'club' : mode === 'buyer' ? 'sale' : mode;
   const playerClub = mode === 'reveal' ? club : seller;
   const palette: KitPalettes = playerClub ? { ...BASE_PALETTES, suit: [playerClub.color1], accent: [playerClub.color2] } : BASE_PALETTES;
   const managerFace = manager.face ?? presetFace(manager.portrait);
@@ -80,8 +86,9 @@ export const TransferTheatre: React.FC<{
   const venue = mode !== 'reveal' ? (seller?.name ?? 'Serbest oyuncu') : reveal === 'press' ? 'Basın odası' : club.stadium;
   const style = { '--transfer-club': club.color1, '--transfer-trim': club.color2 } as React.CSSProperties;
   return (
-    <div className={`transfer-theatre transfer-theatre--${scene}${cinematic ? ' transfer-theatre--cinematic' : ''}`} style={style} data-testid="transfer-theatre" data-scene={scene} data-speaking={speaking ?? 'none'} data-shot={shot} data-beat={beat ?? 'idle'} aria-label={`${title}: ${venue}`}>
+    <div className={`transfer-theatre transfer-theatre--${scene}${cinematic ? ' transfer-theatre--cinematic' : ''}`} style={style} data-testid="transfer-theatre" data-scene={scene} data-atmosphere={atmosphere} data-speaking={speaking ?? 'none'} data-shot={shot} data-beat={beat ?? 'idle'} aria-label={`${title}: ${venue}`}>
       <div className="transfer-theatre__world">
+        <SceneBackdrop atmosphere={atmosphere} primary={club.color1} trim={club.color2} />
         <div className="transfer-theatre__veil" aria-hidden="true" />
         {(scene === 'stadium' || scene === 'star') && <><div className="transfer-theatre__stadium-lights" aria-hidden="true" /><div className="transfer-theatre__flags" aria-hidden="true"><i /><i /><i /><i /></div></>}
         {scene === 'press' && <div className="transfer-theatre__press-light" aria-hidden="true" />}

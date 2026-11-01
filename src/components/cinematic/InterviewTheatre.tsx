@@ -4,6 +4,7 @@ import { Crest } from '../assets/Crest';
 import { presetFace } from '../assets/kit';
 import { CinematicPuppet } from '../transfer/TransferTheatre';
 import { useCinematicShot, type CameraCue } from './Cinematic';
+import { SceneBackdrop } from './SceneBackdrop';
 import './interviewTheatre.css';
 
 export const InterviewTheatre: React.FC<{
@@ -16,6 +17,7 @@ export const InterviewTheatre: React.FC<{
   return <div className="interview-theatre" data-testid="interview-theatre" data-shot={shot} data-speaking={speaking ?? 'none'}
     aria-label={`Maç sonu tüneli: ${home.name} ${homeGoals}–${awayGoals} ${away.name}`}>
     <div className="interview-theatre__world">
+      <SceneBackdrop atmosphere="interview" primary={home.color1} trim={home.color2} />
       <div className="interview-theatre__lights" aria-hidden="true" />
       <div className="interview-theatre__actors">
         <div className="interview-theatre__person">

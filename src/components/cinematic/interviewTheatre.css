@@ -1,16 +1,17 @@
 .interview-theatre { position:relative; isolation:isolate; overflow:hidden; width:100%; height:100%; min-height:0; color:#fff8ea; background:#101a20; }
-.interview-theatre__world { position:absolute; inset:0; overflow:hidden; background:linear-gradient(180deg,#07151e55,#07151e15 42%,#07151eaf),url('/assets/cinematic/interview-tunnel.webp') center 48% / cover no-repeat; transform-origin:50% 58%; transition:transform 700ms cubic-bezier(.2,.65,.25,1); }
+.interview-theatre__world { position:absolute; inset:0; overflow:hidden; background:#b9cec2; transform-origin:50% 58%; transition:transform 700ms cubic-bezier(.2,.65,.25,1); }
 .interview-theatre[data-shot="manager"] .interview-theatre__world { transform:scale(1.15) translateX(5%); }
 .interview-theatre[data-shot="opponent"] .interview-theatre__world { transform:scale(1.15) translateX(-5%); }
 .interview-theatre__lights { position:absolute; inset:0; pointer-events:none; background:radial-gradient(ellipse at 50% 0%,#ffe4ad3d,transparent 47%); animation:interview-light 7s ease-in-out infinite; }
 .interview-theatre__actors { position:absolute; inset:16% 5% 9%; display:flex; align-items:flex-end; justify-content:center; gap:clamp(20px,5vw,70px); }
-.interview-theatre__person { position:relative; width:30%; max-width:220px; height:auto; max-height:100%; display:flex; flex-direction:column; justify-content:flex-end; align-items:center; filter:drop-shadow(0 6px 7px #0009); }
+.interview-theatre__person { position:relative; width:30%; max-width:220px; height:auto; max-height:100%; display:flex; flex-direction:column; justify-content:flex-end; align-items:center; filter:drop-shadow(0 3px 3px #405c4e66); }
 .interview-theatre__person .transfer-puppet svg { max-height:min(49vh,440px); }
 .interview-theatre__person > span { position:absolute; top:-22px; z-index:2; margin:0; padding:3px 9px; border:1px solid #f1d19a77; border-radius:99px; background:#102222e8; color:#fff9eb; font-size:9px; font-weight:900; letter-spacing:.1em; }
-.interview-theatre__microphone { position:absolute; z-index:3; left:48%; bottom:27%; width:clamp(48px,14%,110px); height:12px; background:linear-gradient(#171c21,#3b4448,#11191d); border-radius:6px; transform:rotate(-22deg); transform-origin:right center; filter:drop-shadow(0 2px 3px #0009); animation:interview-mic 3.5s ease-in-out infinite; }
-.interview-theatre__microphone i { position:absolute; left:-7px; top:-5px; width:19px; height:22px; border-radius:8px; background:repeating-linear-gradient(90deg,#202a2c 0 2px,#68736e 3px,#202a2c 4px); border:2px solid #151d20; }
+.interview-theatre__microphone { position:absolute; z-index:3; left:48%; bottom:27%; width:clamp(48px,14%,110px); height:12px; background:#405a54; border-radius:6px; transform:rotate(-22deg); transform-origin:right center; filter:drop-shadow(0 2px 2px #405c4e66); animation:interview-mic 3.5s ease-in-out infinite; }
+.interview-theatre__microphone i { position:absolute; left:-7px; top:-5px; width:19px; height:22px; border-radius:8px; background:#708780; border:2px solid #151d20; }
 .interview-theatre__microphone b { position:absolute; right:6px; top:2px; width:17px; height:8px; background:#dcc395; border-radius:2px; }
 .interview-theatre__heading { position:absolute; z-index:4; top:13px; left:16px; right:16px; display:flex; align-items:flex-start; justify-content:space-between; gap:10px; text-shadow:0 2px 6px #000; }
+.interview-theatre__heading > div { min-width:0; padding:4px 8px; border-radius:7px; background:#28463de8; }
 .interview-theatre__heading span { display:block; color:#edc880; font-size:9px; font-weight:900; letter-spacing:.15em; }
 .interview-theatre__heading strong { display:block; margin-top:3px; font-size:12px; line-height:1.1; }
 .interview-theatre__heading > b { padding:4px 7px; border:1px solid #e5c58e88; border-radius:5px; background:#112622c9; color:#f5d69c; font-size:9px; letter-spacing:.1em; }
