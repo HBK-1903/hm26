@@ -58,11 +58,29 @@ try {
   check('Antrenman figürü seçili çalışmada gerçekten hareket ediyor', await moved.jsonValue());
   await ground.getByRole('button', { name: 'Durdur' }).click();
   await page.waitForFunction(() => getComputedStyle(document.querySelector('.training-actor--one')).animationPlayState === 'paused');
-  const frozen = await style(actor, 'transform');
+  // A CSS pause can report its new play state before the compositor has
+  // presented the final frame. Wait for both animations and two paints before
+  // comparing, so a slow CI renderer is not mistaken for continued motion.
+  await page.evaluate(async () => {
+    const actor = document.querySelector('.training-actor--one'), leg = actor.querySelector('.training-actor__leg');
+    await Promise.all([actor, leg].flatMap((el) => el.getAnimations()).map((animation) => animation.ready));
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  });
+  const pausedFrame = () => page.evaluate(() => {
+    const actor = document.querySelector('.training-actor--one'), leg = actor.querySelector('.training-actor__leg');
+    const sample = (el) => {
+      const css = getComputedStyle(el), matrix = new DOMMatrix(css.transform), animation = el.getAnimations()[0];
+      return { transform:css.transform, matrix:[matrix.a,matrix.b,matrix.c,matrix.d,matrix.e,matrix.f], css:css.animationPlayState, play:animation?.playState, time:animation?.currentTime };
+    };
+    return { actor:sample(actor), leg:sample(leg) };
+  });
+  const beforePause = await pausedFrame();
   await page.waitForTimeout(250);
-  check('Durdur figürleri ve uzuv animasyonlarını dondurur', await style(actor, 'transform') === frozen && await style(ground.locator('.training-actor__leg').first(), 'animationPlayState') === 'paused');
+  const afterPause = await pausedFrame();
+  const heldStill = (before, after) => before.css === 'paused' && after.css === 'paused' && before.play === 'paused' && after.play === 'paused' && typeof before.time === 'number' && typeof after.time === 'number' && Math.abs(before.time - after.time) < .01 && before.matrix.every((value, i) => Math.abs(value - after.matrix[i]) < .0001);
+  check('Durdur figürleri ve uzuv animasyonlarını dondurur', heldStill(beforePause.actor, afterPause.actor) && heldStill(beforePause.leg, afterPause.leg), JSON.stringify({ beforePause, afterPause }));
   await ground.getByRole('button', { name: 'Devam' }).click();
-  const resumed = await page.waitForFunction((before) => getComputedStyle(document.querySelector('.training-actor--one')).transform !== before, frozen);
+  const resumed = await page.waitForFunction((before) => getComputedStyle(document.querySelector('.training-actor--one')).transform !== before, beforePause.actor.transform);
   check('Antrenman duraklatıldığı yerden devam eder', await resumed.jsonValue());
   const drillProps = { Teknik: 'cones', 'Hücum': 'attack', Defans: 'defence', Fizik: 'lanes', 'Zekâ': 'triangle' };
   let propsCorrect = true;
