@@ -176,6 +176,7 @@ try {
       ['Bench-first tactical flow E2E', 'tools/e2e-benchfirst.mjs'],
       ['Medical/mentoring/trade E2E', 'tools/e2e-features-v099.mjs'],
       ['Transfer theatre, signing and offline media E2E', 'tools/e2e-transfer-scene.mjs'],
+      ['Full-screen negotiation and interview cinematics E2E', 'tools/e2e-cinematic-scenes.mjs'],
       ['Market potential, rotation and sale negotiation E2E', 'tools/e2e-market-squad-polish.mjs'],
       ['Contract renewal and recorded match highlights E2E', 'tools/e2e-renewal-highlights.mjs'],
       ['Live reactions, player comparison and weekly paper E2E', 'tools/e2e-atmosphere-comparison-paper.mjs'],

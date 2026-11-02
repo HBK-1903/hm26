@@ -102,7 +102,8 @@
     "qa:market-improvements": "tsx tools/qa-market-improvements.ts",
     "qa:all": "node tools/qa-all.mjs",
     "qa:highlight-motion": "tsx tools/qa-highlight-motion.ts",
-    "qa:animation-scenes:browser": "node tools/e2e-animation-scenes.mjs"
+    "qa:animation-scenes:browser": "node tools/e2e-animation-scenes.mjs",
+    "qa:cinematic:browser": "node tools/e2e-cinematic-scenes.mjs"
   },
   "dependencies": {
     "phaser": "^3.90.0",

@@ -15,4 +15,6 @@ const annotation = qaFailureAnnotation({ name: 'Stage 100%', code: 1, stdout: 'f
 assert.match(annotation, /^::error title=HM26 QA failed::/);
 assert.ok(annotation.includes('100%25') && annotation.includes('first%0Asecond') && annotation.includes('failure%0D%0Alast'));
 assert.ok(!annotation.includes('\n') && !annotation.includes('\r'));
+const longAnnotation = qaFailureAnnotation({ name: 'Long browser run', code: 1, stdout: `❌ early assertion\n${'passing tail '.repeat(500)}`, stderr: '' });
+assert.ok(longAnnotation.includes('❌ early assertion'), 'early failed checks must survive tail truncation');
 console.log('✅ QA runner reports exit errors, signals and timeouts; CI annotations are escaped');

@@ -24,6 +24,7 @@ import { GameIcon, ICONS } from '../components/icons';
 import { clubById } from '../data/clubs';
 import { MatchReport } from './MatchReport';
 import { PostMatchInterview } from './PostMatchInterview';
+import { CinematicOverlay } from '../components/cinematic/Cinematic';
 import type { InterviewOption } from '../data/interview';
 import { Suspense } from 'react';
 import { lazyWithRecovery } from '../utils/lazyWithRecovery';
@@ -376,7 +377,7 @@ export const LiveMatch: React.FC<{ fixture: DemoFixture; tacticIdx?: number; che
 
   // Not: düdükten sonra otomatik geçiş YOK. Kullanıcı ekranı incelemeye devam eder.
   if (phase === 'interview' && finResult) {
-    return <div className="h-full min-h-0 flex flex-col">{checkpointNotice}<div className="flex-1 min-h-0"><PostMatchInterview result={finResult} fixture={fixture} onChoose={(opt) => { interviewChoiceRef.current = opt; setPhase('report'); }} /></div></div>;
+    return <CinematicOverlay open title="Maç Sonu Röportajı" reducedMotion={g.career.settings.reduceMotion}>{checkpointNotice}<PostMatchInterview result={finResult} fixture={fixture} onChoose={(opt) => { interviewChoiceRef.current = opt; setPhase('report'); }} /></CinematicOverlay>;
   }
   if (phase === 'report' && finResult) {
     const finish = async (endDay: boolean) => {

@@ -139,6 +139,8 @@ async function playLiveMatch(mode: 'answer' | 'decline', endDay = false) {
     ok(optButtons.every(Boolean), 'Üç röportaj seçeneği render oldu');
     ok(!!dom.window.document.querySelector(`[data-testid="${INTERVIEW_DECLINE_ID}"]`), 'Röportajı reddetme seçeneği var');
     ok(await clickTestId('interview-option-0'), 'İlk röportaj seçeneği işaretlendi');
+    ok(!!dom.window.document.querySelector('[data-testid="interview-answer"]') && !/Sonucu Kaydet — Ana Merkez/.test(body()), 'Cevap sahnede kalır, analiz kendiliğinden açılmaz');
+    ok(await clickTestId('interview-continue'), 'Maç analizine kullanıcı devam etti');
   } else {
     ok(await clickTestId(INTERVIEW_DECLINE_ID), 'Röportaj reddedildi');
   }

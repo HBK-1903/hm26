@@ -53,7 +53,9 @@ function Showcase() {
   const [intensity, setIntensity] = useState<TrainingIntensity>('normal');
   const [players, setPlayers] = useState(3);
   const [gen, setGen] = useState(85);
-  const [transferMode, setTransferMode] = useState<'seller' | 'reveal'>('reveal');
+  const [transferMode, setTransferMode] = useState<'seller' | 'buyer' | 'player' | 'renewal' | 'reveal'>('reveal');
+  const [transferBeat, setTransferBeat] = useState<'offer' | 'signed'>('offer');
+  const [signingContext, setSigningContext] = useState<'transfer' | 'sale'>('transfer');
   const [speaker, setSpeaker] = useState<TransferSpeaker | null>(null);
   const [reactionKind, setReactionKind] = useState('idle');
   const [sequence, setSequence] = useState(0);
@@ -98,10 +100,12 @@ function Showcase() {
       <label>Oyuncu <select data-testid="fixture-players" value={players} onChange={(e) => setPlayers(Number(e.target.value))} style={selectStyle}>{[3, 2, 1, 0].map((n) => <option key={n}>{n}</option>)}</select></label>
     </div><TrainingGround club={home} squad={g.mySquad.slice(0, players)} focus={{ area, intensity, sinceDay: 1 }} level={home.facilities.training} reducedMotion={reduced} /></>}
     {scene === 'transfer' && <><div style={controlsStyle}>
-      <label>Sahne <select data-testid="fixture-transfer-mode" value={transferMode} onChange={(e) => setTransferMode(e.target.value as 'seller' | 'reveal')} style={selectStyle}><option value="reveal">Tanıtım</option><option value="seller">Görüşme</option></select></label>
+      <label>Sahne <select data-testid="fixture-transfer-mode" value={transferMode} onChange={(e) => setTransferMode(e.target.value as typeof transferMode)} style={selectStyle}><option value="reveal">Tanıtım</option><option value="seller">Kulüp görüşmesi</option><option value="player">Oyuncu görüşmesi</option><option value="buyer">Satış görüşmesi</option><option value="renewal">Yenileme</option></select></label>
       <label>GEN <select data-testid="fixture-gen" value={gen} onChange={(e) => setGen(Number(e.target.value))} style={selectStyle}>{[79, 80, 84, 85].map((n) => <option key={n}>{n}</option>)}</select></label>
       <label>Konuşmacı <select data-testid="fixture-speaker" value={speaker ?? 'none'} onChange={(e) => setSpeaker(e.target.value === 'none' ? null : e.target.value as TransferSpeaker)} style={selectStyle}><option value="none">Yok</option><option value="manager">Menajer</option><option value="player">Oyuncu</option><option value="representative">Temsilci</option></select></label>
-    </div><TransferTheatre mode={transferMode} player={previewPlayer} club={home} seller={away} manager={career.manager} speaking={speaker} /></>}
+      <label>Aşama <select data-testid="fixture-transfer-beat" value={transferBeat} onChange={(e) => setTransferBeat(e.target.value as typeof transferBeat)} style={selectStyle}><option value="offer">Görüşme</option><option value="signed">İmza</option></select></label>
+      <label>İmza türü <select data-testid="fixture-signing-context" value={signingContext} onChange={(e) => setSigningContext(e.target.value as typeof signingContext)} style={selectStyle}><option value="transfer">Transfer</option><option value="sale">Satış</option></select></label>
+    </div><TransferTheatre mode={transferMode} player={previewPlayer} club={home} seller={away} manager={career.manager} speaking={speaker} beat={transferBeat} signingContext={signingContext} /></>}
     {scene === 'atmosphere' && <><div style={controlsStyle}>
       <label>Örnek olay <select data-testid="fixture-reaction" value={reactionKind} onChange={(e) => { setReactionKind(e.target.value); setSequence((x) => x + 1); }} style={selectStyle}><option value="idle">Bekleme</option><option value="ownGoal">Takımımız gol</option><option value="awayGoal">Rakip gol</option><option value="save">Kurtarış</option><option value="card">Kart</option><option value="cancelled">İptal gol</option></select></label>
       <label>Yedek <select data-testid="fixture-bench" value={bench} onChange={(e) => setBench(Number(e.target.value))} style={selectStyle}>{[3, 2, 1, 0].map((n) => <option key={n}>{n}</option>)}</select></label>

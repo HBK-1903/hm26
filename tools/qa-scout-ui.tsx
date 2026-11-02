@@ -137,6 +137,8 @@ ok('Fikstür manşetleri korundu (regresyon)', /Gün \d+/.test(body()));
   const opt0 = dom.window.document.querySelector('[data-testid="interview-option-0"]') as HTMLButtonElement;
   await act(async () => opt0.click());
   await tick(40);
+  ok('Cevap sahnede gösterilir ve devam edilmeden gönderilmez', !chosen && !!dom.window.document.querySelector('[data-testid="interview-answer"]'));
+  await act(async () => (dom.window.document.querySelector('[data-testid="interview-continue"]') as HTMLButtonElement).click());
   ok('Seçilen seçenek tema önekli id taşıyor', !!chosen && String(chosen.id).startsWith('comeback-'), chosen?.id);
 
   // Kırmızı kart: olaysız ama redH=1 olan 1-0 galibiyeti → redcard teması
@@ -162,6 +164,7 @@ ok('Fikstür manşetleri korundu (regresyon)', /Gün \d+/.test(body()));
   const plainOpt = dom.window.document.querySelector('[data-testid="interview-option-0"]') as HTMLButtonElement;
   await act(async () => plainOpt.click());
   await tick(40);
+  await act(async () => (dom.window.document.querySelector('[data-testid="interview-continue"]') as HTMLButtonElement).click());
   ok('Ekran bağlam dağıtıcısıyla aynı diyaloğu üretiyor', plainPick?.id === expectedId, `ekran=${plainPick?.id} beklenen=${expectedId} tema=${expectedCtx.theme}`);
 }
 

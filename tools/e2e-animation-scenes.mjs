@@ -54,15 +54,34 @@ try {
   check('Bacaklar ve kollar ayrı hareket katmanlarına sahip', await ground.locator('.training-actor__leg').count() === 6 && await ground.locator('.training-actor__arm').count() === 6 && await style(ground.locator('.training-actor__leg').first(), 'animationName') === 'training-legs');
   const actor = ground.locator('.training-actor--one');
   const initialTransform = await style(actor, 'transform');
-  await page.waitForFunction((before) => getComputedStyle(document.querySelector('.training-actor--one')).transform !== before, initialTransform);
-  check('Antrenman figürü seçili çalışmada gerçekten hareket ediyor', await style(actor, 'transform') !== initialTransform);
+  const moved = await page.waitForFunction((before) => getComputedStyle(document.querySelector('.training-actor--one')).transform !== before, initialTransform);
+  check('Antrenman figürü seçili çalışmada gerçekten hareket ediyor', await moved.jsonValue());
   await ground.getByRole('button', { name: 'Durdur' }).click();
-  const frozen = await style(actor, 'transform');
+  await page.waitForFunction(() => getComputedStyle(document.querySelector('.training-actor--one')).animationPlayState === 'paused');
+  // A CSS pause can report its new play state before the compositor has
+  // presented the final frame. Wait for both animations and two paints before
+  // comparing, so a slow CI renderer is not mistaken for continued motion.
+  await page.evaluate(async () => {
+    const actor = document.querySelector('.training-actor--one'), leg = actor.querySelector('.training-actor__leg');
+    await Promise.all([actor, leg].flatMap((el) => el.getAnimations()).map((animation) => animation.ready));
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  });
+  const pausedFrame = () => page.evaluate(() => {
+    const actor = document.querySelector('.training-actor--one'), leg = actor.querySelector('.training-actor__leg');
+    const sample = (el) => {
+      const css = getComputedStyle(el), matrix = new DOMMatrix(css.transform), animation = el.getAnimations()[0];
+      return { transform:css.transform, matrix:[matrix.a,matrix.b,matrix.c,matrix.d,matrix.e,matrix.f], css:css.animationPlayState, play:animation?.playState, time:animation?.currentTime };
+    };
+    return { actor:sample(actor), leg:sample(leg) };
+  });
+  const beforePause = await pausedFrame();
   await page.waitForTimeout(250);
-  check('Durdur figürleri ve uzuv animasyonlarını dondurur', await style(actor, 'transform') === frozen && await style(ground.locator('.training-actor__leg').first(), 'animationPlayState') === 'paused');
+  const afterPause = await pausedFrame();
+  const heldStill = (before, after) => before.css === 'paused' && after.css === 'paused' && before.play === 'paused' && after.play === 'paused' && typeof before.time === 'number' && typeof after.time === 'number' && Math.abs(before.time - after.time) < .01 && before.matrix.every((value, i) => Math.abs(value - after.matrix[i]) < .0001);
+  check('Durdur figürleri ve uzuv animasyonlarını dondurur', heldStill(beforePause.actor, afterPause.actor) && heldStill(beforePause.leg, afterPause.leg), JSON.stringify({ beforePause, afterPause }));
   await ground.getByRole('button', { name: 'Devam' }).click();
-  await page.waitForFunction((before) => getComputedStyle(document.querySelector('.training-actor--one')).transform !== before, frozen);
-  check('Antrenman duraklatıldığı yerden devam eder', await style(actor, 'transform') !== frozen);
+  const resumed = await page.waitForFunction((before) => getComputedStyle(document.querySelector('.training-actor--one')).transform !== before, beforePause.actor.transform);
+  check('Antrenman duraklatıldığı yerden devam eder', await resumed.jsonValue());
   const drillProps = { Teknik: 'cones', 'Hücum': 'attack', Defans: 'defence', Fizik: 'lanes', 'Zekâ': 'triangle' };
   let propsCorrect = true;
   for (const [area, prop] of Object.entries(drillProps)) {
@@ -115,6 +134,104 @@ try {
   check('Konuşma bitince gösterge kaybolur', await theatre.locator('.transfer-theatre__voice-meter').count() === 0);
   await page.getByTestId('fixture-transfer-mode').selectOption('seller');
   check('Görüşme masası ve sözleşme detayı yalnız pazarlık sahnesindedir', await theatre.getAttribute('data-scene') === 'negotiation' && await theatre.locator('.transfer-theatre__desk').count() === 1 && await theatre.locator('.transfer-theatre__flags').count() === 0);
+
+  // Each occasion is a different, inline drawing, not just a label or a photo.
+  const settings = [
+    ['club', 'seller', 'offer', 'transfer', 79], ['player', 'player', 'offer', 'transfer', 79],
+    ['sale', 'buyer', 'offer', 'sale', 79], ['renewal', 'renewal', 'offer', 'transfer', 79],
+    ['sign-transfer', 'player', 'signed', 'transfer', 79], ['sign-sale', 'player', 'signed', 'sale', 79],
+    ['sign-renewal', 'renewal', 'signed', 'transfer', 79], ['press', 'reveal', 'offer', 'transfer', 79],
+    ['stadium', 'reveal', 'offer', 'transfer', 80], ['star', 'reveal', 'offer', 'transfer', 85],
+  ];
+  const illustrations = new Set(); let appropriate = true, vectorOnly = true, shouldersOnly = true;
+  for (const [expected, mode, beat, context, gen] of settings) {
+    await page.getByTestId('fixture-transfer-mode').selectOption(mode);
+    await page.getByTestId('fixture-transfer-beat').selectOption(beat);
+    await page.getByTestId('fixture-signing-context').selectOption(context);
+    await page.getByTestId('fixture-gen').selectOption(String(gen));
+    const backdrop = theatre.getByTestId('scene-backdrop');
+    const rendered = await backdrop.evaluate((node) => ({ tag:node.tagName.toLowerCase(), atmosphere:node.getAttribute('data-atmosphere'),
+      hidden:node.getAttribute('aria-hidden'), images:node.querySelectorAll('image').length, shapes:node.querySelectorAll('rect,path,circle').length,
+      artwork:node.innerHTML, background:getComputedStyle(node.parentElement).backgroundImage }));
+    appropriate &&= rendered.atmosphere === expected && await theatre.getAttribute('data-atmosphere') === expected;
+    vectorOnly &&= rendered.tag === 'svg' && rendered.hidden === 'true' && rendered.images === 0 && rendered.shapes > 10 && rendered.background === 'none';
+    shouldersOnly &&= await theatre.locator('.transfer-puppet__torso').count() === 2 && await theatre.locator('.transfer-puppet__arm, .transfer-puppet__wave-arm, [data-testid="signing-hand"]').count() === 0;
+    illustrations.add(rendered.artwork);
+    if (out) await theatre.screenshot({ path: `${out}/atmosphere-${expected}-320.png`, animations: 'disabled' });
+  }
+  check('Kulüp, oyuncu, satış, yenileme, üç imza ve üç tanıtımın ortamı doğru eşleşir', appropriate);
+  check('On ortamın çizimleri birbirinden farklı ve fotoğraf yerine yerel vektördür', vectorOnly && illustrations.size === settings.length, `${illustrations.size}/${settings.length}`);
+  check('Görüşme ve tanıtımlarda karakterler kolsuz, baş ve omuzlarıyla görünür', shouldersOnly);
+
+  // Inspect deterministic keyframes, not just the presence of a CSS animation:
+  // the pen tip must stay on the paper and advance with the revealed ink in all
+  // three genuine signing contexts and at phone/desktop widths.
+  const signingCases = [
+    ['sign-transfer', 'player', 'transfer'], ['sign-sale', 'player', 'sale'], ['sign-renewal', 'renewal', 'transfer'],
+  ];
+  let choreography = true; const samples = [];
+  await page.getByTestId('fixture-speaker').selectOption('player');
+  for (const [width, height] of [[320, 720], [390, 844], [1280, 800]]) {
+    await page.setViewportSize({ width, height });
+    for (const [expected, mode, context] of signingCases) {
+      await page.getByTestId('fixture-transfer-beat').selectOption('offer');
+      await page.getByTestId('fixture-transfer-mode').selectOption(mode);
+      await page.getByTestId('fixture-signing-context').selectOption(context);
+      await page.getByTestId('fixture-transfer-beat').selectOption('signed');
+      const frames = await page.getByTestId('signing-illustration').evaluate((svg) => {
+        const pen = svg.querySelector('[data-testid="signing-pen"]');
+        const inkClip = svg.querySelector('[data-testid="signing-ink-reveal"]');
+        const paper = svg.querySelector('.transfer-signing__paper');
+        const lift = svg.querySelector('.transfer-signing__lift');
+        const tip = svg.querySelector('[data-testid="signing-pen-tip"]');
+        const inkPath = svg.querySelector('[data-testid="signing-ink"]');
+        const point = (node, x, y) => new DOMPoint(x, y).matrixTransform(node.getScreenCTM());
+        const output = [];
+        for (const time of [550, 730, 910, 1090, 1270, 1450, 1630, 1810, 1990, 2170, 2350]) {
+          for (const el of [pen, inkClip, paper, lift]) for (const animation of el.getAnimations()) {
+            animation.pause(); animation.currentTime = el === paper ? 1000 : el === lift ? 0 : time;
+          }
+          const inkMatrix = new DOMMatrix(getComputedStyle(inkClip).transform);
+          const penTip = point(tip, 34, 58), inkEdge = point(inkClip, 86.5, 58);
+          const localTip = penTip.matrixTransform(svg.getScreenCTM().inverse());
+          // The path is monotonic in x. Find the actual ink height at the nib,
+          // not just the leading edge of its reveal mask.
+          let low = 0, high = inkPath.getTotalLength();
+          for (let i = 0; i < 30; i++) {
+            const middle = (low + high) / 2;
+            if (inkPath.getPointAtLength(middle).x < localTip.x) low = middle; else high = middle;
+          }
+          const inkPoint = inkPath.getPointAtLength((low + high) / 2);
+          const rect = paper.querySelector('rect:nth-child(2)').getBoundingClientRect();
+          output.push({ progress:(localTip.x - 34) / 52, ink:inkMatrix.a, x:penTip.x,
+            inside:penTip.x >= rect.left && penTip.x <= rect.right && penTip.y >= rect.top && penTip.y <= rect.bottom,
+            inkGap:Math.abs(inkEdge.x - penTip.x) / rect.width, pathGap:Math.abs(localTip.y - inkPoint.y) });
+        }
+        return output;
+      });
+      const valid = await theatre.getAttribute('data-atmosphere') === expected && frames.every((f, i) => f.inside && Math.abs(f.progress - i / 10) < .01 && Math.abs(f.ink - f.progress) < .01 && f.inkGap < .02 && f.pathGap < .05 && (i === 0 || f.x > frames[i - 1].x));
+      choreography &&= valid; samples.push(`${width}:${expected}:${valid}${valid ? '' : `:${JSON.stringify(frames)}`}`);
+    }
+  }
+  check('Üç imzada kalem ucu kâğıtta mürekkebin izlediği yolu çizer', choreography, samples.join(' | '));
+  await page.getByTestId('fixture-reduce').check();
+  const reducedSigning = await page.getByTestId('signing-illustration').evaluate((svg) => {
+    const pen = svg.querySelector('[data-testid="signing-pen"]'), clip = svg.querySelector('[data-testid="signing-ink-reveal"]');
+    const position = new DOMMatrix(getComputedStyle(pen).transform), reveal = new DOMMatrix(getComputedStyle(clip).transform);
+    return { penAnimation:getComputedStyle(pen).animationName, inkAnimation:getComputedStyle(clip).animationName,
+      x:position.e, y:position.f, visibleInk:reveal.a };
+  });
+  check('Azaltılmış harekette tamamlanmış imza ve son noktadaki kalem sabittir', reducedSigning.penAnimation === 'none' && reducedSigning.inkAnimation === 'none' && Math.abs(reducedSigning.x - 52) < .01 && Math.abs(reducedSigning.y + 6) < .01 && Math.abs(reducedSigning.visibleInk - 1) < .01 && await page.getByTestId('signing-ink').isVisible(), JSON.stringify(reducedSigning));
+  await page.getByTestId('fixture-reduce').uncheck();
+  await page.setViewportSize({ width: 320, height: 720 });
+  await page.getByTestId('fixture-transfer-beat').selectOption('offer');
+  await page.getByTestId('fixture-transfer-mode').selectOption('reveal');
+  await page.getByTestId('fixture-gen').selectOption('79');
+  check('Basın tanıtımında kameraman, mikrofonlar ve omuzları görünen oyuncu vardır', await theatre.getByTestId('broadcast-camera-operator').count() === 1 && await theatre.locator('.transfer-theatre__press-mics i').count() === 3 && await theatre.locator('.transfer-puppet--opponent .transfer-puppet__torso').count() === 1 && await theatre.locator('.transfer-puppet--opponent .transfer-puppet__arm').count() === 0);
+  await page.getByTestId('fixture-gen').selectOption('85');
+  check('Yıldız tanıtımında oyuncu ve omuzları kolsuz görünür', await theatre.locator('.transfer-puppet--opponent .transfer-puppet__torso').count() === 1 && await theatre.locator('.transfer-puppet--opponent .transfer-puppet__arm, .transfer-puppet--opponent .transfer-puppet__wave-arm').count() === 0 && await theatre.getAttribute('data-scene') === 'star');
+  await page.getByTestId('fixture-transfer-mode').selectOption('seller');
+  await page.getByTestId('fixture-transfer-beat').selectOption('offer');
   await page.getByTestId('fixture-speaker').selectOption('representative');
   check('Kulüp temsilcisi konuşurken doğru karakter hareketlenir', await theatre.locator('.transfer-theatre__actor.is-speaking').innerText() === 'TEMSİLCİ' && await style(theatre.locator('.transfer-puppet.is-talking .transfer-puppet__torso'), 'animationName') === 'transfer-gesture');
   await page.getByTestId('fixture-reduce').check();

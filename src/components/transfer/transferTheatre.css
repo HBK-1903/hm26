@@ -3,24 +3,27 @@
   position: relative; isolation: isolate; overflow: hidden; aspect-ratio: 16 / 10;
   width: 100%; min-width: 0; max-height: 265px; border-radius: 18px;
   border: 1px solid rgba(226, 188, 113, .36); color: #fff8ed;
-  background: #111e2c url('/assets/transfer/negotiation-room.webp') center / cover no-repeat;
-  box-shadow: 0 10px 24px rgba(9, 18, 29, .22), inset 0 1px rgba(255,255,255,.1);
+  background: #a5c9b8;
+  box-shadow: 0 10px 24px rgba(34, 65, 51, .18), inset 0 1px rgba(255,255,255,.1);
 }
-.transfer-theatre--press { background-image: url('/assets/transfer/press-room.webp'); }
-.transfer-theatre--stadium, .transfer-theatre--star { background-image: url('/assets/transfer/stadium.webp'); }
-.transfer-theatre__veil { position:absolute; inset:0; z-index:-1; background:linear-gradient(180deg,rgba(5,12,22,.68),rgba(7,15,24,.12) 38%,rgba(4,10,19,.84)); }
+.transfer-theatre__world { position:absolute; inset:0; overflow:hidden; background:#a5c9b8; transform-origin:50% 58%; transition:transform 700ms cubic-bezier(.2,.65,.25,1); }
+.transfer-theatre__veil { position:absolute; inset:0; z-index:0; pointer-events:none; background:linear-gradient(180deg,rgba(42,69,55,.08),transparent 50%,rgba(34,62,47,.16)); }
 .transfer-theatre__heading { position:absolute; top:11px; left:13px; right:12px; display:flex; align-items:flex-start; justify-content:space-between; gap:10px; z-index:3; }
+.transfer-theatre__heading > div { min-width:0; padding:4px 8px; border-radius:7px; background:#28463de8; }
 .transfer-theatre__eyebrow { font-size:9px; letter-spacing:.16em; font-weight:900; color:#f3c875; text-shadow:0 1px 4px #000; }
 .transfer-theatre__venue { font-size:12px; font-weight:750; line-height:1.2; margin-top:3px; text-shadow:0 2px 5px #000; }
 .transfer-theatre__crest { display:flex; align-items:center; justify-content:center; padding:4px; border-radius:50%; background:rgba(6,17,30,.82); border:1px solid rgba(255,255,255,.25); box-shadow:0 2px 10px #0007; }
 .transfer-theatre__actors { position:absolute; inset:33px 7% 36px; display:flex; justify-content:center; align-items:flex-end; gap:4%; z-index:1; }
-.transfer-theatre__actor { position:relative; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; width:32%; max-width:112px; height:100%; filter:drop-shadow(0 5px 6px rgba(0,0,0,.55)); }
+.transfer-theatre__actor { position:relative; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; width:32%; max-width:112px; height:100%; filter:drop-shadow(0 3px 3px rgba(50,75,60,.35)); }
 .transfer-theatre__actor > span { display:block; margin-top:-4px; padding:2px 7px; border:1px solid rgba(255,255,255,.2); border-radius:999px; background:rgba(7,16,28,.84); color:#f5ecd9; font-size:7px; font-weight:900; letter-spacing:.11em; z-index:2; }
 .transfer-theatre__actor.is-speaking > span { color:#fff8dc; border-color:#f3c875; background:rgba(70,44,18,.94); box-shadow:0 0 12px #f3c87555; }
 .transfer-puppet { width:100%; max-height:100%; transform-origin:50% 100%; animation:transfer-breathe 5.2s ease-in-out infinite; }
 .transfer-puppet--opponent { animation-duration:4.7s; animation-delay:-2.3s; }
 .transfer-puppet svg { display:block; width:100%; max-height:155px; overflow:visible; }
-.transfer-puppet__torso { transform-origin:64px 126px; }
+.transfer-puppet__torso { transform-origin:64px 140px; }
+.transfer-puppet__mic-arm { transform-origin:31px 103px; transition:transform 550ms cubic-bezier(.2,.65,.25,1); }
+.transfer-puppet__mic-arm[data-target="reporter"] { transform:rotate(30deg); }
+.transfer-puppet__mic-arm[data-target="manager"] { transform:rotate(-20deg); }
 .transfer-puppet__head { transform-origin:64px 85px; animation:transfer-head 6s ease-in-out infinite; }
 .transfer-puppet--opponent .transfer-puppet__head { animation-duration:6.8s; animation-delay:-2.1s; }
 .transfer-puppet__expression { transform-origin:64px 85px; }
@@ -31,8 +34,10 @@
 .transfer-puppet.is-talking .transfer-puppet__expression { animation:transfer-talking 1.35s ease-in-out infinite; }
 .transfer-puppet.is-talking .transfer-puppet__closed-mouth { opacity:0; }
 .transfer-puppet.is-talking .transfer-puppet__open-mouth { opacity:1; animation:transfer-mouth .72s ease-in-out infinite; }
-.transfer-theatre__shirt { width:18%; max-width:60px; margin-bottom:18px; filter:drop-shadow(0 4px 6px #0009); animation:transfer-shirt 3s ease-in-out infinite; }
-.transfer-theatre__shirt svg { width:100%; display:block; }
+.transfer-theatre__shirt { position:relative; width:18%; max-width:60px; margin-bottom:18px; filter:drop-shadow(0 3px 3px #405c4e66); animation:transfer-shirt 3s ease-in-out infinite; }
+.transfer-theatre__shirt::before { content:""; position:absolute; left:calc(50% - 2px); top:78%; bottom:-12px; width:4px; background:#e4dbc2; border:1px solid #48665a; }
+.transfer-theatre__shirt::after { content:""; position:absolute; left:26%; right:26%; bottom:-14px; height:4px; border-radius:3px; background:#627e6e; }
+.transfer-theatre__shirt svg { position:relative; width:100%; display:block; }
 .transfer-theatre__foot { position:absolute; inset:auto 0 0; height:30%; background:linear-gradient(0deg,rgba(4,10,19,.9),transparent); z-index:1; pointer-events:none; }
 .transfer-theatre__caption { position:absolute; bottom:11px; left:14px; right:14px; display:grid; grid-template-columns:auto 1fr auto; gap:7px; align-items:baseline; z-index:2; text-shadow:0 2px 5px #000; }
 .transfer-theatre__caption span { color:#f0c775; font-size:8px; font-weight:900; letter-spacing:.11em; }
@@ -43,6 +48,11 @@
 .transfer-theatre__desk i { position:absolute; width:28px; height:12px; left:43%; bottom:4px; border:1px solid #bda879; background:#f1e6c9; transform:rotate(-5deg); }
 .transfer-theatre__desk b { position:absolute; width:18px; height:2px; left:52%; bottom:7px; border-radius:2px; background:#bd9658; transform:rotate(20deg); }
 .transfer-theatre__press-light { position:absolute; inset:0; z-index:0; pointer-events:none; background:linear-gradient(112deg,transparent 38%,#f7dfaa22 50%,transparent 62%); animation:transfer-press-light 7s ease-in-out infinite; }
+.transfer-theatre__crew { position:absolute; right:1%; bottom:14%; z-index:0; width:clamp(38px,12%,100px); height:auto; pointer-events:none; }
+.broadcast-crew__operator { transform-origin:75px 110px; animation:broadcast-sway 6s ease-in-out infinite; }
+.transfer-theatre__press-mics { position:absolute; z-index:3; left:40%; right:40%; bottom:18%; height:9%; display:flex; justify-content:center; align-items:flex-end; gap:16%; pointer-events:none; }
+.transfer-theatre__press-mics i { position:relative; display:block; width:3px; height:55%; border-radius:3px; background:#304840; }
+.transfer-theatre__press-mics i::before { content:""; position:absolute; left:-4px; top:-5px; width:11px; height:10px; border-radius:6px; background:#57736a; border:1px solid #213b34; }
 .transfer-theatre__flags { position:absolute; left:5%; right:5%; top:36%; height:14%; display:flex; justify-content:space-between; opacity:.8; pointer-events:none; }
 .transfer-theatre__flags i { width:8%; height:38%; background:var(--transfer-club); border:1px solid #eee6cc99; border-left:2px solid #f5ead0; transform-origin:left bottom; animation:transfer-flag 3.6s ease-in-out infinite alternate; }
 .transfer-theatre__flags i:nth-child(even) { background:var(--transfer-trim); animation-delay:-1.6s; }
@@ -85,6 +95,60 @@
 .transfer-facts > div { background:var(--c-base); border:1px solid var(--c-line); border-radius:10px; padding:9px 10px; }
 .transfer-facts span { display:block; color:var(--c-muted); font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; }
 .transfer-facts strong { display:block; color:var(--c-primary); font-size:13px; margin-top:3px; overflow-wrap:anywhere; }
+/* Immersive version: a full stage rather than a card inside a form. */
+.transfer-theatre--cinematic { container-type:size; width:100%; height:100%; max-height:none; aspect-ratio:auto; border:0; border-radius:0; box-shadow:none; }
+.transfer-theatre--cinematic[data-shot="manager"] .transfer-theatre__world { transform:scale(1.15) translateX(5%); }
+.transfer-theatre--cinematic[data-shot="opponent"] .transfer-theatre__world { transform:scale(1.15) translateX(-5%); }
+.transfer-theatre--cinematic[data-shot="table"] .transfer-theatre__world { transform:scale(1.12) translateY(-4%); }
+.transfer-theatre--cinematic .transfer-theatre__heading { top:14px; left:16px; right:16px; }
+.transfer-theatre--cinematic .transfer-theatre__eyebrow { font-size:10px; }
+.transfer-theatre--cinematic .transfer-theatre__venue { font-size:14px; }
+.transfer-theatre--cinematic .transfer-theatre__actors { inset:15% 5% 17%; align-items:flex-end; gap:clamp(12px,5vw,65px); }
+.transfer-theatre--cinematic .transfer-theatre__crew { width:min(clamp(38px,12%,100px),max(28px,35cqh)); }
+/* Scale faces against the stage height as well as its width: a landscape phone
+   has a wide but shallow stage, not room for desktop-sized characters. */
+.transfer-theatre--cinematic .transfer-theatre__actor { width:31%; width:min(31%, max(30px, calc(60.4cqh - 58px))); max-width:230px; height:auto; max-height:100%; }
+.transfer-theatre--cinematic .transfer-puppet svg { max-height:min(49vh,440px); }
+.transfer-theatre--cinematic .transfer-theatre__actor > span { position:absolute; top:-22px; margin:0; font-size:9px; padding:3px 9px; }
+.transfer-theatre--cinematic .transfer-theatre__caption { bottom:13px; left:17px; right:17px; }
+.transfer-theatre--cinematic .transfer-theatre__caption strong { font-size:15px; }
+.transfer-theatre--cinematic .transfer-theatre__caption span, .transfer-theatre--cinematic .transfer-theatre__caption small { font-size:10px; }
+.transfer-theatre--cinematic .transfer-theatre__desk { z-index:2; left:7%; right:7%; bottom:13%; height:9%; min-height:18px; border-radius:48% 48% 9px 9px; border:2px solid #6d6650; border-top:4px solid #e2c79b; background:#a4815e; box-shadow:0 5px 0 #705e49; }
+.transfer-theatre--cinematic .transfer-theatre__desk i { width:clamp(36px,12%,85px); height:clamp(14px,4vh,34px); left:42%; bottom:55%; border-radius:2px; background:repeating-linear-gradient(0deg,#eadfc5 0 4px,#b8ac8d 5px,#eadfc5 6px); box-shadow:0 2px 4px #0008; }
+.transfer-theatre--cinematic .transfer-theatre__desk b { width:clamp(24px,7%,55px); height:3px; left:53%; bottom:82%; background:#caa664; }
+.transfer-theatre--cinematic .transfer-theatre__desk em, .transfer-theatre--cinematic .transfer-theatre__desk strong { position:absolute; bottom:65%; width:clamp(13px,4%,28px); height:clamp(14px,3.5vh,29px); border:1px solid #e6dfc677; border-radius:2px 2px 5px 5px; background:linear-gradient(90deg,#ffffff30,#ffffff08,#ffffff30); }
+.transfer-theatre--cinematic .transfer-theatre__desk em { left:23%; }.transfer-theatre--cinematic .transfer-theatre__desk strong { right:23%; }
+.transfer-theatre--cinematic[data-beat="review"] .transfer-theatre__desk i { animation:transfer-paper 1s ease-out both; }
+/* The signature is a single paper-and-pen drawing anchored to the table. */
+.transfer-theatre[data-beat="signed"] .transfer-theatre__desk { z-index:2; }
+.transfer-theatre[data-beat="signed"] .transfer-theatre__desk i,
+.transfer-theatre[data-beat="signed"] .transfer-theatre__desk b { visibility:hidden; }
+.transfer-theatre__signing { position:absolute; z-index:3; left:50%; bottom:50%; width:clamp(56px,22%,148px); height:auto; overflow:visible; transform:translateX(-50%); pointer-events:none; }
+.transfer-theatre--cinematic .transfer-theatre__signing { width:min(clamp(56px,22%,148px), clamp(36px,25cqh,148px)); }
+.transfer-signing__paper { animation:transfer-sheet-in .55s ease-out both; }
+.transfer-signing__ink-reveal { transform-box:fill-box; transform-origin:left center; animation:transfer-ink 1.8s .55s linear both; }
+.transfer-signing__pen { transform:translate(52px,-6px); animation:transfer-pen-write 1.8s .55s linear both; }
+.transfer-signing__lift { transform-origin:34px 58px; animation:transfer-pen-lift .5s 2.35s ease-out both; }
+@keyframes transfer-sheet-in { from { opacity:.7; transform:translateY(5px); } to { opacity:1; transform:translateY(0); } }
+@keyframes transfer-ink { from { transform:scaleX(0); } to { transform:scaleX(1); } }
+/* Percentages follow the x coordinates of the signature's line segments; the
+   pen tip therefore traces the ink rather than sliding above a separate mark. */
+@keyframes transfer-pen-write {
+  0% { transform:translate(0,0); }
+  9.615% { transform:translate(5px,-3px); }
+  17.308% { transform:translate(9px,0); }
+  25% { transform:translate(13px,-5px); }
+  32.692% { transform:translate(17px,0); }
+  40.385% { transform:translate(21px,-3px); }
+  48.077% { transform:translate(25px,0); }
+  57.692% { transform:translate(30px,-3px); }
+  69.231% { transform:translate(36px,-1px); }
+  82.692% { transform:translate(43px,-5px); }
+  100% { transform:translate(52px,-6px); }
+}
+@keyframes transfer-pen-lift { from { transform:translateY(0) rotate(0); } to { transform:translateY(-2px) rotate(-2deg); } }
+@keyframes transfer-paper { from { transform:translateY(18px) rotate(-13deg); } to { transform:translateY(0) rotate(-5deg); } }
+@keyframes broadcast-sway { 0%,100% { transform:rotate(-1deg); } 50% { transform:rotate(1deg); } }
 @keyframes transfer-gesture { 0%,100% { transform:rotate(0); } 35% { transform:rotate(-1.1deg); } 70% { transform:rotate(.7deg); } }
 @keyframes transfer-voice { from { transform:scaleY(.35); } to { transform:scaleY(1.1); } }
 @keyframes transfer-flag { from { transform:rotate(-8deg) skewY(-4deg); } to { transform:rotate(9deg) skewY(5deg); } }
@@ -99,4 +163,37 @@
 @keyframes transfer-confetti { 0% { transform:translateY(-8px) rotate(0); } 100% { transform:translateY(320px) rotate(360deg); } }
 @media (max-width:340px) { .transfer-theatre__caption { grid-template-columns:minmax(0,1fr) auto; } .transfer-theatre__caption span { display:none; } .transfer-theatre__actors { inset-inline:3%; } }
 html.m26-rm .transfer-theatre *, html.m26-rm .transfer-theatre *::before, html.m26-rm .transfer-theatre *::after, html.m26-rm .transfer-floating-cue * { animation:none !important; }
-@media (prefers-reduced-motion:reduce) { .transfer-theatre *, .transfer-theatre *::before, .transfer-theatre *::after, .transfer-floating-cue * { animation:none !important; } }
+html.m26-rm .transfer-puppet__mic-arm { transition:none !important; }
+@media (prefers-reduced-motion:reduce) {
+  .transfer-theatre *, .transfer-theatre *::before, .transfer-theatre *::after, .transfer-floating-cue * { animation:none !important; }
+  .transfer-puppet__mic-arm { transition:none !important; }
+}
+
+html.m26-rm .transfer-theatre__world { transition:none !important; transform:none !important; }
+@media (prefers-reduced-motion:reduce) { .transfer-theatre__world { transition:none !important; transform:none !important; } }
+/* During the brief table close-up, name tags would overlap the fixed heading
+   on narrow screens; they return with the wide shot. */
+@media (max-width:859px) {
+  .transfer-theatre--cinematic .transfer-theatre__venue { overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+  .transfer-theatre--cinematic[data-shot="table"] .transfer-theatre__actor > span { visibility:hidden; }
+}
+/* Compact scenes still show both people and the table, without covering their faces with labels. */
+@media (max-height:560px) and (max-width:859px), (max-height:499px) {
+  .transfer-theatre--cinematic .transfer-theatre__heading { top:4px; left:10px; right:10px; }
+  .transfer-theatre--cinematic .transfer-theatre__eyebrow { font-size:8px; }
+  .transfer-theatre--cinematic .transfer-theatre__venue { font-size:11px; }
+  .transfer-theatre--cinematic[data-shot="table"] .transfer-theatre__world { transform:scale(1.04) translateY(-1%); }
+  .transfer-theatre--cinematic .transfer-theatre__actors { inset:28% 5% 22%; gap:clamp(12px,5vw,45px); }
+  .transfer-theatre--cinematic .transfer-theatre__actor { width:20%; width:min(20%,36.4cqh); }
+  .transfer-theatre--cinematic .transfer-puppet svg { max-height:clamp(42px,12vh,67px); }
+  .transfer-theatre--cinematic .transfer-theatre__signing { width:clamp(36px,13%,64px); width:min(clamp(36px,13%,64px),clamp(32px,25cqh,64px)); }
+  .transfer-theatre--cinematic .transfer-theatre__actor > span { display:none; }
+  .transfer-theatre--cinematic .transfer-theatre__desk { bottom:23%; }
+  .transfer-theatre--cinematic .transfer-theatre__caption { bottom:4px; left:10px; right:10px; }
+}
+/* Landscape phones have enough horizontal space for larger busts; lift them
+   above the table so their shoulders remain visible in the shallow stage. */
+@media (min-width:560px) and (max-height:499px) {
+  .transfer-theatre--cinematic .transfer-theatre__actors { top:15%; bottom:28%; }
+  .transfer-theatre--cinematic .transfer-puppet svg { max-height:clamp(50px,16vh,78px); }
+}

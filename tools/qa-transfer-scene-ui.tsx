@@ -172,6 +172,8 @@ const sign = byId('transfer-sign');
 if (!sign) throw new Error('İmza butonu yok');
 await act(async () => { sign.click(); sign.click(); });
 check('Çift tıklama bir kez imzalar', buyCalls === 1 && gRef.transferLog.length === beforeStarLog + 1, `buy=${buyCalls}, log=${gRef.transferLog.length - beforeStarLog}`);
+check('İmza masası tanıtıma kendiliğinden geçmez', stage() === 'signed' && scene() === 'negotiation' && !!byId('transfer-signing') && !byId('transfer-complete'));
+await clickId('transfer-open-reveal');
 check('85 GEN bedelsiz oyuncu yıldız stadyumu ve gerçek kulüp/stadyum bilgisiyle tanıtılır', stage() === 'signed' && scene() === 'star' && q('[data-testid="transfer-complete"]')?.getAttribute('data-reveal-tier') === 'star' && body().includes(gRef.myClub.stadium) && body().includes(gRef.myClub.name));
 check('İmzalanan bedelsiz oyuncu gerçek kadro, maaş, söz ve geçmişe işlendi', gRef.mySquad.some((x) => x.id === star.id && x.wage === 200) && gRef.transferLog[0]?.fee === 0 && !!gRef.promises?.[star.id] && gRef.budget.tb === beforeStarBudget);
 await gRef.saveNow();
@@ -229,6 +231,7 @@ rejectAudio = false;
 check('Tarayıcı ses oynatımını reddetse de metin ve oyuncu kararı çalışır', !!byId('transfer-review') && /Oyuncu/.test(q('[data-testid="transfer-subtitle"]')?.textContent ?? ''));
 await clickId('transfer-review');
 await clickId('transfer-sign');
+await clickId('transfer-open-reveal');
 check('80 GEN tanıtımı stadyumda; yok numara uydurulmadı', scene() === 'stadium' && q('[data-testid="transfer-complete"]')?.getAttribute('data-reveal-tier') === 'stadium' && !q('.transfer-theatre__shirt text'));
 await clickText('Piyasada Kal');
 check('Tanıtım sonrası piyasada kal seçeneği korunuyor', done.at(-1)?.ok === true && homeCalls === 0);
@@ -279,6 +282,7 @@ await clickId('transfer-review');
 check('Sıfır nakitli takas, serbest/bedelsiz diye etiketlenmez', /Nakit bonservis₺0\.00M/.test(body()) && !/Bedelsiz · ₺0M/.test(body()) && body().includes(swap.name));
 await clickId('transfer-sign');
 check('Takas edilen oyuncu satıcıya geçti, isim tanıtımda korundu', gRef.playerOf(swap.id)?.clubId === swapTarget.p.clubId && body().includes(`Takas: ${swap.name}`));
+await clickId('transfer-open-reveal');
 check('79 ve altı oyuncu basın tanıtımı alıyor', swapTarget.p.ratings.gen < 80 && scene() === 'press');
 
 // Bütçe, maaş, kota ve kadro sınırları.

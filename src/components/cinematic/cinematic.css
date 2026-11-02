@@ -1,0 +1,43 @@
+/* A separate, full-viewport game scene. The controls remain in the current HM26 theme. */
+.cinematic-overlay { position:fixed; inset:0; z-index:80; height:100%; height:100dvh; background:#08131a; color:#f7f2e7; }
+.cinematic-overlay__window { display:flex; flex-direction:column; width:100%; height:100%; min-height:0; outline:0; overflow:hidden; }
+.cinematic-overlay__header { flex:none; display:flex; align-items:center; justify-content:space-between; gap:10px; min-height:58px; padding:calc(6px + env(safe-area-inset-top, 0px)) max(14px, env(safe-area-inset-right, 0px)) 7px max(14px, env(safe-area-inset-left, 0px)); background:linear-gradient(110deg,#0a1c22,#142b2c); border-bottom:1px solid #d5ac684d; }
+.cinematic-overlay__title { overflow:hidden; }
+.cinematic-overlay__title span { display:block; color:#d5b47d; font-size:9px; font-weight:900; letter-spacing:.19em; }
+.cinematic-overlay__title h2 { color:#fff8eb; font:700 clamp(15px,3.8vw,20px)/1.15 Georgia,serif; margin:2px 0 0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.cinematic-overlay__tools { flex:none; display:flex; align-items:center; gap:5px; }
+.cinematic-overlay__tools button { min-height:42px; border:1px solid #ffffff2c; border-radius:10px; color:#fff6e6; font-weight:800; background:#ffffff0c; }
+.cinematic-overlay__tools button:hover { background:#ffffff1e; }
+.cinematic-overlay__tools button:focus-visible { outline-color:#f0c775; box-shadow:0 0 0 2px #142b2c; }
+.cinematic-overlay__camera { padding:0 9px; font-size:10px; }
+.cinematic-overlay__camera-icon { color:#e9bd74; font-size:14px; }
+.cinematic-overlay__camera:disabled { opacity:.72; }
+.cinematic-overlay__close { width:42px; font-size:23px; line-height:1; }
+.cinematic-layout { flex:1 1 auto; display:grid; grid-template-columns:minmax(0,1fr); grid-template-rows:minmax(145px, 37%) auto minmax(0,1fr); min-height:0; width:100%; background:var(--c-base); }
+.cinematic-layout__scene { min-width:0; min-height:0; overflow:hidden; position:relative; background:#0a1820; }
+.cinematic-layout__subtitle { min-width:0; position:relative; z-index:3; background:#101d23; color:#fff7e9; border-bottom:1px solid #c8a15a66; }
+.cinematic-layout__content { min-width:0; min-height:0; overscroll-behavior:contain; color:var(--c-primary); background:var(--c-base); }
+.cinematic-layout__inner { max-width:700px; margin:0 auto; padding:16px max(16px,env(safe-area-inset-right,0px)) calc(22px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px)); }
+.cinematic-layout__inner > * + * { margin-top:16px; }
+.cinematic-layout__subtitle .transfer-dialogue { border:0; border-radius:0; padding:6px 16px 9px; background:linear-gradient(100deg,#12262c,#0c1a21); }
+.cinematic-layout__subtitle .transfer-dialogue__top > span { color:#e9bf7e; }
+.cinematic-layout__subtitle .transfer-dialogue__top button { color:#e8e7dc; min-height:36px; }
+.cinematic-layout__subtitle .transfer-dialogue__top button:hover { background:#ffffff17; }
+.cinematic-layout__subtitle .transfer-dialogue p { color:#fffaf1; margin-top:1px; font-size:12.5px; }
+.cinematic-layout__subtitle .transfer-dialogue small { color:#d2d9cf; }
+@media (min-width:860px) and (min-height:500px) {
+  .cinematic-layout { grid-template-columns:minmax(0,1fr) minmax(340px, 410px); grid-template-rows:minmax(0,1fr) auto; }
+  .cinematic-layout__scene { grid-column:1; grid-row:1; }
+  .cinematic-layout__subtitle { grid-column:1; grid-row:2; }
+  .cinematic-layout__content { grid-column:2; grid-row:1 / 3; border-left:1px solid #d5ac684d; }
+  .cinematic-layout__inner { padding:22px 20px 32px; }
+}
+@media (max-width:360px) {
+  .cinematic-overlay__camera { min-width:42px; padding:0 7px; }
+  .cinematic-overlay__camera-label { display:none; }
+}
+@media (max-height:560px) and (max-width:859px) {
+  .cinematic-overlay__header { min-height:48px; }
+  .cinematic-layout { grid-template-rows:minmax(100px, 31%) auto minmax(0,1fr); }
+  .cinematic-layout__subtitle .transfer-dialogue__top button { min-height:30px; }
+}

@@ -78,6 +78,28 @@ try {
   await page.getByRole('button', { name: '1 kat hız' }).click();
   const changed = await waitSave((saved) => saved?.blob?.liveMatchCheckpoint?.view?.speed === 'x1');
   check('Çevrimdışı yeni maç tercihi de IndexedDB üzerinde güvenle saklanır', changed.blob.liveMatchCheckpoint.checksum !== online.blob.liveMatchCheckpoint.checksum && await page.evaluate(() => !navigator.onLine));
+  // Finish the real restored match without a network, then open and answer the
+  // actual interview. This tests the bundled artwork after an offline reload.
+  await page.getByRole('button', { name: '4 kat hız' }).click();
+  await page.getByRole('button', { name: 'Maça devam et' }).click();
+  const finish = page.getByRole('button', { name: /Maç Sonu Röportajına Geç/ });
+  const start = Date.now();
+  while (!(await finish.isVisible()) && Date.now() - start < 100_000) {
+    for (const label of ['Sessiz kal', 'Dönüşünü bekle', 'Devam Et']) {
+      const button = page.getByRole('dialog').getByRole('button', { name: new RegExp(label) }).first();
+      if (await button.isVisible().catch(() => false)) { await button.click(); break; }
+    }
+    await page.waitForTimeout(250);
+  }
+  check('Çevrimdışı son düdük röportaj için kullanıcı kararını bekler', await finish.isVisible() && await page.getByTestId('post-match-interview').count() === 0);
+  if (!(await finish.isVisible())) throw new Error('Çevrimdışı maç son düdüğe ulaşmadı');
+  await finish.click();
+  const interview = page.getByTestId('post-match-interview');
+  check('Çevrimdışı yeniden yüklemeden sonra gerçek maçın çizimli röportajı açılır', await interview.isVisible() && await interview.getByTestId('scene-backdrop').getAttribute('data-atmosphere') === 'interview' && await page.evaluate(() => !navigator.onLine));
+  await page.getByTestId('interview-option-0').click();
+  check('Çevrimdışı cevap otomatik ilerlemez, kullanıcıyı bekler', await interview.getAttribute('data-stage') === 'answer' && await page.getByTestId('interview-continue').isEnabled());
+  await page.getByTestId('interview-continue').click();
+  check('Çevrimdışı röportajdan sonra maç raporuna geçilir', await page.getByRole('button', { name: 'Sonucu Kaydet — Ana Merkez' }).isVisible());
   check('Üretim çevrimdışı akışında yakalanmamış tarayıcı hatası yok', errors.length === 0, errors.join(' | '));
 } catch (error) { failed++; console.error(`❌ Çevrimdışı canlı maç: ${error?.stack ?? error}`); }
 await browser.close();
