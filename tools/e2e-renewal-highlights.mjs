@@ -130,6 +130,9 @@ try {
   check('Önceki çift tıklama yenileme imzası yerine geçmez', await flow.getAttribute('data-stage') === 'review');
   await page.getByTestId('renewal-sign').dblclick();
   check('Çift imza sonrası yenilemenin kendi imza sahnesi açılır, tanıtım açılmaz', await flow.getAttribute('data-stage') === 'signed' && await scene.getAttribute('data-scene') === 'negotiation' && await scene.getByTestId('scene-backdrop').getAttribute('data-atmosphere') === 'sign-renewal');
+  check('Yenilemede imza eli, kalem ve belge aynı sahnede görünür', await scene.getByTestId('signing-illustration').count() === 1 && await scene.getByTestId('signing-hand').count() === 1 && await scene.getByTestId('signing-ink').count() === 1);
+  await page.waitForFunction(() => document.querySelector('[data-testid="transfer-theatre"]')?.getAttribute('data-shot') === 'table', null, { timeout: 5000 });
+  check('Yenileme imzasında kısa masa çekimi ardından sonuç kullanıcıyı bekler', await flow.getAttribute('data-stage') === 'signed' && await page.getByRole('button', { name:'Sözleşmelere Dön' }).isEnabled());
   saved = await waitForSave((b) => b?.playerPatch?.[playerId]?.contractYears === 4);
   check('Gerçek kayıt: yeni ücret ve tek bonus ödemesi', saved.version === 5 && saved.playerPatch[playerId].wage === 173 && saved.budget.tb === 9.1 && saved.inbox.filter((m) => m.title === 'Sözleşme yenilendi').length === 1);
   await screenshot('03-renewal-signed-390');

@@ -88,9 +88,9 @@ export const ContractRenewal: React.FC<{ player: Player; onClose: () => void }> 
   </div>;
 
   const significantResponse = (stage === 'response' || stage === 'review' || stage === 'signed') && voice.lastLine?.speaker === 'player';
-  const firmReply = stage === 'offer' && tone === 'firm' && voice.lastLine?.speaker === 'manager';
-  const cameraCue: CameraCue = significantResponse || firmReply
-    ? { key: `${stage}:${voice.lastLine!.id}`, target: firmReply ? 'manager' : 'opponent' } : null;
+  const managerReply = stage === 'offer' && !!tone && voice.lastLine?.speaker === 'manager';
+  const cameraCue: CameraCue = significantResponse || managerReply
+    ? { key: `${stage}:${voice.lastLine!.id}`, target: managerReply ? 'manager' : 'opponent' } : null;
   const scene = <TransferTheatre mode="renewal" player={player} club={g.myClub} seller={g.myClub} manager={g.career.manager}
     speaking={voice.speaking} cinematic cameraCue={cameraCue} beat={stage} />;
   const subtitle = <TransferSubtitle line={voice.lastLine} muted={voice.muted} systemMuted={transferVoiceVolume() <= 0}

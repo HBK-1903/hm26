@@ -4,7 +4,7 @@ import { useFocusTrap } from '../ui/kit';
 import { useReducedMotion } from '../useReducedMotion';
 import './cinematic.css';
 
-type CameraTarget = 'manager' | 'opponent';
+type CameraTarget = 'manager' | 'opponent' | 'table';
 export type CameraCue = { key: string; target: CameraTarget } | null;
 type CameraContextValue = { enabled: boolean; reduced: boolean };
 const CameraContext = createContext<CameraContextValue>({ enabled: true, reduced: false });

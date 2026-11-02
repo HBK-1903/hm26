@@ -13,17 +13,26 @@
 .transfer-theatre__eyebrow { font-size:9px; letter-spacing:.16em; font-weight:900; color:#f3c875; text-shadow:0 1px 4px #000; }
 .transfer-theatre__venue { font-size:12px; font-weight:750; line-height:1.2; margin-top:3px; text-shadow:0 2px 5px #000; }
 .transfer-theatre__crest { display:flex; align-items:center; justify-content:center; padding:4px; border-radius:50%; background:rgba(6,17,30,.82); border:1px solid rgba(255,255,255,.25); box-shadow:0 2px 10px #0007; }
-.transfer-theatre__actors { position:absolute; inset:33px 7% 36px; display:flex; justify-content:center; align-items:flex-end; gap:4%; z-index:1; }
-.transfer-theatre__actor { position:relative; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; width:32%; max-width:112px; height:100%; filter:drop-shadow(0 3px 3px rgba(50,75,60,.35)); }
+.transfer-theatre__actors { position:absolute; inset:33px 7% 36px; display:flex; justify-content:center; align-items:flex-end; gap:4%; }
+.transfer-theatre__actor { position:relative; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; width:32%; max-width:112px; height:100%; }
+.transfer-theatre__puppet-wrap { position:relative; width:100%; max-height:100%; }
+.transfer-theatre__actor .transfer-puppet { filter:drop-shadow(0 3px 3px rgba(50,75,60,.35)); }
+.transfer-theatre__actor.is-signing .transfer-puppet { animation:none; }
 .transfer-theatre__actor > span { display:block; margin-top:-4px; padding:2px 7px; border:1px solid rgba(255,255,255,.2); border-radius:999px; background:rgba(7,16,28,.84); color:#f5ecd9; font-size:7px; font-weight:900; letter-spacing:.11em; z-index:2; }
 .transfer-theatre__actor.is-speaking > span { color:#fff8dc; border-color:#f3c875; background:rgba(70,44,18,.94); box-shadow:0 0 12px #f3c87555; }
 .transfer-puppet { width:100%; max-height:100%; transform-origin:50% 100%; animation:transfer-breathe 5.2s ease-in-out infinite; }
 .transfer-puppet--opponent { animation-duration:4.7s; animation-delay:-2.3s; }
-.transfer-puppet svg { display:block; width:100%; max-height:155px; overflow:visible; }
-.transfer-puppet__torso { transform-origin:64px 126px; }
-.transfer-puppet__arm { transform-origin:64px 105px; }
+.transfer-puppet svg, .transfer-theatre__signing { display:block; width:100%; max-height:155px; overflow:visible; }
+.transfer-puppet__torso { transform-origin:64px 140px; }
+.transfer-puppet__arm--left { transform-origin:31px 103px; }
+.transfer-puppet__arm--right { transform-origin:97px 103px; }
 .transfer-puppet.is-talking .transfer-puppet__arm--left { animation:transfer-arm-left 2.3s ease-in-out infinite; }
 .transfer-puppet.is-talking .transfer-puppet__arm--right { animation:transfer-arm-right 2.6s ease-in-out infinite; }
+.transfer-puppet__wave-arm { transform-origin:97px 103px; animation:transfer-wave-arm 3.2s ease-in-out infinite; }
+.transfer-puppet__wave-hand { transform-origin:108px 76px; animation:transfer-wave-hand 1.6s ease-in-out infinite; }
+.transfer-puppet__mic-arm { transform-origin:31px 103px; transition:transform 550ms cubic-bezier(.2,.65,.25,1); }
+.transfer-puppet__mic-arm[data-target="reporter"] { transform:rotate(30deg); }
+.transfer-puppet__mic-arm[data-target="manager"] { transform:rotate(-20deg); }
 .transfer-puppet__head { transform-origin:64px 85px; animation:transfer-head 6s ease-in-out infinite; }
 .transfer-puppet--opponent .transfer-puppet__head { animation-duration:6.8s; animation-delay:-2.1s; }
 .transfer-puppet__expression { transform-origin:64px 85px; }
@@ -31,6 +40,7 @@
 .transfer-puppet--opponent .transfer-puppet__eyes { animation-duration:6.6s; animation-delay:-2.6s; }
 .transfer-puppet__open-mouth { opacity:0; transform-origin:64px 74px; }
 .transfer-puppet.is-talking .transfer-puppet__torso { animation:transfer-gesture 1.9s ease-in-out infinite; }
+.transfer-theatre__actor.is-signing .transfer-puppet__torso { animation:none; }
 .transfer-puppet.is-talking .transfer-puppet__expression { animation:transfer-talking 1.35s ease-in-out infinite; }
 .transfer-puppet.is-talking .transfer-puppet__closed-mouth { opacity:0; }
 .transfer-puppet.is-talking .transfer-puppet__open-mouth { opacity:1; animation:transfer-mouth .72s ease-in-out infinite; }
@@ -48,6 +58,11 @@
 .transfer-theatre__desk i { position:absolute; width:28px; height:12px; left:43%; bottom:4px; border:1px solid #bda879; background:#f1e6c9; transform:rotate(-5deg); }
 .transfer-theatre__desk b { position:absolute; width:18px; height:2px; left:52%; bottom:7px; border-radius:2px; background:#bd9658; transform:rotate(20deg); }
 .transfer-theatre__press-light { position:absolute; inset:0; z-index:0; pointer-events:none; background:linear-gradient(112deg,transparent 38%,#f7dfaa22 50%,transparent 62%); animation:transfer-press-light 7s ease-in-out infinite; }
+.transfer-theatre__crew { position:absolute; right:1%; bottom:14%; z-index:0; width:clamp(38px,12%,100px); height:auto; pointer-events:none; }
+.broadcast-crew__operator { transform-origin:75px 110px; animation:broadcast-sway 6s ease-in-out infinite; }
+.transfer-theatre__press-mics { position:absolute; z-index:3; left:40%; right:40%; bottom:18%; height:9%; display:flex; justify-content:center; align-items:flex-end; gap:16%; pointer-events:none; }
+.transfer-theatre__press-mics i { position:relative; display:block; width:3px; height:55%; border-radius:3px; background:#304840; }
+.transfer-theatre__press-mics i::before { content:""; position:absolute; left:-4px; top:-5px; width:11px; height:10px; border-radius:6px; background:#57736a; border:1px solid #213b34; }
 .transfer-theatre__flags { position:absolute; left:5%; right:5%; top:36%; height:14%; display:flex; justify-content:space-between; opacity:.8; pointer-events:none; }
 .transfer-theatre__flags i { width:8%; height:38%; background:var(--transfer-club); border:1px solid #eee6cc99; border-left:2px solid #f5ead0; transform-origin:left bottom; animation:transfer-flag 3.6s ease-in-out infinite alternate; }
 .transfer-theatre__flags i:nth-child(even) { background:var(--transfer-trim); animation-delay:-1.6s; }
@@ -94,12 +109,13 @@
 .transfer-theatre--cinematic { width:100%; height:100%; max-height:none; aspect-ratio:auto; border:0; border-radius:0; box-shadow:none; }
 .transfer-theatre--cinematic[data-shot="manager"] .transfer-theatre__world { transform:scale(1.15) translateX(5%); }
 .transfer-theatre--cinematic[data-shot="opponent"] .transfer-theatre__world { transform:scale(1.15) translateX(-5%); }
+.transfer-theatre--cinematic[data-shot="table"] .transfer-theatre__world { transform:scale(1.12) translateY(-4%); }
 .transfer-theatre--cinematic .transfer-theatre__heading { top:14px; left:16px; right:16px; }
 .transfer-theatre--cinematic .transfer-theatre__eyebrow { font-size:10px; }
 .transfer-theatre--cinematic .transfer-theatre__venue { font-size:14px; }
 .transfer-theatre--cinematic .transfer-theatre__actors { inset:15% 5% 17%; align-items:flex-end; gap:clamp(12px,5vw,65px); }
 .transfer-theatre--cinematic .transfer-theatre__actor { width:31%; max-width:230px; height:auto; max-height:100%; }
-.transfer-theatre--cinematic .transfer-puppet svg { max-height:min(49vh,440px); }
+.transfer-theatre--cinematic .transfer-puppet svg, .transfer-theatre--cinematic .transfer-theatre__signing { max-height:min(49vh,440px); }
 .transfer-theatre--cinematic .transfer-theatre__actor > span { position:absolute; top:-22px; margin:0; font-size:9px; padding:3px 9px; }
 .transfer-theatre--cinematic .transfer-theatre__caption { bottom:13px; left:17px; right:17px; }
 .transfer-theatre--cinematic .transfer-theatre__caption strong { font-size:15px; }
@@ -109,15 +125,28 @@
 .transfer-theatre--cinematic .transfer-theatre__desk b { width:clamp(24px,7%,55px); height:3px; left:53%; bottom:82%; background:#caa664; }
 .transfer-theatre--cinematic .transfer-theatre__desk em, .transfer-theatre--cinematic .transfer-theatre__desk strong { position:absolute; bottom:65%; width:clamp(13px,4%,28px); height:clamp(14px,3.5vh,29px); border:1px solid #e6dfc677; border-radius:2px 2px 5px 5px; background:linear-gradient(90deg,#ffffff30,#ffffff08,#ffffff30); }
 .transfer-theatre--cinematic .transfer-theatre__desk em { left:23%; }.transfer-theatre--cinematic .transfer-theatre__desk strong { right:23%; }
-.transfer-theatre--cinematic[data-beat="review"] .transfer-theatre__desk i, .transfer-theatre--cinematic[data-beat="signed"] .transfer-theatre__desk i { animation:transfer-paper 1s ease-out both; }
-.transfer-theatre--cinematic[data-beat="signed"] .transfer-theatre__desk i::after { content:""; position:absolute; left:16%; right:12%; bottom:22%; height:4px; border-bottom:2px solid #5d3d27; border-radius:50%; transform-origin:left center; animation:transfer-signature 1.6s .7s ease both; }
-.transfer-theatre--cinematic[data-beat="signed"] .transfer-theatre__desk b { animation:transfer-pen 1.8s .55s ease-in-out both; }
-@keyframes transfer-signature { from { transform:scaleX(0); } to { transform:scaleX(1); } }
-@keyframes transfer-pen { 0% { transform:translate(-20px,7px) rotate(32deg); } 30% { transform:translate(-8px,2px) rotate(18deg); } 55% { transform:translate(2px,5px) rotate(26deg); } 80% { transform:translate(11px,1px) rotate(16deg); } 100% { transform:translate(15px,0) rotate(20deg); } }
-
+.transfer-theatre--cinematic[data-beat="review"] .transfer-theatre__desk i { animation:transfer-paper 1s ease-out both; }
+/* Signed scenes replace the idle desk props with one linked paper/hand/pen. */
+.transfer-theatre[data-beat="signed"] .transfer-theatre__desk i,
+.transfer-theatre[data-beat="signed"] .transfer-theatre__desk b { visibility:hidden; }
+.transfer-theatre--negotiation[data-beat="signed"] .transfer-puppet--opponent .transfer-puppet__arm--left { visibility:hidden; }
+.transfer-theatre__signing { position:absolute; z-index:3; top:0; left:0; height:auto; pointer-events:none; }
+.transfer-signing__paper { animation:transfer-sheet-in .55s ease-out both; }
+.transfer-signing__ink-reveal { transform-box:fill-box; transform-origin:left center; animation:transfer-ink 1.8s .55s linear both; }
+.transfer-signing__forearm-reveal { transform-box:fill-box; transform-origin:right center; transform:scaleX(.417); animation:transfer-forearm 1.8s .55s linear both; }
+.transfer-signing__hand { transform:translateX(20.4px); animation:transfer-writing 1.8s .55s linear both; }
+.transfer-signing__lift { transform-origin:8px 132px; animation:transfer-lift .5s 2.35s ease-out both; }
+@keyframes transfer-sheet-in { from { opacity:.7; transform:translateY(5px); } to { opacity:1; transform:translateY(0); } }
+@keyframes transfer-ink { from { transform:scaleX(0); } to { transform:scaleX(1); } }
+@keyframes transfer-forearm { from { transform:scaleX(1); } to { transform:scaleX(.417); } }
+@keyframes transfer-writing { from { transform:translateX(0); } to { transform:translateX(20.4px); } }
+@keyframes transfer-lift { from { transform:translateY(0) rotate(0); } to { transform:translateY(-1.2px) rotate(-2deg); } }
 @keyframes transfer-paper { from { transform:translateY(18px) rotate(-13deg); } to { transform:translateY(0) rotate(-5deg); } }
 @keyframes transfer-arm-left { 0%,100% { transform:rotate(0); } 45% { transform:rotate(5deg) translateY(-1px); } }
 @keyframes transfer-arm-right { 0%,100% { transform:rotate(0); } 50% { transform:rotate(-5deg) translateY(-1px); } }
+@keyframes transfer-wave-arm { 0%,100% { transform:rotate(-3deg); } 50% { transform:rotate(3deg); } }
+@keyframes transfer-wave-hand { 0%,100% { transform:rotate(-12deg); } 50% { transform:rotate(12deg); } }
+@keyframes broadcast-sway { 0%,100% { transform:rotate(-1deg); } 50% { transform:rotate(1deg); } }
 @keyframes transfer-gesture { 0%,100% { transform:rotate(0); } 35% { transform:rotate(-1.1deg); } 70% { transform:rotate(.7deg); } }
 @keyframes transfer-voice { from { transform:scaleY(.35); } to { transform:scaleY(1.1); } }
 @keyframes transfer-flag { from { transform:rotate(-8deg) skewY(-4deg); } to { transform:rotate(9deg) skewY(5deg); } }
@@ -132,7 +161,11 @@
 @keyframes transfer-confetti { 0% { transform:translateY(-8px) rotate(0); } 100% { transform:translateY(320px) rotate(360deg); } }
 @media (max-width:340px) { .transfer-theatre__caption { grid-template-columns:minmax(0,1fr) auto; } .transfer-theatre__caption span { display:none; } .transfer-theatre__actors { inset-inline:3%; } }
 html.m26-rm .transfer-theatre *, html.m26-rm .transfer-theatre *::before, html.m26-rm .transfer-theatre *::after, html.m26-rm .transfer-floating-cue * { animation:none !important; }
-@media (prefers-reduced-motion:reduce) { .transfer-theatre *, .transfer-theatre *::before, .transfer-theatre *::after, .transfer-floating-cue * { animation:none !important; } }
+html.m26-rm .transfer-puppet__mic-arm { transition:none !important; }
+@media (prefers-reduced-motion:reduce) {
+  .transfer-theatre *, .transfer-theatre *::before, .transfer-theatre *::after, .transfer-floating-cue * { animation:none !important; }
+  .transfer-puppet__mic-arm { transition:none !important; }
+}
 
 html.m26-rm .transfer-theatre__world { transition:none !important; transform:none !important; }
 @media (prefers-reduced-motion:reduce) { .transfer-theatre__world { transition:none !important; transform:none !important; } }
@@ -143,7 +176,7 @@ html.m26-rm .transfer-theatre__world { transition:none !important; transform:non
   .transfer-theatre--cinematic .transfer-theatre__venue { font-size:11px; }
   .transfer-theatre--cinematic .transfer-theatre__actors { inset:28% 5% 22%; gap:clamp(12px,5vw,45px); }
   .transfer-theatre--cinematic .transfer-theatre__actor { width:20%; }
-  .transfer-theatre--cinematic .transfer-puppet svg { max-height:clamp(42px,12vh,67px); }
+  .transfer-theatre--cinematic .transfer-puppet svg, .transfer-theatre--cinematic .transfer-theatre__signing { max-height:clamp(42px,12vh,67px); }
   .transfer-theatre--cinematic .transfer-theatre__actor > span { display:none; }
   .transfer-theatre--cinematic .transfer-theatre__desk { bottom:23%; }
   .transfer-theatre--cinematic .transfer-theatre__caption { bottom:4px; left:10px; right:10px; }

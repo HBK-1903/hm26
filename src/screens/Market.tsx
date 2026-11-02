@@ -527,9 +527,9 @@ export const OfferFlow: React.FC<{
   const significantResponse = voice.lastLine && ((stage === 'seller' && voice.lastLine.speaker === 'representative')
     || (stage === 'player' && !!playerResponse && voice.lastLine.speaker === 'player')
     || (stage === 'review' && voice.lastLine.speaker === 'player'));
-  const firmReply = voice.lastLine?.speaker === 'manager' && ((stage === 'offer' && sellerTone === 'firm') || (stage === 'player' && playerTone === 'firm'));
-  const cameraCue: CameraCue = significantResponse || firmReply
-    ? { key: `${stage}:${voice.lastLine!.id}:${round}:${playerRound}`, target: firmReply ? 'manager' : 'opponent' } : null;
+  const managerReply = voice.lastLine?.speaker === 'manager' && ((stage === 'offer' && !!sellerTone) || (stage === 'player' && !!playerTone));
+  const cameraCue: CameraCue = significantResponse || managerReply
+    ? { key: `${stage}:${voice.lastLine!.id}:${round}:${playerRound}`, target: managerReply ? 'manager' : 'opponent' } : null;
   const theatre = <TransferTheatre mode={theatreMode} player={p} club={g.myClub} seller={seller} manager={g.career.manager}
     speaking={voice.speaking} cinematic cameraCue={cameraCue} beat={stage} />;
   const clearPlayerResponse = () => { setPlayerResponse(null); setPlayerTone(null); playerSubmitted.current = false; voice.clear(); };

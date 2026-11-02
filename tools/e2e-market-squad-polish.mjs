@@ -157,6 +157,9 @@ try {
   await page.getByTestId('sale-confirm').dblclick();
   await page.waitForFunction(() => { const flow = document.querySelector('[data-testid="sale-flow"]'); return !flow || flow.getAttribute('data-stage') === 'signed'; });
   check('Satış tamamlandıktan sonra kendine özgü imza sahnesi kullanıcıyı bekler', await page.getByTestId('sale-signing').isVisible() && await page.getByTestId('transfer-theatre').getAttribute('data-beat') === 'signed' && await page.getByTestId('scene-backdrop').getAttribute('data-atmosphere') === 'sign-sale' && await page.getByTestId('sale-complete').count() === 0);
+  check('Satış imzasında oyuncu kalemi tutar ve belgeyi imzalar', await page.getByTestId('signing-illustration').count() === 1 && await page.getByTestId('signing-hand').count() === 1 && await page.getByTestId('signing-ink').count() === 1);
+  await page.waitForFunction(() => document.querySelector('[data-testid="transfer-theatre"]')?.getAttribute('data-shot') === 'table', null, { timeout: 5000 });
+  check('Satış imzasında kısa masa çekimi kararı engellemez', await page.getByTestId('sale-open-reveal').isEnabled() && await page.getByTestId('sale-complete').count() === 0);
   await page.getByTestId('sale-open-reveal').dispatchEvent('click', { detail: 2 });
   check('Satış onayındaki çift tıklama tanıtıma yanlışlıkla geçirmez', await page.getByTestId('sale-signing').isVisible() && await page.getByTestId('sale-complete').count() === 0);
   await screenshot('04a-sale-signing');

@@ -61,7 +61,7 @@ export const PostMatchInterview: React.FC<{
   }, [selected]);
 
   const scene = <InterviewTheatre home={home} away={away} homeGoals={result.hg} awayGoals={result.ag}
-    manager={g.career.manager} speaking={speech.speaking} cameraCue={cameraCue} />;
+    manager={g.career.manager} speaking={speech.speaking} cameraCue={cameraCue} microphoneTarget={lineSpeaker} />;
   const subtitle = <div className="interview-subtitle" data-testid="interview-subtitle">
     <div className="interview-subtitle__top"><b>{selected ? 'MENAJER' : 'MUHABİR'}</b>
       <button type="button" onClick={() => speech.speaking ? speech.stop() : speech.play(line, lineSpeaker)}

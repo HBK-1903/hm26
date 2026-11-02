@@ -106,6 +106,9 @@ try {
   check('Röportaj ayrı tam ekran sahne ve gerçek skorla açılır', await page.getByRole('dialog', { name: 'Maç Sonu Röportajı' }).getAttribute('aria-modal') === 'true' && await interviewScene.getAttribute('aria-label') === 'Maç sonu tüneli: Denizli Yeşilova SK 2–1 Sakarya Vadi SK' && /2–1/.test(await interviewScene.innerText()));
   const interviewArt = await interviewScene.getByTestId('scene-backdrop').evaluate((node) => ({ atmosphere:node.getAttribute('data-atmosphere'), tag:node.tagName.toLowerCase(), hidden:node.getAttribute('aria-hidden'), images:node.querySelectorAll('image').length, background:getComputedStyle(node.parentElement).backgroundImage }));
   check('Röportajın kendine özgü tüneli fotoğraf değil dekoratif çizimdir', interviewArt.atmosphere === 'interview' && interviewArt.tag === 'svg' && interviewArt.hidden === 'true' && interviewArt.images === 0 && interviewArt.background === 'none', JSON.stringify(interviewArt));
+  const microphone = interviewScene.getByTestId('interview-microphone');
+  const reporterMicTransform = await microphone.evaluate((node) => getComputedStyle(node).transform);
+  check('Muhabir mikrofonu elinde tutar; arka planda yayın kameramanı vardır', await microphone.count() === 1 && await microphone.getAttribute('data-target') === 'reporter' && await microphone.evaluate((node) => !!node.closest('.interview-theatre__person .transfer-puppet')) && await interviewScene.getByTestId('broadcast-camera-operator').getAttribute('aria-hidden') === 'true');
   check('Kırmızı kart sorusu uydurma değil, gerçek maç bağlamından gelir', /eksik kaldı/.test(await page.getByTestId('interview-subtitle').innerText()) && await page.getByTestId('interview-option-0').isVisible());
   await page.keyboard.press('Escape');
   await page.keyboard.press('Shift+Tab');
@@ -127,9 +130,12 @@ try {
   check('Seçilen birebir cevap sahnede kalır, yerel sesle okunur ve henüz aktarılmaz', await interview.getAttribute('data-stage') === 'answer' && await page.getByTestId('interview-answer').isVisible() && spoken?.text === subtitleAnswer && spoken.voice === 'local-tr' && await page.evaluate(() => window.__cinematicFixture.lastChoice() === undefined));
   await shot('interview-theatre', 'manager');
   check('Cevapta menajere yaklaşılır; devam düğmesine klavye odağı verilir', await interviewScene.getAttribute('data-speaking') === 'manager' && await page.getByTestId('interview-continue').evaluate((el) => document.activeElement === el));
+  await page.waitForFunction((before) => getComputedStyle(document.querySelector('[data-testid="interview-microphone"]')).transform !== before, reporterMicTransform);
+  check('Cevapta eldeki mikrofon menajere yönelir', await microphone.getAttribute('data-target') === 'manager' && await interviewScene.getAttribute('data-mic-target') === 'manager');
   await screenshot('03-answer-320');
   await page.getByTestId('interview-change').click();
   check('Cevap değiştirilebilir ve önceki söz kaydedilmez', await interview.getAttribute('data-stage') === 'question' && await page.getByTestId('interview-option-2').isVisible() && await page.evaluate(() => window.__cinematicFixture.lastChoice() === undefined));
+  check('Soruya dönünce mikrofon yeniden muhabire yönelir', await microphone.getAttribute('data-target') === 'reporter');
   await page.getByTestId('interview-option-2').focus();
   await page.keyboard.down('Enter'); // select, but leave the key held as focus moves to continue
   await page.waitForFunction(() => document.activeElement?.getAttribute('data-testid') === 'interview-continue');
@@ -150,6 +156,7 @@ try {
   check('Yerel Türkçe ses yoksa dürüst altyazı ve devre dışı dinleme gösterilir', await page.getByRole('button', { name: 'Bu repliği dinle' }).isDisabled() && /Türkçe cihaz sesi yok/.test(await page.getByTestId('interview-subtitle').innerText()));
   await page.getByTestId('interview-option-1').click();
   check('Yerel ses yokken cevap ve kullanıcı kontrolü çalışır, uzak sese başvurulmaz', await interview.getAttribute('data-stage') === 'answer' && await page.getByTestId('interview-continue').isEnabled() && await page.evaluate(() => window.__speechEvents.filter((event) => event.type === 'speak').length === 0));
+  check('Ses olmasa bile mikrofon seçilen cevabın sahibine yönelir', await interviewScene.getAttribute('data-speaking') === 'none' && await interviewScene.getByTestId('interview-microphone').getAttribute('data-target') === 'manager');
   await page.getByTestId('interview-change').click();
   await page.getByTestId('decline').click();
   check('Röportaj reddi de yalnız kullanıcı eylemiyle gerçekleşir', await page.evaluate(() => window.__cinematicFixture.lastChoice()) === null);
@@ -182,6 +189,22 @@ try {
   });
   check('Kısa röportajda başlık karakter yüzlerini ve etiketleri kapatmaz', compactInterview.actors.length === 2 && compactInterview.actors.every((actor) => !overlap(compactInterview.heading, actor)) && compactInterview.labels.every((display) => display === 'none'), JSON.stringify(compactInterview));
   await screenshot('04a-interview-short-320');
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.waitForFunction(() => document.querySelector('[data-testid="cinematic-overlay"]')?.getAttribute('data-motion') === 'reduced');
+  await page.getByTestId('interview-option-0').click();
+  const reducedInterview = {
+    shot:await interviewScene.getAttribute('data-shot'), target:await interviewScene.getByTestId('interview-microphone').getAttribute('data-target'),
+    micTransition:await interviewScene.getByTestId('interview-microphone').evaluate((el) => getComputedStyle(el).transitionProperty),
+    crewAnimation:await interviewScene.locator('.broadcast-crew__operator').evaluate((el) => getComputedStyle(el).animationName), speaking:await interviewScene.getAttribute('data-speaking'),
+  };
+  check('Azaltılmış hareket ve sessizlikte mikrofon cevabı gösterir, kamera ve ekip sabittir', reducedInterview.shot === 'wide' && reducedInterview.target === 'manager' && reducedInterview.micTransition === 'none' && reducedInterview.crewAnimation === 'none' && reducedInterview.speaking === 'none', JSON.stringify(reducedInterview));
+  await page.getByTestId('interview-change').click();
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await page.evaluate(() => document.documentElement.classList.add('m26-rm'));
+  await page.getByTestId('interview-option-0').click();
+  check('Oyun içi azaltılmış harekette de mikrofon anında hedefe döner', await interviewScene.getByTestId('interview-microphone').getAttribute('data-target') === 'manager' && await interviewScene.getByTestId('interview-microphone').evaluate((el) => getComputedStyle(el).transitionProperty) === 'none');
+  await page.getByTestId('interview-change').click();
+  await page.evaluate(() => document.documentElement.classList.remove('m26-rm'));
   await page.setViewportSize({ width: 1280, height: 800 });
   b = await bounds();
   check('Masaüstünde büyük sahne ve karar paneli yan yana yerleşir', fits(b) && Math.abs(b.scene.top - b.panel.top) < 2 && b.scene.right <= b.panel.left + 2 && b.scene.width > b.panel.width, JSON.stringify(b));

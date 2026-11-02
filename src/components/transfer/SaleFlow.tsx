@@ -113,9 +113,9 @@ export const SaleFlow: React.FC<{ offer: IncomingOffer; player: Player; buyer: C
   </div>;
 
   const significantResponse = (stage === 'response' || stage === 'declined') && voice.lastLine?.speaker === 'representative';
-  const firmReply = stage === 'offer' && tone === 'firm' && voice.lastLine?.speaker === 'manager';
-  const cameraCue: CameraCue = significantResponse || firmReply
-    ? { key: `${stage}:${voice.lastLine!.id}`, target: firmReply ? 'manager' : 'opponent' } : null;
+  const managerReply = stage === 'offer' && !!tone && voice.lastLine?.speaker === 'manager';
+  const cameraCue: CameraCue = significantResponse || managerReply
+    ? { key: `${stage}:${voice.lastLine!.id}`, target: managerReply ? 'manager' : 'opponent' } : null;
   const scene = <TransferTheatre mode={theatreMode} player={player} club={sceneClub} seller={buyer} manager={g.career.manager}
     speaking={voice.speaking} cinematic cameraCue={cameraCue} beat={stage} signingContext="sale" />;
   return <CinematicLayout ref={stageRef} testId="sale-flow" stage={stage} scene={scene} subtitle={subtitle}>

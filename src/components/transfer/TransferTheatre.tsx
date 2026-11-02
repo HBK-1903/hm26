@@ -4,24 +4,35 @@ import { Crest } from '../assets/Crest';
 import { avatarParts, BASE_PALETTES, extendPalettes, normalizeFace, playerFaceFromSeed, playerFaceSeed, presetFace, type FaceLike, type KitPalettes } from '../assets/kit';
 import { useCinematicShot, type CameraCue } from '../cinematic/Cinematic';
 import { SceneBackdrop, type SceneAtmosphere } from '../cinematic/SceneBackdrop';
+import { BroadcastCrew } from '../cinematic/BroadcastCrew';
 import { transferDialogueHash, transferRevealForGen, type TransferReveal } from '../../data/transferPresentation';
 import type { TransferSpeaker, TransferVoiceLine } from '../../data/transferVoices';
 import './transferTheatre.css';
 
 type TheatreMode = 'seller' | 'buyer' | 'player' | 'renewal' | 'reveal';
 
-export const CinematicPuppet: React.FC<{ face: FaceLike; palette?: KitPalettes; talking: boolean; label: string; side: 'manager' | 'opponent'; decorative?: boolean }> = ({ face, palette, talking, label, side, decorative = false }) => {
+type PuppetGesture = 'rest' | 'wave' | 'microphone';
+
+/** The familiar portrait supplies the face and outfit; this scene adds a real
+ * upper-body silhouette and articulated arms rather than a floating avatar. */
+export const CinematicPuppet: React.FC<{
+  face: FaceLike; palette?: KitPalettes; talking: boolean; label: string;
+  side: 'manager' | 'opponent'; decorative?: boolean; gesture?: PuppetGesture;
+  microphoneTarget?: 'reporter' | 'manager';
+}> = ({ face, palette, talking, label, side, decorative = false, gesture = 'rest', microphoneTarget = 'reporter' }) => {
   const colors = extendPalettes(palette ?? BASE_PALETTES);
   const normalized = normalizeFace(face, colors);
   const skin = colors.skin[normalized.skin];
   const sleeve = colors.suit[normalized.suit];
   const layers = avatarParts(face, palette ?? BASE_PALETTES);
   return (
-    <div className={`transfer-puppet transfer-puppet--${side}${talking ? ' is-talking' : ''}`} role={decorative ? undefined : 'img'} aria-label={decorative ? undefined : label} aria-hidden={decorative || undefined} data-talking={talking}>
-      <svg viewBox="18 7 92 121" aria-hidden="true" focusable="false">
-        <g className="transfer-puppet__arm transfer-puppet__arm--left"><path d="M34 101 Q23 109 31 116 L45 119" fill="none" stroke={sleeve} strokeWidth="9" strokeLinecap="round" /><circle cx="45" cy="119" r="4.4" fill={skin} /></g>
-        <g className="transfer-puppet__arm transfer-puppet__arm--right"><path d="M94 101 Q105 109 97 116 L83 119" fill="none" stroke={sleeve} strokeWidth="9" strokeLinecap="round" /><circle cx="83" cy="119" r="4.4" fill={skin} /></g>
-        <g className="transfer-puppet__torso" dangerouslySetInnerHTML={{ __html: layers.neck + layers.outfit }} />
+    <div className={`transfer-puppet transfer-puppet--${side}${talking ? ' is-talking' : ''}${gesture === 'wave' ? ' is-waving' : ''}`} role={decorative ? undefined : 'img'} aria-label={decorative ? undefined : label} aria-hidden={decorative || undefined} data-talking={talking}>
+      <svg viewBox="12 7 104 143" aria-hidden="true" focusable="false">
+        <g className="transfer-puppet__torso">
+          <path d="M51 89H77Q98 92 104 108L101 146Q64 153 27 146L24 108Q30 92 51 89Z" fill={sleeve} stroke="#314a40" strokeWidth="1.3" />
+          <g dangerouslySetInnerHTML={{ __html: layers.neck + layers.outfit }} />
+          <path d="M34 137Q64 143 94 137" fill="none" stroke="#ffffff" strokeOpacity=".12" strokeWidth="1.3" />
+        </g>
         <g className="transfer-puppet__head">
           <g className="transfer-puppet__expression">
             <g dangerouslySetInnerHTML={{ __html: layers.hairBack + layers.head + layers.beard }} />
@@ -36,9 +47,72 @@ export const CinematicPuppet: React.FC<{ face: FaceLike; palette?: KitPalettes; 
             <g dangerouslySetInnerHTML={{ __html: layers.hair + layers.glasses }} />
           </g>
         </g>
+        {gesture === 'microphone' ? <g className="transfer-puppet__mic-arm" data-testid="interview-microphone" data-target={microphoneTarget}>
+          <path d="M31 103Q18 109 11 97L2 87" fill="none" stroke={sleeve} strokeWidth="12" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M5 91L0 86" fill="none" stroke="#e6ddc5" strokeWidth="7" />
+          <path d="M3 87L-17 70" fill="none" stroke="#253a38" strokeWidth="6" strokeLinecap="round" />
+          <path d="M-10 75L-5 79" fill="none" stroke="#ddc796" strokeWidth="5" />
+          <ellipse cx="-20" cy="67" rx="7" ry="8" transform="rotate(-48 -20 67)" fill="#6e8780" stroke="#233b37" strokeWidth="2" />
+          <circle cx="2" cy="87" r="5" fill={skin} stroke="#604a3b" strokeWidth="1" />
+        </g> : <g className="transfer-puppet__arm transfer-puppet__arm--left">
+          <path d="M31 103Q20 111 25 123Q29 129 42 132" fill="none" stroke={sleeve} strokeWidth="13" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M37 130L43 132" fill="none" stroke="#e9dfc8" strokeWidth="7" />
+          <circle cx="45" cy="133" r="5" fill={skin} stroke="#604a3b" strokeWidth="1" />
+        </g>}
+        {gesture === 'wave' ? <g className="transfer-puppet__wave-arm">
+          <path d="M97 103Q109 100 109 88L108 76" fill="none" stroke={sleeve} strokeWidth="12" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M108 81L108 75" fill="none" stroke="#e9dfc8" strokeWidth="8" />
+          <g className="transfer-puppet__wave-hand">
+            <path d="M102 76L99 68Q98 65 100 64Q102 64 103 67V60Q103 58 105 58T107 60V65 59Q107 57 109 57T111 59V65 61Q111 59 113 59T115 61V70Q115 76 110 79Z" fill={skin} stroke="#604a3b" strokeWidth="1.2" strokeLinejoin="round" />
+            <path d="M106 65v4m4-4v4" fill="none" stroke="#604a3b" strokeWidth=".8" strokeLinecap="round" />
+          </g>
+        </g> : <g className="transfer-puppet__arm transfer-puppet__arm--right">
+          <path d="M97 103Q108 111 103 123Q99 129 86 132" fill="none" stroke={sleeve} strokeWidth="13" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M91 130L85 132" fill="none" stroke="#e9dfc8" strokeWidth="7" />
+          <circle cx="83" cy="133" r="5" fill={skin} stroke="#604a3b" strokeWidth="1" />
+        </g>}
       </svg>
     </div>
   );
+};
+
+/** Shares the puppet's viewBox and sits over its desk, so the shoulder stays
+ * attached at every viewport. The wrist and ink move together while the fixed
+ * upper arm and clipped forearm keep the elbow connected. */
+const SigningAction: React.FC<{ skin: string; sleeve: string }> = ({ skin, sleeve }) => {
+  const id = React.useId().replace(/:/g, '');
+  const inkId = `signing-ink-${id}`, armId = `signing-arm-${id}`;
+  return <svg className="transfer-theatre__signing" data-testid="signing-illustration" viewBox="12 7 104 143" aria-hidden="true" focusable="false">
+    <defs>
+      <clipPath id={inkId}><rect className="transfer-signing__ink-reveal" data-testid="signing-ink-reveal" x="-6.3" y="142" width="21.4" height="11" /></clipPath>
+      <clipPath id={armId}><rect className="transfer-signing__forearm-reveal" data-testid="signing-forearm-reveal" x="8" y="120" width="35" height="25" /></clipPath>
+    </defs>
+    <g className="transfer-signing__paper">
+      <rect x="-18" y="125" width="52" height="30" rx="2" fill="#30473e" opacity=".3" />
+      <rect x="-20" y="123" width="52" height="30" rx="2" fill="#f5ecd4" stroke="#a39372" strokeWidth="1.2" />
+      <path d="M-14 129H25M-14 133H23M-14 137H14" stroke="#c0b69d" strokeWidth="1.25" strokeLinecap="round" />
+      <path d="M-9 150H22" stroke="#c6bba2" strokeWidth=".7" />
+      <path data-testid="signing-ink" d="M-6 147q2.5-3 3.8 0t3.8 0q1.8-3 2.5 0t3.1 0l7.2-1.8" fill="none" stroke="#4e4a38" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" clipPath={`url(#${inkId})`} />
+    </g>
+    <g data-testid="signing-upper-arm">
+      <path d="M31 103Q20 111 25 123Q29 130 39 132" fill="none" stroke="#314a40" strokeWidth="15" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M31 103Q20 111 25 123Q29 130 39 132" fill="none" stroke={sleeve} strokeWidth="12.5" strokeLinecap="round" strokeLinejoin="round" />
+    </g>
+    <g clipPath={`url(#${armId})`}>
+      <path d="M39 132H8" fill="none" stroke="#314a40" strokeWidth="15" strokeLinecap="round" />
+      <path d="M39 132H8" fill="none" stroke={sleeve} strokeWidth="12.5" strokeLinecap="round" />
+    </g>
+    <g className="transfer-signing__hand" data-testid="signing-hand">
+      <g className="transfer-signing__lift">
+        <path d="M10 128l3 8" fill="none" stroke="#f0e5cf" strokeWidth="6" />
+        <path d="M-6 147L6 131" fill="none" stroke="#203936" strokeWidth="2.5" strokeLinecap="round" />
+        <path d="M.2 138.3l3-4.2" stroke="#e1bd72" strokeWidth="2.5" strokeLinecap="round" />
+        <circle data-testid="signing-pen-tip" cx="-6" cy="147" r=".75" fill="#aa824b" />
+        <path d="M4.8 128q4.4-1.9 8.1 1.9l1.9 3.7q-.6 3.1-3.7 3.1l-3.7-2.5q-2.5 1.9-4.4-.6l-1.2-2.5q.6-2.5 3-3.1Z" fill={skin} stroke="#6b5040" strokeWidth=".9" />
+        <path d="M5.4 131l3.1 2.5m-.6-4.4 3.1 2.5" fill="none" stroke="#6b5040" strokeWidth=".7" strokeLinecap="round" />
+      </g>
+    </g>
+  </svg>;
 };
 
 const Shirt: React.FC<{ club: Club; player: Player }> = ({ club, player }) => (
@@ -67,9 +141,15 @@ export const TransferTheatre: React.FC<{
   /** Sale and transfer both sign with the player, but have different surroundings. */
   signingContext?: 'transfer' | 'sale';
 }> = ({ mode, player, club, seller, manager, speaking, cinematic = false, cameraCue = null, beat, signingContext = 'transfer' }) => {
-  const shot = useCinematicShot(cinematic ? cameraCue : null);
   const reveal: TransferReveal = transferRevealForGen(player.ratings.gen);
   const scene = mode === 'reveal' ? reveal : 'negotiation';
+  const signing = scene === 'negotiation' && beat === 'signed';
+  // A short detail shot accompanies the actual signature or presentation, then
+  // returns to the wide two-person view. It never advances the user's decision.
+  const sceneCue: CameraCue = beat === 'signed' && scene === 'negotiation'
+    ? { key: `sign:${mode}:${signingContext}:${player.id}`, target: 'table' }
+    : mode === 'reveal' ? { key: `reveal:${reveal}:${player.id}`, target: 'opponent' } : null;
+  const shot = useCinematicShot(cinematic ? (sceneCue ?? cameraCue) : null);
   const atmosphere: SceneAtmosphere = mode === 'reveal' ? reveal
     : beat === 'signed' ? (mode === 'renewal' ? 'sign-renewal' : signingContext === 'sale' ? 'sign-sale' : 'sign-transfer')
     : mode === 'seller' ? 'club' : mode === 'buyer' ? 'sale' : mode;
@@ -81,6 +161,8 @@ export const TransferTheatre: React.FC<{
     ? presetFace(transferDialogueHash(seller?.id ?? 'representative') % 6)
     : playerFaceFromSeed(playerFaceSeed(player.id));
   const opponentPalette = isRepresentative ? BASE_PALETTES : palette;
+  const opponentColors = extendPalettes(opponentPalette);
+  const opponentAppearance = normalizeFace(opponentFace, opponentColors);
   const opponentSpeaker: TransferSpeaker = isRepresentative ? 'representative' : 'player';
   const title = beat === 'signed' && mode !== 'reveal' ? 'İMZA MASASI' : mode === 'seller' ? 'KULÜP GÖRÜŞMESİ' : mode === 'buyer' ? 'SATIŞ GÖRÜŞMESİ' : mode === 'renewal' ? 'SÖZLEŞME YENİLEME' : mode === 'player' ? 'OYUNCUYLA GÖRÜŞME' : reveal === 'star' ? 'YILDIZ TANITIMI' : reveal === 'stadium' ? 'STADYUM TANITIMI' : 'BASIN TANITIMI';
   const venue = mode !== 'reveal' ? (seller?.name ?? 'Serbest oyuncu') : reveal === 'press' ? 'Basın odası' : club.stadium;
@@ -91,7 +173,7 @@ export const TransferTheatre: React.FC<{
         <SceneBackdrop atmosphere={atmosphere} primary={club.color1} trim={club.color2} />
         <div className="transfer-theatre__veil" aria-hidden="true" />
         {(scene === 'stadium' || scene === 'star') && <><div className="transfer-theatre__stadium-lights" aria-hidden="true" /><div className="transfer-theatre__flags" aria-hidden="true"><i /><i /><i /><i /></div></>}
-        {scene === 'press' && <div className="transfer-theatre__press-light" aria-hidden="true" />}
+        {scene === 'press' && <><div className="transfer-theatre__press-light" aria-hidden="true" /><BroadcastCrew className="transfer-theatre__crew" /></>}
         {scene === 'negotiation' && <div className="transfer-theatre__desk" aria-hidden="true"><i /><b /><em /><strong /></div>}
         {scene === 'star' && <div className="transfer-theatre__confetti" aria-hidden="true">{Array.from({ length: 14 }, (_, i) => <i key={i} style={{ '--i': i } as React.CSSProperties} />)}</div>}
         <div className="transfer-theatre__actors">
@@ -101,12 +183,16 @@ export const TransferTheatre: React.FC<{
             <span>MENAJER</span>
           </div>
           {mode === 'reveal' && <Shirt club={club} player={player} />}
-          <div className={`transfer-theatre__actor${speaking === opponentSpeaker ? ' is-speaking' : ''}`}>
-            <CinematicPuppet face={opponentFace} palette={opponentPalette} talking={speaking === opponentSpeaker} label={isRepresentative ? 'Kulüp temsilcisi' : player.name} side="opponent" />
+          <div className={`transfer-theatre__actor${speaking === opponentSpeaker ? ' is-speaking' : ''}${signing ? ' is-signing' : ''}`}>
+            <div className="transfer-theatre__puppet-wrap">
+              <CinematicPuppet face={opponentFace} palette={opponentPalette} talking={speaking === opponentSpeaker} label={isRepresentative ? 'Kulüp temsilcisi' : player.name} side="opponent" gesture={mode === 'reveal' ? 'wave' : 'rest'} />
+              {signing && <SigningAction skin={opponentColors.skin[opponentAppearance.skin]} sleeve={opponentColors.suit[opponentAppearance.suit]} />}
+            </div>
             {speaking === opponentSpeaker && <div className="transfer-theatre__voice-meter" aria-hidden="true"><i /><i /><i /></div>}
             <span>{isRepresentative ? 'TEMSİLCİ' : 'OYUNCU'}</span>
           </div>
         </div>
+        {scene === 'press' && <div className="transfer-theatre__press-mics" aria-hidden="true"><i /><i /><i /></div>}
       </div>
       <div className="transfer-theatre__heading">
         <div><div className="transfer-theatre__eyebrow">{title}</div><div className="transfer-theatre__venue">{venue}</div></div>
