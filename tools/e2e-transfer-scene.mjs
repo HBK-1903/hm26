@@ -104,28 +104,35 @@ try {
   if (!signingState.signing) throw new Error(`İmza sahnesi açılamadı: ${JSON.stringify(signingState)}`);
   await page.getByTestId('transfer-open-reveal').dispatchEvent('click', { detail: 2 });
   check('İmzadaki çift tıklama tanıtıma yanlışlıkla geçirmez', await page.getByTestId('transfer-signing').isVisible() && await page.getByTestId('transfer-complete').count() === 0);
-  check('İmzada kalemi tutan el ve imza çizgisi birlikte hareket eder', await page.getByTestId('signing-hand').evaluate((el) => getComputedStyle(el).animationName === 'transfer-writing') && await page.getByTestId('signing-ink-reveal').evaluate((el) => getComputedStyle(el).animationName === 'transfer-ink'));
-  check('Gerçek transfer imzasında belge, oyuncu eli ve kalem aynı çizimdedir', await page.getByTestId('signing-illustration').count() === 1 && await page.getByTestId('signing-pen-tip').count() === 1 && await page.locator('.transfer-puppet--opponent .transfer-puppet__arm--left').evaluate((el) => getComputedStyle(el).visibility === 'hidden'));
+  check('İmzada kalem ve mürekkep eşzamanlı hareket eder', await page.getByTestId('signing-pen').evaluate((el) => getComputedStyle(el).animationName === 'transfer-pen-write') && await page.getByTestId('signing-ink-reveal').evaluate((el) => getComputedStyle(el).animationName === 'transfer-ink'));
+  check('Transfer imzasında yalnız kalem ve belge; karakterlerde baş ve omuzlar görünür', await page.getByTestId('signing-illustration').count() === 1 && await page.getByTestId('signing-pen-tip').count() === 1 && await page.getByTestId('signing-hand').count() === 0 && await page.locator('.transfer-puppet__torso').count() === 2 && await page.locator('.transfer-puppet__arm, .transfer-puppet__wave-arm').count() === 0);
   await page.waitForFunction(() => document.querySelector('[data-testid="transfer-theatre"]')?.getAttribute('data-shot') === 'table', null, { timeout: 5000 });
   check('İmzaya kısa masa yakınlaşması, kullanıcıya bırakılan tanıtım düğmesini engellemez', await page.getByTestId('transfer-open-reveal').isEnabled() && await page.getByTestId('transfer-theatre').getAttribute('data-shot') === 'table');
+  check('Mobil masa yakınlaşmasında kişi etiketleri sahne başlığını örtmez', await page.locator('.transfer-theatre__actor > span').first().evaluate((el) => getComputedStyle(el).visibility === 'hidden'));
   await page.getByTestId('cinematic-camera-toggle').click();
-  check('İmzadaysa sabit kamera seçimi masayı geniş kadraja döndürür', await page.getByTestId('transfer-theatre').getAttribute('data-shot') === 'wide' && await page.getByTestId('signing-illustration').isVisible());
+  check('İmzadaysa sabit kamera seçimi masayı geniş kadraja döndürür', await page.getByTestId('transfer-theatre').getAttribute('data-shot') === 'wide' && await page.getByTestId('signing-illustration').isVisible() && await page.locator('.transfer-theatre__actor > span').first().evaluate((el) => getComputedStyle(el).visibility === 'visible'));
   await page.waitForFunction(() => getComputedStyle(document.querySelector('.transfer-theatre__world')).transform === 'none');
   const signingLayouts = [];
-  for (const [width, height] of [[320, 480], [320, 720], [390, 844], [1280, 800], [1920, 1080]]) {
+  for (const [width, height] of [[320, 480], [320, 720], [360, 640], [390, 844], [540, 720], [568, 320], [844, 390], [860, 480], [915, 412], [1280, 800], [1920, 1080]]) {
     await page.setViewportSize({ width, height });
     const layout = await page.evaluate(() => {
-      const rect = (selector) => { const r = document.querySelector(selector).getBoundingClientRect(); return { left:r.left, right:r.right, top:r.top, bottom:r.bottom }; };
-      const point = (selector, x, y) => new DOMPoint(x, y).matrixTransform(document.querySelector(selector).getScreenCTM());
-      const scene = rect('.cinematic-layout__scene'), paper = rect('.transfer-signing__paper rect:nth-child(2)'), caption = rect('.transfer-theatre__caption');
-      const shoulder = point('.transfer-puppet--opponent .transfer-puppet__torso', 31, 103), arm = point('[data-testid="signing-upper-arm"]', 31, 103);
-      return { width:innerWidth, paperInside:paper.left >= scene.left && paper.right <= scene.right && paper.top >= scene.top && paper.bottom <= scene.bottom,
+      const box = (element) => { const r = element.getBoundingClientRect(); return { left:r.left, right:r.right, top:r.top, bottom:r.bottom }; };
+      const rect = (selector) => box(document.querySelector(selector));
+      const scene = rect('.cinematic-layout__scene'), paper = rect('.transfer-signing__paper rect:nth-child(2)'), caption = rect('.transfer-theatre__caption'), desk = rect('.transfer-theatre__desk'), heading = rect('.transfer-theatre__heading > div');
+      const faces = [...document.querySelectorAll('.transfer-puppet__head')].map(box);
+      const shoulders = [...document.querySelectorAll('.transfer-puppet__torso > path:first-child')].map(box);
+      const tip = new DOMPoint(34, 58).matrixTransform(document.querySelector('[data-testid="signing-pen-tip"]').getScreenCTM());
+      const overlaps = (a, b) => a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+      return { width:innerWidth, height:innerHeight, paperInside:paper.left >= scene.left && paper.right <= scene.right && paper.top >= scene.top && paper.bottom <= scene.bottom,
+        penInside:tip.x >= paper.left && tip.x <= paper.right && tip.y >= paper.top && tip.y <= paper.bottom,
+        onDesk:paper.left >= desk.left && paper.right <= desk.right && paper.bottom >= desk.top && paper.bottom <= desk.bottom,
         clearCaption:paper.bottom <= caption.top + 1, noOverflow:document.documentElement.scrollWidth <= innerWidth,
-        shoulderGap:Math.hypot(shoulder.x - arm.x, shoulder.y - arm.y) };
+        facesVisible:faces.length === 2 && faces.every((face) => face.left >= scene.left && face.right <= scene.right && face.top >= scene.top && face.bottom <= desk.top + 2 && !overlaps(face, heading)),
+        shouldersVisible:shoulders.length === 2 && shoulders.every((shoulder) => shoulder.top + 3 < desk.top) };
     });
     signingLayouts.push(layout);
   }
-  check('Kısa telefon ekranından geniş masaüstüne kadar imza taşmaz ve kol omuza bağlıdır', signingLayouts.every((layout) => layout.paperInside && layout.clearCaption && layout.noOverflow && layout.shoulderGap < 1), JSON.stringify(signingLayouts));
+  check('Dikey ve yatay telefondan masaüstüne kalem, kâğıt, yüzler ve omuzlar taşmadan görünür', signingLayouts.every((layout) => layout.paperInside && layout.penInside && layout.onDesk && layout.clearCaption && layout.noOverflow && layout.facesVisible && layout.shouldersVisible), JSON.stringify(signingLayouts));
   await page.setViewportSize({ width:390, height:844 });
   await page.getByTestId('cinematic-camera-toggle').click();
   await page.waitForTimeout(3000);
@@ -137,8 +144,8 @@ try {
   check('Tanıtım karar alanının başından açılır', await page.getByTestId('cinematic-decisions').evaluate((el) => el.scrollTop) === 0);
   check('Tekrarlı tıklama sonrası imza ve çizimli basın tanıtımı', await page.getByTestId('transfer-theatre').getAttribute('data-scene') === 'press' && await page.getByTestId('scene-backdrop').getAttribute('data-atmosphere') === 'press' && (await page.getByTestId('transfer-complete').innerText()).includes('imza atıldı'));
   await page.waitForFunction(() => document.querySelector('[data-testid="transfer-theatre"]')?.getAttribute('data-shot') === 'opponent', null, { timeout: 5000 });
-  check('Tanıtımda kısa oyuncu planı, selam ve basın ekibi vardır', await page.getByTestId('transfer-theatre').locator('.transfer-puppet__wave-hand').count() === 1 && await page.getByTestId('broadcast-camera-operator').count() === 1 && await page.getByTestId('transfer-complete').isVisible());
-  check('Selam veren oyuncunun diğer kolu tanıtımda kaybolmaz', await page.locator('.transfer-puppet--opponent .transfer-puppet__arm--left').evaluate((el) => getComputedStyle(el).visibility === 'visible'));
+  check('Tanıtımda kısa oyuncu planı ve basın ekibi vardır', await page.getByTestId('transfer-theatre').locator('.transfer-puppet--opponent .transfer-puppet__torso').count() === 1 && await page.getByTestId('broadcast-camera-operator').count() === 1 && await page.getByTestId('transfer-complete').isVisible());
+  check('Tanıtım oyuncusu kolsuz, omuzları görünür biçimde çizilir', await page.locator('.transfer-puppet--opponent .transfer-puppet__torso').isVisible() && await page.locator('.transfer-puppet--opponent .transfer-puppet__arm, .transfer-puppet--opponent .transfer-puppet__wave-arm').count() === 0);
   await screenshot('04-press');
   await page.getByTestId('transfer-announcement').click();
   check('Tanıtım anonsu kullanıcı tıklamasıyla metinli oynatılır', /sunucu/i.test(await page.getByTestId('transfer-subtitle').innerText()));

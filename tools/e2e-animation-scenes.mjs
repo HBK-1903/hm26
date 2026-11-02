@@ -125,7 +125,7 @@ try {
     ['sign-renewal', 'renewal', 'signed', 'transfer', 79], ['press', 'reveal', 'offer', 'transfer', 79],
     ['stadium', 'reveal', 'offer', 'transfer', 80], ['star', 'reveal', 'offer', 'transfer', 85],
   ];
-  const illustrations = new Set(); let appropriate = true, vectorOnly = true;
+  const illustrations = new Set(); let appropriate = true, vectorOnly = true, shouldersOnly = true;
   for (const [expected, mode, beat, context, gen] of settings) {
     await page.getByTestId('fixture-transfer-mode').selectOption(mode);
     await page.getByTestId('fixture-transfer-beat').selectOption(beat);
@@ -137,11 +137,13 @@ try {
       artwork:node.innerHTML, background:getComputedStyle(node.parentElement).backgroundImage }));
     appropriate &&= rendered.atmosphere === expected && await theatre.getAttribute('data-atmosphere') === expected;
     vectorOnly &&= rendered.tag === 'svg' && rendered.hidden === 'true' && rendered.images === 0 && rendered.shapes > 10 && rendered.background === 'none';
+    shouldersOnly &&= await theatre.locator('.transfer-puppet__torso').count() === 2 && await theatre.locator('.transfer-puppet__arm, .transfer-puppet__wave-arm, [data-testid="signing-hand"]').count() === 0;
     illustrations.add(rendered.artwork);
     if (out) await theatre.screenshot({ path: `${out}/atmosphere-${expected}-320.png`, animations: 'disabled' });
   }
   check('Kulüp, oyuncu, satış, yenileme, üç imza ve üç tanıtımın ortamı doğru eşleşir', appropriate);
   check('On ortamın çizimleri birbirinden farklı ve fotoğraf yerine yerel vektördür', vectorOnly && illustrations.size === settings.length, `${illustrations.size}/${settings.length}`);
+  check('Görüşme ve tanıtımlarda karakterler kolsuz, baş ve omuzlarıyla görünür', shouldersOnly);
 
   // Inspect deterministic keyframes, not just the presence of a CSS animation:
   // the pen tip must stay on the paper and advance with the revealed ink in all
@@ -159,49 +161,57 @@ try {
       await page.getByTestId('fixture-signing-context').selectOption(context);
       await page.getByTestId('fixture-transfer-beat').selectOption('signed');
       const frames = await page.getByTestId('signing-illustration').evaluate((svg) => {
-        const hand = svg.querySelector('[data-testid="signing-hand"]');
+        const pen = svg.querySelector('[data-testid="signing-pen"]');
         const inkClip = svg.querySelector('[data-testid="signing-ink-reveal"]');
-        const forearmClip = svg.querySelector('[data-testid="signing-forearm-reveal"]');
-        const upperArm = svg.querySelector('[data-testid="signing-upper-arm"]');
-        const torso = svg.parentElement.querySelector('.transfer-puppet__torso');
         const paper = svg.querySelector('.transfer-signing__paper');
         const lift = svg.querySelector('.transfer-signing__lift');
         const tip = svg.querySelector('[data-testid="signing-pen-tip"]');
+        const inkPath = svg.querySelector('[data-testid="signing-ink"]');
         const point = (node, x, y) => new DOMPoint(x, y).matrixTransform(node.getScreenCTM());
         const output = [];
-        for (const time of [550, 1450, 2350]) {
-          for (const el of [hand, inkClip, forearmClip, paper, lift]) for (const animation of el.getAnimations()) {
+        for (const time of [550, 730, 910, 1090, 1270, 1450, 1630, 1810, 1990, 2170, 2350]) {
+          for (const el of [pen, inkClip, paper, lift]) for (const animation of el.getAnimations()) {
             animation.pause(); animation.currentTime = el === paper ? 1000 : el === lift ? 0 : time;
           }
-          const handMatrix = new DOMMatrix(getComputedStyle(hand).transform);
           const inkMatrix = new DOMMatrix(getComputedStyle(inkClip).transform);
-          const penTip = point(tip, -6, 147), inkEdge = point(inkClip, 15.1, 147);
-          const wrist = point(hand, 8, 132), forearm = point(forearmClip, 8, 132);
-          const shoulder = point(torso, 31, 103), armStart = point(upperArm, 31, 103);
+          const penTip = point(tip, 34, 58), inkEdge = point(inkClip, 86.5, 58);
+          const localTip = penTip.matrixTransform(svg.getScreenCTM().inverse());
+          // The path is monotonic in x. Find the actual ink height at the nib,
+          // not just the leading edge of its reveal mask.
+          let low = 0, high = inkPath.getTotalLength();
+          for (let i = 0; i < 30; i++) {
+            const middle = (low + high) / 2;
+            if (inkPath.getPointAtLength(middle).x < localTip.x) low = middle; else high = middle;
+          }
+          const inkPoint = inkPath.getPointAtLength((low + high) / 2);
           const rect = paper.querySelector('rect:nth-child(2)').getBoundingClientRect();
-          output.push({ progress: handMatrix.e / 20.4, ink: inkMatrix.a, x: penTip.x,
-            inside: penTip.x >= rect.left && penTip.x <= rect.right && penTip.y >= rect.top && penTip.y <= rect.bottom,
-            inkGap:Math.abs(inkEdge.x - penTip.x) / rect.width,
-            wristGap:Math.hypot(wrist.x - forearm.x, wrist.y - forearm.y) / rect.width,
-            shoulderGap:Math.hypot(shoulder.x - armStart.x, shoulder.y - armStart.y) / rect.width });
+          output.push({ progress:(localTip.x - 34) / 52, ink:inkMatrix.a, x:penTip.x,
+            inside:penTip.x >= rect.left && penTip.x <= rect.right && penTip.y >= rect.top && penTip.y <= rect.bottom,
+            inkGap:Math.abs(inkEdge.x - penTip.x) / rect.width, pathGap:Math.abs(localTip.y - inkPoint.y) });
         }
         return output;
       });
-      const valid = await theatre.getAttribute('data-atmosphere') === expected && frames.every((f, i) => f.inside && Math.abs(f.progress - i / 2) < .03 && Math.abs(f.ink - f.progress) < .03 && f.inkGap < .03 && f.wristGap < .02 && f.shoulderGap < .02) && frames[0].x < frames[1].x && frames[1].x < frames[2].x;
+      const valid = await theatre.getAttribute('data-atmosphere') === expected && frames.every((f, i) => f.inside && Math.abs(f.progress - i / 10) < .01 && Math.abs(f.ink - f.progress) < .01 && f.inkGap < .02 && f.pathGap < .05 && (i === 0 || f.x > frames[i - 1].x));
       choreography &&= valid; samples.push(`${width}:${expected}:${valid}${valid ? '' : `:${JSON.stringify(frames)}`}`);
     }
   }
-  check('Üç imzada kalem ucu belge üzerinde ilerler, imza onunla eşzamanlı çizilir', choreography, samples.join(' | '));
+  check('Üç imzada kalem ucu kâğıtta mürekkebin izlediği yolu çizer', choreography, samples.join(' | '));
   await page.getByTestId('fixture-reduce').check();
-  check('Azaltılmış harekette imza tamamlanmış olarak görünür, el ve mürekkep sabittir', await style(page.getByTestId('signing-hand'), 'animationName') === 'none' && await style(page.getByTestId('signing-ink-reveal'), 'animationName') === 'none' && await page.getByTestId('signing-ink').isVisible());
+  const reducedSigning = await page.getByTestId('signing-illustration').evaluate((svg) => {
+    const pen = svg.querySelector('[data-testid="signing-pen"]'), clip = svg.querySelector('[data-testid="signing-ink-reveal"]');
+    const position = new DOMMatrix(getComputedStyle(pen).transform), reveal = new DOMMatrix(getComputedStyle(clip).transform);
+    return { penAnimation:getComputedStyle(pen).animationName, inkAnimation:getComputedStyle(clip).animationName,
+      x:position.e, y:position.f, visibleInk:reveal.a };
+  });
+  check('Azaltılmış harekette tamamlanmış imza ve son noktadaki kalem sabittir', reducedSigning.penAnimation === 'none' && reducedSigning.inkAnimation === 'none' && Math.abs(reducedSigning.x - 52) < .01 && Math.abs(reducedSigning.y + 6) < .01 && Math.abs(reducedSigning.visibleInk - 1) < .01 && await page.getByTestId('signing-ink').isVisible(), JSON.stringify(reducedSigning));
   await page.getByTestId('fixture-reduce').uncheck();
   await page.setViewportSize({ width: 320, height: 720 });
   await page.getByTestId('fixture-transfer-beat').selectOption('offer');
   await page.getByTestId('fixture-transfer-mode').selectOption('reveal');
   await page.getByTestId('fixture-gen').selectOption('79');
-  check('Basın tanıtımında kameraman, mikrofonlar ve oyuncu selamı çizimdir', await theatre.getByTestId('broadcast-camera-operator').count() === 1 && await theatre.locator('.transfer-theatre__press-mics i').count() === 3 && await style(theatre.locator('.transfer-puppet__wave-hand'), 'animationName') === 'transfer-wave-hand');
+  check('Basın tanıtımında kameraman, mikrofonlar ve omuzları görünen oyuncu vardır', await theatre.getByTestId('broadcast-camera-operator').count() === 1 && await theatre.locator('.transfer-theatre__press-mics i').count() === 3 && await theatre.locator('.transfer-puppet--opponent .transfer-puppet__torso').count() === 1 && await theatre.locator('.transfer-puppet--opponent .transfer-puppet__arm').count() === 0);
   await page.getByTestId('fixture-gen').selectOption('85');
-  check('Yıldız tanıtımında oyuncu gerçek koluyla selam verir', await theatre.locator('.transfer-puppet__wave-arm').count() === 1 && await theatre.locator('.transfer-puppet__wave-hand').count() === 1 && await theatre.getAttribute('data-scene') === 'star');
+  check('Yıldız tanıtımında oyuncu ve omuzları kolsuz görünür', await theatre.locator('.transfer-puppet--opponent .transfer-puppet__torso').count() === 1 && await theatre.locator('.transfer-puppet--opponent .transfer-puppet__arm, .transfer-puppet--opponent .transfer-puppet__wave-arm').count() === 0 && await theatre.getAttribute('data-scene') === 'star');
   await page.getByTestId('fixture-transfer-mode').selectOption('seller');
   await page.getByTestId('fixture-transfer-beat').selectOption('offer');
   await page.getByTestId('fixture-speaker').selectOption('representative');

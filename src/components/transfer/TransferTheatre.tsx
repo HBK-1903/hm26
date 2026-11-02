@@ -11,10 +11,10 @@ import './transferTheatre.css';
 
 type TheatreMode = 'seller' | 'buyer' | 'player' | 'renewal' | 'reveal';
 
-type PuppetGesture = 'rest' | 'wave' | 'microphone';
+type PuppetGesture = 'rest' | 'microphone';
 
-/** The familiar portrait supplies the face and outfit; this scene adds a real
- * upper-body silhouette and articulated arms rather than a floating avatar. */
+/** The familiar portrait keeps a simple head-and-shoulders silhouette.
+ * The interviewer alone holds a microphone; players need no drawn arms. */
 export const CinematicPuppet: React.FC<{
   face: FaceLike; palette?: KitPalettes; talking: boolean; label: string;
   side: 'manager' | 'opponent'; decorative?: boolean; gesture?: PuppetGesture;
@@ -26,7 +26,7 @@ export const CinematicPuppet: React.FC<{
   const sleeve = colors.suit[normalized.suit];
   const layers = avatarParts(face, palette ?? BASE_PALETTES);
   return (
-    <div className={`transfer-puppet transfer-puppet--${side}${talking ? ' is-talking' : ''}${gesture === 'wave' ? ' is-waving' : ''}`} role={decorative ? undefined : 'img'} aria-label={decorative ? undefined : label} aria-hidden={decorative || undefined} data-talking={talking}>
+    <div className={`transfer-puppet transfer-puppet--${side}${talking ? ' is-talking' : ''}`} role={decorative ? undefined : 'img'} aria-label={decorative ? undefined : label} aria-hidden={decorative || undefined} data-talking={talking}>
       <svg viewBox="12 7 104 143" aria-hidden="true" focusable="false">
         <g className="transfer-puppet__torso">
           <path d="M51 89H77Q98 92 104 108L101 146Q64 153 27 146L24 108Q30 92 51 89Z" fill={sleeve} stroke="#314a40" strokeWidth="1.3" />
@@ -47,69 +47,39 @@ export const CinematicPuppet: React.FC<{
             <g dangerouslySetInnerHTML={{ __html: layers.hair + layers.glasses }} />
           </g>
         </g>
-        {gesture === 'microphone' ? <g className="transfer-puppet__mic-arm" data-testid="interview-microphone" data-target={microphoneTarget}>
+        {gesture === 'microphone' && <g className="transfer-puppet__mic-arm" data-testid="interview-microphone" data-target={microphoneTarget}>
           <path d="M31 103Q18 109 11 97L2 87" fill="none" stroke={sleeve} strokeWidth="12" strokeLinecap="round" strokeLinejoin="round" />
           <path d="M5 91L0 86" fill="none" stroke="#e6ddc5" strokeWidth="7" />
           <path d="M3 87L-17 70" fill="none" stroke="#253a38" strokeWidth="6" strokeLinecap="round" />
           <path d="M-10 75L-5 79" fill="none" stroke="#ddc796" strokeWidth="5" />
           <ellipse cx="-20" cy="67" rx="7" ry="8" transform="rotate(-48 -20 67)" fill="#6e8780" stroke="#233b37" strokeWidth="2" />
           <circle cx="2" cy="87" r="5" fill={skin} stroke="#604a3b" strokeWidth="1" />
-        </g> : <g className="transfer-puppet__arm transfer-puppet__arm--left">
-          <path d="M31 103Q20 111 25 123Q29 129 42 132" fill="none" stroke={sleeve} strokeWidth="13" strokeLinecap="round" strokeLinejoin="round" />
-          <path d="M37 130L43 132" fill="none" stroke="#e9dfc8" strokeWidth="7" />
-          <circle cx="45" cy="133" r="5" fill={skin} stroke="#604a3b" strokeWidth="1" />
-        </g>}
-        {gesture === 'wave' ? <g className="transfer-puppet__wave-arm">
-          <path d="M97 103Q109 100 109 88L108 76" fill="none" stroke={sleeve} strokeWidth="12" strokeLinecap="round" strokeLinejoin="round" />
-          <path d="M108 81L108 75" fill="none" stroke="#e9dfc8" strokeWidth="8" />
-          <g className="transfer-puppet__wave-hand">
-            <path d="M102 76L99 68Q98 65 100 64Q102 64 103 67V60Q103 58 105 58T107 60V65 59Q107 57 109 57T111 59V65 61Q111 59 113 59T115 61V70Q115 76 110 79Z" fill={skin} stroke="#604a3b" strokeWidth="1.2" strokeLinejoin="round" />
-            <path d="M106 65v4m4-4v4" fill="none" stroke="#604a3b" strokeWidth=".8" strokeLinecap="round" />
-          </g>
-        </g> : <g className="transfer-puppet__arm transfer-puppet__arm--right">
-          <path d="M97 103Q108 111 103 123Q99 129 86 132" fill="none" stroke={sleeve} strokeWidth="13" strokeLinecap="round" strokeLinejoin="round" />
-          <path d="M91 130L85 132" fill="none" stroke="#e9dfc8" strokeWidth="7" />
-          <circle cx="83" cy="133" r="5" fill={skin} stroke="#604a3b" strokeWidth="1" />
         </g>}
       </svg>
     </div>
   );
 };
 
-/** Shares the puppet's viewBox and sits over its desk, so the shoulder stays
- * attached at every viewport. The wrist and ink move together while the fixed
- * upper arm and clipped forearm keep the elbow connected. */
-const SigningAction: React.FC<{ skin: string; sleeve: string }> = ({ skin, sleeve }) => {
-  const id = React.useId().replace(/:/g, '');
-  const inkId = `signing-ink-${id}`, armId = `signing-arm-${id}`;
-  return <svg className="transfer-theatre__signing" data-testid="signing-illustration" viewBox="12 7 104 143" aria-hidden="true" focusable="false">
-    <defs>
-      <clipPath id={inkId}><rect className="transfer-signing__ink-reveal" data-testid="signing-ink-reveal" x="-6.3" y="142" width="21.4" height="11" /></clipPath>
-      <clipPath id={armId}><rect className="transfer-signing__forearm-reveal" data-testid="signing-forearm-reveal" x="8" y="120" width="35" height="25" /></clipPath>
-    </defs>
+/** Only the pen and paper move. The signature is revealed directly beneath
+ * the nib, with no detached hand or player arm in the illustration. */
+const SigningAction: React.FC = () => {
+  const inkId = `signing-ink-${React.useId().replace(/:/g, '')}`;
+  return <svg className="transfer-theatre__signing" data-testid="signing-illustration" viewBox="0 0 120 80" aria-hidden="true" focusable="false">
+    <defs><clipPath id={inkId}><rect className="transfer-signing__ink-reveal" data-testid="signing-ink-reveal" x="33.5" y="48" width="53" height="14" /></clipPath></defs>
     <g className="transfer-signing__paper">
-      <rect x="-18" y="125" width="52" height="30" rx="2" fill="#30473e" opacity=".3" />
-      <rect x="-20" y="123" width="52" height="30" rx="2" fill="#f5ecd4" stroke="#a39372" strokeWidth="1.2" />
-      <path d="M-14 129H25M-14 133H23M-14 137H14" stroke="#c0b69d" strokeWidth="1.25" strokeLinecap="round" />
-      <path d="M-9 150H22" stroke="#c6bba2" strokeWidth=".7" />
-      <path data-testid="signing-ink" d="M-6 147q2.5-3 3.8 0t3.8 0q1.8-3 2.5 0t3.1 0l7.2-1.8" fill="none" stroke="#4e4a38" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" clipPath={`url(#${inkId})`} />
+      <rect x="13" y="17" width="96" height="55" rx="3" fill="#30473e" opacity=".3" />
+      <rect x="11" y="15" width="96" height="55" rx="3" fill="#f5ecd4" stroke="#a39372" strokeWidth="1.8" />
+      <path d="M20 25H96M20 32H92M20 39H76" stroke="#c0b69d" strokeWidth="2" strokeLinecap="round" />
+      <path d="M29 63H94" stroke="#c6bba2" strokeWidth="1" />
+      <path data-testid="signing-ink" d="M34 58L39 55L43 58L47 53L51 58L55 55L59 58L64 55L70 57L77 53L86 52" fill="none" stroke="#4e4a38" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" clipPath={`url(#${inkId})`} />
     </g>
-    <g data-testid="signing-upper-arm">
-      <path d="M31 103Q20 111 25 123Q29 130 39 132" fill="none" stroke="#314a40" strokeWidth="15" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M31 103Q20 111 25 123Q29 130 39 132" fill="none" stroke={sleeve} strokeWidth="12.5" strokeLinecap="round" strokeLinejoin="round" />
-    </g>
-    <g clipPath={`url(#${armId})`}>
-      <path d="M39 132H8" fill="none" stroke="#314a40" strokeWidth="15" strokeLinecap="round" />
-      <path d="M39 132H8" fill="none" stroke={sleeve} strokeWidth="12.5" strokeLinecap="round" />
-    </g>
-    <g className="transfer-signing__hand" data-testid="signing-hand">
+    <g className="transfer-signing__pen" data-testid="signing-pen">
       <g className="transfer-signing__lift">
-        <path d="M10 128l3 8" fill="none" stroke="#f0e5cf" strokeWidth="6" />
-        <path d="M-6 147L6 131" fill="none" stroke="#203936" strokeWidth="2.5" strokeLinecap="round" />
-        <path d="M.2 138.3l3-4.2" stroke="#e1bd72" strokeWidth="2.5" strokeLinecap="round" />
-        <circle data-testid="signing-pen-tip" cx="-6" cy="147" r=".75" fill="#aa824b" />
-        <path d="M4.8 128q4.4-1.9 8.1 1.9l1.9 3.7q-.6 3.1-3.7 3.1l-3.7-2.5q-2.5 1.9-4.4-.6l-1.2-2.5q.6-2.5 3-3.1Z" fill={skin} stroke="#6b5040" strokeWidth=".9" />
-        <path d="M5.4 131l3.1 2.5m-.6-4.4 3.1 2.5" fill="none" stroke="#6b5040" strokeWidth=".7" strokeLinecap="round" />
+        <path d="M35 56L52 27" fill="none" stroke="#203936" strokeWidth="5" strokeLinecap="round" />
+        <path d="M38 51L41 46M49 32L51 29" fill="none" stroke="#e1bd72" strokeWidth="4.5" strokeLinecap="round" />
+        <path d="M41 45L50 30" fill="none" stroke="#7b9a8b" strokeWidth="1" strokeLinecap="round" />
+        <path d="M34 58l1-5 3 2Z" fill="#cba85f" stroke="#30473e" strokeWidth=".8" />
+        <circle data-testid="signing-pen-tip" cx="34" cy="58" r=".7" fill="#4e4a38" />
       </g>
     </g>
   </svg>;
@@ -161,8 +131,6 @@ export const TransferTheatre: React.FC<{
     ? presetFace(transferDialogueHash(seller?.id ?? 'representative') % 6)
     : playerFaceFromSeed(playerFaceSeed(player.id));
   const opponentPalette = isRepresentative ? BASE_PALETTES : palette;
-  const opponentColors = extendPalettes(opponentPalette);
-  const opponentAppearance = normalizeFace(opponentFace, opponentColors);
   const opponentSpeaker: TransferSpeaker = isRepresentative ? 'representative' : 'player';
   const title = beat === 'signed' && mode !== 'reveal' ? 'İMZA MASASI' : mode === 'seller' ? 'KULÜP GÖRÜŞMESİ' : mode === 'buyer' ? 'SATIŞ GÖRÜŞMESİ' : mode === 'renewal' ? 'SÖZLEŞME YENİLEME' : mode === 'player' ? 'OYUNCUYLA GÖRÜŞME' : reveal === 'star' ? 'YILDIZ TANITIMI' : reveal === 'stadium' ? 'STADYUM TANITIMI' : 'BASIN TANITIMI';
   const venue = mode !== 'reveal' ? (seller?.name ?? 'Serbest oyuncu') : reveal === 'press' ? 'Basın odası' : club.stadium;
@@ -174,7 +142,7 @@ export const TransferTheatre: React.FC<{
         <div className="transfer-theatre__veil" aria-hidden="true" />
         {(scene === 'stadium' || scene === 'star') && <><div className="transfer-theatre__stadium-lights" aria-hidden="true" /><div className="transfer-theatre__flags" aria-hidden="true"><i /><i /><i /><i /></div></>}
         {scene === 'press' && <><div className="transfer-theatre__press-light" aria-hidden="true" /><BroadcastCrew className="transfer-theatre__crew" /></>}
-        {scene === 'negotiation' && <div className="transfer-theatre__desk" aria-hidden="true"><i /><b /><em /><strong /></div>}
+        {scene === 'negotiation' && <div className="transfer-theatre__desk" aria-hidden="true"><i /><b /><em /><strong />{signing && <SigningAction />}</div>}
         {scene === 'star' && <div className="transfer-theatre__confetti" aria-hidden="true">{Array.from({ length: 14 }, (_, i) => <i key={i} style={{ '--i': i } as React.CSSProperties} />)}</div>}
         <div className="transfer-theatre__actors">
           <div className={`transfer-theatre__actor${speaking === 'manager' ? ' is-speaking' : ''}`}>
@@ -183,11 +151,8 @@ export const TransferTheatre: React.FC<{
             <span>MENAJER</span>
           </div>
           {mode === 'reveal' && <Shirt club={club} player={player} />}
-          <div className={`transfer-theatre__actor${speaking === opponentSpeaker ? ' is-speaking' : ''}${signing ? ' is-signing' : ''}`}>
-            <div className="transfer-theatre__puppet-wrap">
-              <CinematicPuppet face={opponentFace} palette={opponentPalette} talking={speaking === opponentSpeaker} label={isRepresentative ? 'Kulüp temsilcisi' : player.name} side="opponent" gesture={mode === 'reveal' ? 'wave' : 'rest'} />
-              {signing && <SigningAction skin={opponentColors.skin[opponentAppearance.skin]} sleeve={opponentColors.suit[opponentAppearance.suit]} />}
-            </div>
+          <div className={`transfer-theatre__actor${speaking === opponentSpeaker ? ' is-speaking' : ''}`}>
+            <CinematicPuppet face={opponentFace} palette={opponentPalette} talking={speaking === opponentSpeaker} label={isRepresentative ? 'Kulüp temsilcisi' : player.name} side="opponent" />
             {speaking === opponentSpeaker && <div className="transfer-theatre__voice-meter" aria-hidden="true"><i /><i /><i /></div>}
             <span>{isRepresentative ? 'TEMSİLCİ' : 'OYUNCU'}</span>
           </div>

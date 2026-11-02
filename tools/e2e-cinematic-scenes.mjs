@@ -189,6 +189,24 @@ try {
   });
   check('Kısa röportajda başlık karakter yüzlerini ve etiketleri kapatmaz', compactInterview.actors.length === 2 && compactInterview.actors.every((actor) => !overlap(compactInterview.heading, actor)) && compactInterview.labels.every((display) => display === 'none'), JSON.stringify(compactInterview));
   await screenshot('04a-interview-short-320');
+  await page.waitForFunction(() => getComputedStyle(document.querySelector('.interview-theatre__world')).transform === 'none');
+  const interviewLayouts = [];
+  for (const [width, height] of [[320,480], [320,720], [360,640], [390,844], [540,720], [568,320], [844,390], [860,480], [915,412], [1280,800]]) {
+    await page.setViewportSize({ width, height });
+    interviewLayouts.push(await page.evaluate(() => {
+      const box = (node) => { const r = node.getBoundingClientRect(); return {left:r.left,right:r.right,top:r.top,bottom:r.bottom}; };
+      const scene = box(document.querySelector('.cinematic-layout__scene')), heading = box(document.querySelector('.interview-theatre__heading > div')), score = box(document.querySelector('.interview-theatre__score'));
+      const faces = [...document.querySelectorAll('.interview-theatre__person .transfer-puppet__head')].map(box);
+      const shoulders = [...document.querySelectorAll('.interview-theatre__person .transfer-puppet__torso > path:first-child')].map(box);
+      const covers = (a, b) => a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+      return { width:innerWidth, height:innerHeight, noOverflow:document.documentElement.scrollWidth <= innerWidth,
+        facesVisible:faces.length === 2 && faces.every((face) => face.left >= scene.left && face.right <= scene.right && face.top >= scene.top && face.bottom <= scene.bottom && !covers(face, heading) && !covers(face, score)),
+        shouldersVisible:shoulders.length === 2 && shoulders.every((shoulder) => shoulder.top + 3 < score.top),
+        mic:!!document.querySelector('[data-testid="interview-microphone"]'), camera:!!document.querySelector('[data-testid="broadcast-camera-operator"]') };
+    }));
+  }
+  check('Dikey ve yatay ekranlarda röportaj yüzleri, omuzları, mikrofon ve kameraman görünür', interviewLayouts.every((layout) => layout.noOverflow && layout.facesVisible && layout.shouldersVisible && layout.mic && layout.camera), JSON.stringify(interviewLayouts));
+  await page.setViewportSize({ width: 320, height: 480 });
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.waitForFunction(() => document.querySelector('[data-testid="cinematic-overlay"]')?.getAttribute('data-motion') === 'reduced');
   await page.getByTestId('interview-option-0').click();

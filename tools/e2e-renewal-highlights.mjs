@@ -130,7 +130,7 @@ try {
   check('Önceki çift tıklama yenileme imzası yerine geçmez', await flow.getAttribute('data-stage') === 'review');
   await page.getByTestId('renewal-sign').dblclick();
   check('Çift imza sonrası yenilemenin kendi imza sahnesi açılır, tanıtım açılmaz', await flow.getAttribute('data-stage') === 'signed' && await scene.getAttribute('data-scene') === 'negotiation' && await scene.getByTestId('scene-backdrop').getAttribute('data-atmosphere') === 'sign-renewal');
-  check('Yenilemede imza eli, kalem ve belge aynı sahnede görünür', await scene.getByTestId('signing-illustration').count() === 1 && await scene.getByTestId('signing-hand').count() === 1 && await scene.getByTestId('signing-ink').count() === 1);
+  check('Yenilemede el olmadan kalem ve belge, oyuncunun omuzlarıyla görünür', await scene.getByTestId('signing-illustration').count() === 1 && await scene.getByTestId('signing-pen').count() === 1 && await scene.getByTestId('signing-ink').count() === 1 && await scene.getByTestId('signing-hand').count() === 0 && await scene.locator('.transfer-puppet--opponent .transfer-puppet__torso').count() === 1);
   await page.waitForFunction(() => document.querySelector('[data-testid="transfer-theatre"]')?.getAttribute('data-shot') === 'table', null, { timeout: 5000 });
   check('Yenileme imzasında kısa masa çekimi ardından sonuç kullanıcıyı bekler', await flow.getAttribute('data-stage') === 'signed' && await page.getByRole('button', { name:'Sözleşmelere Dön' }).isEnabled());
   saved = await waitForSave((b) => b?.playerPatch?.[playerId]?.contractYears === 4);
