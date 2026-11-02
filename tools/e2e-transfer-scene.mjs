@@ -109,6 +109,21 @@ try {
   await page.waitForFunction(() => document.querySelector('[data-testid="transfer-theatre"]')?.getAttribute('data-shot') === 'table', null, { timeout: 5000 });
   check('İmzaya kısa masa yakınlaşması, kullanıcıya bırakılan tanıtım düğmesini engellemez', await page.getByTestId('transfer-open-reveal').isEnabled() && await page.getByTestId('transfer-theatre').getAttribute('data-shot') === 'table');
   check('Mobil masa yakınlaşmasında kişi etiketleri sahne başlığını örtmez', await page.locator('.transfer-theatre__actor > span').first().evaluate((el) => getComputedStyle(el).visibility === 'hidden'));
+  await page.setViewportSize({ width:320, height:480 });
+  const longVenue = await page.evaluate(() => {
+    const venue = document.querySelector('.transfer-theatre__venue'), previous = venue.textContent;
+    const theatre = document.querySelector('[data-testid="transfer-theatre"]'), previousShot = theatre.dataset.shot;
+    const world = document.querySelector('.transfer-theatre__world');
+    venue.textContent = 'Erzurum Palandöken Gücü'; theatre.dataset.shot = 'table'; world.style.transition = 'none';
+    const box = (el) => { const r = el.getBoundingClientRect(); return {left:r.left,right:r.right,top:r.top,bottom:r.bottom}; };
+    const heading = box(document.querySelector('.transfer-theatre__heading > div'));
+    const faces = [...document.querySelectorAll('.transfer-puppet__head')].map(box);
+    const overlaps = (a, b) => a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+    const result = { facesClear:faces.length === 2 && faces.every((face) => !overlaps(face, heading)), zoom:new DOMMatrix(getComputedStyle(world).transform).a };
+    venue.textContent = previous; theatre.dataset.shot = previousShot; world.style.removeProperty('transition'); return result;
+  });
+  check('Uzun kulüp adı kısa ekranda masa yakınlaşmasında yüzleri örtmez', longVenue.facesClear && longVenue.zoom > 1, JSON.stringify(longVenue));
+  await page.setViewportSize({ width:390, height:844 });
   await page.getByTestId('cinematic-camera-toggle').click();
   check('İmzadaysa sabit kamera seçimi masayı geniş kadraja döndürür', await page.getByTestId('transfer-theatre').getAttribute('data-shot') === 'wide' && await page.getByTestId('signing-illustration').isVisible() && await page.locator('.transfer-theatre__actor > span').first().evaluate((el) => getComputedStyle(el).visibility === 'visible'));
   await page.waitForFunction(() => getComputedStyle(document.querySelector('.transfer-theatre__world')).transform === 'none');

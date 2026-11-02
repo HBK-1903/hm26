@@ -35,7 +35,7 @@ export const InterviewTheatre: React.FC<{
         </div>
       </div>
     </div>
-    <div className="interview-theatre__heading"><div><span>MAÇ SONU · YAYIN</span><strong>{home.stadium}</strong></div><b>FLASH</b></div>
+    <div className="interview-theatre__heading"><div><span>MAÇ SONU · YAYIN</span><strong title={home.stadium}>{home.stadium}</strong></div><b>FLASH</b></div>
     <div className="interview-theatre__score" aria-label={`Maç sonucu ${home.name} ${homeGoals}, ${away.name} ${awayGoals}`}>
       <Crest club={home} size={26} /><strong>{homeGoals}–{awayGoals}</strong><Crest club={away} size={26} />
     </div>

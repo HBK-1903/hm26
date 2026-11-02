@@ -188,6 +188,17 @@ try {
       labels:[...document.querySelectorAll('.interview-theatre__person > span')].map((el) => getComputedStyle(el).display) };
   });
   check('Kısa röportajda başlık karakter yüzlerini ve etiketleri kapatmaz', compactInterview.actors.length === 2 && compactInterview.actors.every((actor) => !overlap(compactInterview.heading, actor)) && compactInterview.labels.every((display) => display === 'none'), JSON.stringify(compactInterview));
+  const longStadium = await page.evaluate(() => {
+    const venue = document.querySelector('.interview-theatre__heading strong'), previous = venue.textContent;
+    venue.textContent = 'Kahramanmaraş İstiklâl Şehir Stadı';
+    const box = (el) => { const r = el.getBoundingClientRect(); return {left:r.left,right:r.right,top:r.top,bottom:r.bottom}; };
+    const heading = box(document.querySelector('.interview-theatre__heading > div'));
+    const faces = [...document.querySelectorAll('.interview-theatre__person .transfer-puppet__head')].map(box);
+    const overlaps = (a, b) => a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+    const result = { facesClear:faces.length === 2 && faces.every((face) => !overlaps(face, heading)), nowrap:getComputedStyle(venue).whiteSpace === 'nowrap' };
+    venue.textContent = previous; return result;
+  });
+  check('Uzun stat adı kısa röportajda yüzleri örtmez', longStadium.facesClear && longStadium.nowrap, JSON.stringify(longStadium));
   await screenshot('04a-interview-short-320');
   await page.waitForFunction(() => getComputedStyle(document.querySelector('.interview-theatre__world')).transform === 'none');
   const interviewLayouts = [];

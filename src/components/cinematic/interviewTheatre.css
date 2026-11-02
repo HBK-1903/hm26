@@ -12,7 +12,7 @@
 .interview-theatre__heading { position:absolute; z-index:4; top:13px; left:16px; right:16px; display:flex; align-items:flex-start; justify-content:space-between; gap:10px; text-shadow:0 2px 6px #000; }
 .interview-theatre__heading > div { min-width:0; padding:4px 8px; border-radius:7px; background:#28463de8; }
 .interview-theatre__heading span { display:block; color:#edc880; font-size:9px; font-weight:900; letter-spacing:.15em; }
-.interview-theatre__heading strong { display:block; margin-top:3px; font-size:12px; line-height:1.1; }
+.interview-theatre__heading strong { display:block; margin-top:3px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; font-size:12px; line-height:1.1; }
 .interview-theatre__heading > b { padding:4px 7px; border:1px solid #e5c58e88; border-radius:5px; background:#112622c9; color:#f5d69c; font-size:9px; letter-spacing:.1em; }
 .interview-theatre__score { position:absolute; z-index:4; bottom:12px; left:50%; transform:translateX(-50%); display:flex; align-items:center; gap:10px; padding:5px 11px; border:1px solid #e5d2a477; border-radius:10px; background:#102122e8; box-shadow:0 4px 12px #0007; }
 .interview-theatre__score strong { font:900 17px ui-monospace,monospace; }

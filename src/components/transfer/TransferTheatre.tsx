@@ -160,7 +160,7 @@ export const TransferTheatre: React.FC<{
         {scene === 'press' && <div className="transfer-theatre__press-mics" aria-hidden="true"><i /><i /><i /></div>}
       </div>
       <div className="transfer-theatre__heading">
-        <div><div className="transfer-theatre__eyebrow">{title}</div><div className="transfer-theatre__venue">{venue}</div></div>
+        <div><div className="transfer-theatre__eyebrow">{title}</div><div className="transfer-theatre__venue" title={venue}>{venue}</div></div>
         <span className="transfer-theatre__crest"><Crest club={club} size={35} /></span>
       </div>
       <div className="transfer-theatre__foot" aria-hidden="true" />

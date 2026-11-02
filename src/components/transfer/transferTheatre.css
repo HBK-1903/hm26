@@ -174,13 +174,15 @@ html.m26-rm .transfer-theatre__world { transition:none !important; transform:non
 /* During the brief table close-up, name tags would overlap the fixed heading
    on narrow screens; they return with the wide shot. */
 @media (max-width:859px) {
+  .transfer-theatre--cinematic .transfer-theatre__venue { overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
   .transfer-theatre--cinematic[data-shot="table"] .transfer-theatre__actor > span { visibility:hidden; }
 }
 /* Compact scenes still show both people and the table, without covering their faces with labels. */
 @media (max-height:560px) and (max-width:859px), (max-height:499px) {
-  .transfer-theatre--cinematic .transfer-theatre__heading { top:6px; left:10px; right:10px; }
+  .transfer-theatre--cinematic .transfer-theatre__heading { top:4px; left:10px; right:10px; }
   .transfer-theatre--cinematic .transfer-theatre__eyebrow { font-size:8px; }
   .transfer-theatre--cinematic .transfer-theatre__venue { font-size:11px; }
+  .transfer-theatre--cinematic[data-shot="table"] .transfer-theatre__world { transform:scale(1.04) translateY(-1%); }
   .transfer-theatre--cinematic .transfer-theatre__actors { inset:28% 5% 22%; gap:clamp(12px,5vw,45px); }
   .transfer-theatre--cinematic .transfer-theatre__actor { width:20%; width:min(20%,36.4cqh); }
   .transfer-theatre--cinematic .transfer-puppet svg { max-height:clamp(42px,12vh,67px); }
